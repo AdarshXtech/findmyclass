@@ -54,19 +54,19 @@ export default function LandingPage() {
               <HiOutlineAcademicCap className="text-xl" />
             </span>
             <div>
-              <p className="font-serif text-lg font-bold leading-none">Find My Class</p>
-              <p className="mt-1 text-[11px] uppercase text-[#5d6259]">BBD University</p>
+              <p className="font-display text-lg font-bold leading-none">Find My Class</p>
+              <p className="mt-1 font-mono text-[11px] uppercase text-[#5d6259]">BBD University</p>
             </div>
           </div>
-          <p className="hidden text-sm text-[#5d6259] sm:block">Odd semester / 2026-27</p>
+          <p className="hidden font-mono text-sm text-[#5d6259] sm:block">Odd semester / 2026-27</p>
         </div>
       </header>
 
       <main>
         <section className="mx-auto max-w-6xl px-5 pb-12 pt-12 sm:px-8 md:pb-16 md:pt-20">
-          <p className="mb-5 text-xs font-bold uppercase text-[#a33a2b]">School of Engineering / CSAI 2B</p>
+          <p className="mb-5 font-mono text-xs font-bold uppercase text-[#a33a2b]">School of Engineering / CSAI 2B</p>
           <div className="max-w-3xl">
-            <h1 className="font-serif text-5xl font-bold leading-[0.98] sm:text-6xl md:text-7xl">
+            <h1 className="font-display text-5xl font-bold leading-[0.98] sm:text-6xl md:text-7xl">
               CSAI 2B timetable
             </h1>
             <p className="mt-6 max-w-xl text-lg leading-7 text-[#55594f]">
@@ -94,7 +94,7 @@ export default function LandingPage() {
                   autoFocus
                   required
                   aria-describedby={error ? 'roll-number-error' : 'roll-number-hint'}
-                  className="h-14 w-full border border-[#868a80] bg-[#fffdf7] pl-12 pr-4 text-lg font-semibold outline-none transition focus:border-[#a33a2b] focus:ring-2 focus:ring-[#a33a2b]/20"
+                  className="h-14 w-full border border-[#868a80] bg-[#fffdf7] pl-12 pr-4 font-mono text-lg font-semibold outline-none transition focus:border-[#a33a2b] focus:ring-2 focus:ring-[#a33a2b]/20"
                 />
               </div>
               <button
@@ -119,8 +119,8 @@ export default function LandingPage() {
         <section className="bg-[#20211e] text-[#f3efe5]">
           <div className="mx-auto grid max-w-6xl gap-8 px-5 py-6 sm:px-8 md:grid-cols-[220px_minmax(0,1fr)] md:items-start md:py-8">
             <div className="md:pt-5">
-              <p className="text-xs font-bold uppercase text-[#e7b949]">Source sheet</p>
-              <h2 className="mt-3 font-serif text-3xl font-bold leading-tight">The department timetable, made searchable.</h2>
+              <p className="font-mono text-xs font-bold uppercase text-[#e7b949]">Source sheet</p>
+              <h2 className="mt-3 font-display text-3xl font-bold leading-tight">The department timetable, made searchable.</h2>
               <p className="mt-4 text-sm leading-6 text-[#babdb4]">
                 Rooms and times follow the timetable issued for B.Tech second year. Tuesday is intentionally blank.
               </p>

@@ -88,7 +88,7 @@ export default function ResultPage() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#f3efe5] px-5 text-[#20211e]">
         <div className="border-l-4 border-[#a33a2b] pl-5">
-          <p className="font-serif text-2xl font-bold">Reading the class roster</p>
+          <p className="font-display text-2xl font-bold">Reading the class roster</p>
           <p className="mt-1 text-sm text-[#6b6f65]">Loading timetable and room assignments...</p>
         </div>
       </div>
@@ -100,7 +100,7 @@ export default function ResultPage() {
       <div className="flex min-h-screen items-center justify-center bg-[#f3efe5] px-5 text-[#20211e]">
         <div className="w-full max-w-lg border-y border-[#20211e] py-8">
           <p className="text-xs font-bold uppercase text-[#a33a2b]">{canRetry ? 'Service unavailable' : 'Roster check'}</p>
-          <h1 className="mt-3 font-serif text-4xl font-bold">We could not open that timetable.</h1>
+          <h1 className="mt-3 font-display text-4xl font-bold">We could not open that timetable.</h1>
           <p className="mt-4 leading-7 text-[#55594f]">{error}</p>
           <div className="mt-7 flex flex-wrap gap-3">
             {canRetry ? <button onClick={lookupStudent} className="bg-[#a33a2b] px-5 py-3 font-bold text-white">Retry</button> : null}
@@ -126,18 +126,18 @@ export default function ResultPage() {
           <button onClick={() => navigate('/')} className="flex h-10 w-10 items-center justify-center border border-[#20211e] transition hover:bg-[#20211e] hover:text-white" aria-label="Search again" title="Search again">
             <HiOutlineArrowLeft className="text-xl" />
           </button>
-          <p className="font-serif text-lg font-bold">Find My Class</p>
-          <p className="text-xs font-bold text-[#a33a2b]">2026-27</p>
+          <p className="font-display text-lg font-bold">Find My Class</p>
+          <p className="font-mono text-xs font-bold text-[#a33a2b]">2026-27</p>
         </div>
       </header>
 
       <main className="mx-auto max-w-6xl px-5 py-10 sm:px-8 md:py-14">
         <section className="border-b-2 border-[#20211e] pb-8">
-          <p className="text-xs font-bold uppercase text-[#a33a2b]">{displaySection} / Semester III</p>
+          <p className="font-mono text-xs font-bold uppercase text-[#a33a2b]">{displaySection} / Semester III</p>
           <div className="mt-4 grid gap-7 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
             <div>
-              <h1 className="font-serif text-4xl font-bold leading-tight sm:text-5xl">{displayName}</h1>
-              <p className="mt-2 text-[#62665d]">University roll {student.universityRollNumber}</p>
+              <h1 className="font-display text-4xl font-bold leading-tight sm:text-5xl">{displayName}</h1>
+              <p className="mt-2 text-[#62665d]">University roll <span className="font-mono">{student.universityRollNumber}</span></p>
             </div>
             <dl className="grid grid-cols-3 border border-[#20211e]/30 bg-[#fffdf7]">
               <div className="border-r border-[#20211e]/20 px-4 py-3">
@@ -159,7 +159,7 @@ export default function ResultPage() {
         <div className="mb-7 mt-10 flex flex-wrap items-baseline justify-between gap-3">
           <div className="flex items-center gap-3">
             <HiOutlineCalendar className="text-2xl text-[#a33a2b]" />
-            <h2 className="font-serif text-3xl font-bold">Weekly timetable</h2>
+            <h2 className="font-display text-3xl font-bold">Weekly timetable</h2>
           </div>
           {timetable.length ? <p className="text-sm text-[#6b6f65]">{subjectCount} subjects / {teachingEntries.length} sessions</p> : null}
         </div>
@@ -174,32 +174,32 @@ export default function ResultPage() {
               return (
                 <section key={day.id} className="grid border-b border-[#20211e]/35 md:grid-cols-[150px_minmax(0,1fr)]">
                   <div className="flex items-baseline justify-between bg-[#e6b845] px-4 py-4 md:block md:py-6">
-                    <p className="text-xs font-black">{day.shortName}</p>
-                    <h3 className="mt-1 font-serif text-xl font-bold">{day.name}</h3>
+                    <p className="font-mono text-xs font-black">{day.shortName}</p>
+                    <h3 className="mt-1 font-display text-xl font-bold">{day.name}</h3>
                     <p className="mt-3 text-xs md:block">{isDayOff ? 'Day off' : `${classCount} sessions`}</p>
                   </div>
                   {!isDayOff ? (
                     <div className="divide-y divide-[#20211e]/20 bg-[#fffdf7]">
                       {entries.map((entry) => entry.sessionType === 'Break' ? (
                         <article key={entry.id} className="grid gap-3 bg-[#f3dfaa] px-4 py-4 sm:grid-cols-[190px_minmax(0,1fr)_120px] sm:items-center sm:px-6">
-                          <div className="flex items-center gap-2 whitespace-nowrap text-sm font-bold">
+                          <div className="flex items-center gap-2 whitespace-nowrap font-mono text-sm font-bold">
                             <HiOutlineClock className="text-lg text-[#a33a2b]" />
                             <span>{formatTime(entry.startTime)} - {formatTime(entry.endTime)}</span>
                           </div>
                           <div className="min-w-0">
-                            <p className="font-serif text-lg font-bold">Lunch break</p>
+                            <p className="font-display text-lg font-bold">Lunch break</p>
                           </div>
                           <div className="text-sm font-medium text-[#6b5b32] sm:text-right">No class scheduled</div>
                         </article>
                       ) : (
                         <article key={entry.id} className="grid gap-3 px-4 py-5 sm:grid-cols-[190px_minmax(0,1fr)_120px] sm:items-center sm:px-6">
-                          <div className="flex items-center gap-2 whitespace-nowrap text-sm font-bold">
+                          <div className="flex items-center gap-2 whitespace-nowrap font-mono text-sm font-bold">
                             <HiOutlineClock className="text-lg text-[#a33a2b]" />
                             <span>{formatTime(entry.startTime)} - {formatTime(entry.endTime)}</span>
                           </div>
                           <div className="min-w-0">
                             <div className="mb-1 flex flex-wrap items-center gap-2 text-xs">
-                              {entry.subjectCode ? <span className="font-black text-[#17726a]">{entry.subjectCode}</span> : null}
+                              {entry.subjectCode ? <span className="font-mono font-black text-[#17726a]">{entry.subjectCode}</span> : null}
                               <span className="text-[#73776d]">{entry.sessionType}</span>
                             </div>
                             <p className="font-bold leading-5">{entry.subjectName}</p>
@@ -214,7 +214,7 @@ export default function ResultPage() {
                     </div>
                   ) : (
                     <div className="flex items-center bg-[#fffdf7] px-6 py-8">
-                      <p className="font-serif text-xl font-bold text-[#55594f]">Day off</p>
+                      <p className="font-display text-xl font-bold text-[#55594f]">Day off</p>
                     </div>
                   )}
                 </section>

@@ -159,10 +159,12 @@ export default function AdminClassroomsPage() {
         <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <input
             className="input-field"
+            aria-label="Section"
             placeholder="Section (e.g. CSE-A)"
             value={form.section}
             onChange={(e) => setForm({ ...form, section: e.target.value.toUpperCase() })}
             list="sections-list"
+            required
           />
           <datalist id="sections-list">
             {sections.map((section) => (
@@ -172,10 +174,12 @@ export default function AdminClassroomsPage() {
 
           <input
             className="input-field"
+            aria-label="Subject"
             placeholder="Subject"
             value={form.subject}
             onChange={(e) => setForm({ ...form, subject: e.target.value })}
             list="subjects-list"
+            required
           />
           <datalist id="subjects-list">
             {subjects.map((subject) => (
@@ -185,14 +189,18 @@ export default function AdminClassroomsPage() {
 
           <input
             className="input-field"
+            aria-label="Floor"
             placeholder="Floor (e.g. 3rd Floor)"
             value={form.floor}
             onChange={(e) => setForm({ ...form, floor: e.target.value })}
+            required
           />
           <select
             className="input-field"
+            aria-label="Wing"
             value={form.wing}
             onChange={(e) => setForm({ ...form, wing: e.target.value })}
+            required
           >
             <option value="">Select Wing</option>
             <option value="A">A</option>
@@ -201,9 +209,11 @@ export default function AdminClassroomsPage() {
           </select>
           <input
             className="input-field md:col-span-2"
+            aria-label="Room"
             placeholder="Room (e.g. 305 or Lab-501)"
             value={form.room}
             onChange={(e) => setForm({ ...form, room: e.target.value })}
+            required
           />
 
           <div className="md:col-span-2 flex flex-wrap gap-3">
@@ -223,14 +233,15 @@ export default function AdminClassroomsPage() {
           </div>
         </form>
 
-        {error ? <p className="mt-4 text-sm text-red-300">{error}</p> : null}
-        {success ? <p className="mt-4 text-sm text-emerald-300">{success}</p> : null}
+        {error ? <p role="alert" className="mt-4 text-sm text-red-300">{error}</p> : null}
+        {success ? <p role="status" className="mt-4 text-sm text-emerald-300">{success}</p> : null}
       </section>
 
       <section className="glass-card rounded-2xl p-6">
         <div className="mb-4">
           <select
             className="input-field md:w-56 py-3"
+            aria-label="Filter classrooms by section"
             value={sectionFilter}
             onChange={(e) => setSectionFilter(e.target.value)}
           >

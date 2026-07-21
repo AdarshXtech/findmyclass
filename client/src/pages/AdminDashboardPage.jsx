@@ -91,7 +91,7 @@ export default function AdminDashboardPage() {
                     <span className="text-slate-400">{count}</span>
                   </div>
                   <div className="h-2 rounded-full bg-slate-800 overflow-hidden">
-                    <div className="h-full bg-gradient-to-r from-indigo-500 to-sky-400" style={{ width: `${width}%` }} />
+                    <div className="h-full bg-orange-600" style={{ width: `${width}%` }} />
                   </div>
                 </div>
               )

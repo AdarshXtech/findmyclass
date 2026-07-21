@@ -2,10 +2,83 @@ const initSqlJs = require('sql.js');
 const fs = require('fs');
 const path = require('path');
 
-const DB_PATH = path.join(__dirname, '..', 'database.sqlite');
+const configuredDatabasePath = String(process.env.DATABASE_PATH || '').trim();
+const DB_PATH = configuredDatabasePath
+  ? path.resolve(configuredDatabasePath)
+  : path.join(__dirname, '..', 'database.sqlite');
 
 let db = null;
 let dbReady = null;
+
+function migrateStudentsTable() {
+  const columns = queryAll('PRAGMA table_info(students)');
+  const expectedColumns = [
+    'student_id',
+    'name',
+    'university_roll_number',
+    'class_roll_number',
+    'course',
+    'branch',
+    'year',
+    'section',
+    'created_at',
+  ];
+  const hasUniversityRoll = columns.some((column) => column.name === 'university_roll_number');
+  const hasClassRoll = columns.some((column) => column.name === 'class_roll_number');
+  const universityRollColumn = columns.find((column) => column.name === 'university_roll_number');
+  const hasExactColumns = columns.length === expectedColumns.length
+    && expectedColumns.every((name) => columns.some((column) => column.name === name));
+
+  if (hasExactColumns && hasUniversityRoll && hasClassRoll && universityRollColumn?.notnull === 1) return;
+
+  if (!hasUniversityRoll) {
+    throw new Error('Student records must be assigned university roll numbers before upgrading the database.');
+  }
+
+  const studentsWithoutRoll = queryOne(
+    'SELECT COUNT(*) AS count FROM students WHERE university_roll_number IS NULL OR TRIM(university_roll_number) = ? ',
+    ['']
+  );
+  if (studentsWithoutRoll.count > 0) {
+    throw new Error('Every student must have a university roll number before upgrading the student schema.');
+  }
+
+  db.run('DROP TABLE IF EXISTS students_migrated');
+  db.run('BEGIN TRANSACTION');
+  try {
+    db.run(`
+      CREATE TABLE students_migrated (
+        student_id             INTEGER PRIMARY KEY AUTOINCREMENT,
+        name                   TEXT NOT NULL,
+        university_roll_number TEXT NOT NULL UNIQUE,
+        class_roll_number      INTEGER,
+        course                 TEXT NOT NULL,
+        branch                 TEXT NOT NULL,
+        year                   INTEGER NOT NULL,
+        section                TEXT NOT NULL,
+        created_at             DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    const classRollExpression = hasClassRoll ? 'class_roll_number' : 'NULL';
+    db.run(`
+      INSERT INTO students_migrated (
+        student_id, name, university_roll_number, class_roll_number,
+        course, branch, year, section, created_at
+      )
+      SELECT
+        student_id, name, university_roll_number, ${classRollExpression},
+        course, branch, year, section, created_at
+      FROM students
+    `);
+    db.run('DROP TABLE students');
+    db.run('ALTER TABLE students_migrated RENAME TO students');
+    db.run('COMMIT');
+  } catch (error) {
+    db.run('ROLLBACK');
+    throw error;
+  }
+}
 
 /**
  * Initialize sql.js and load or create the database.
@@ -26,16 +99,19 @@ function initDatabase() {
     // Create tables
     db.run(`
       CREATE TABLE IF NOT EXISTS students (
-        student_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name       TEXT NOT NULL,
-        phone      TEXT NOT NULL UNIQUE,
-        course     TEXT NOT NULL,
-        branch     TEXT NOT NULL,
-        year       INTEGER NOT NULL,
-        section    TEXT NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        student_id             INTEGER PRIMARY KEY AUTOINCREMENT,
+        name                   TEXT NOT NULL,
+        university_roll_number TEXT NOT NULL UNIQUE,
+        class_roll_number      INTEGER,
+        course                 TEXT NOT NULL,
+        branch                 TEXT NOT NULL,
+        year                   INTEGER NOT NULL,
+        section                TEXT NOT NULL,
+        created_at             DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `);
+
+    migrateStudentsTable();
 
     db.run(`
       CREATE TABLE IF NOT EXISTS subjects (
@@ -66,10 +142,32 @@ function initDatabase() {
       )
     `);
 
+    db.run(`
+      CREATE TABLE IF NOT EXISTS timetable_entries (
+        timetable_entry_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        section            TEXT NOT NULL,
+        day_of_week        INTEGER NOT NULL CHECK (day_of_week BETWEEN 1 AND 5),
+        start_time         TEXT NOT NULL,
+        end_time           TEXT NOT NULL,
+        subject_code       TEXT,
+        subject_name       TEXT NOT NULL,
+        session_type       TEXT NOT NULL,
+        faculty_code       TEXT,
+        faculty_name       TEXT,
+        room               TEXT,
+        academic_session   TEXT NOT NULL,
+        semester           TEXT NOT NULL,
+        source_label       TEXT,
+        created_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (section, day_of_week, start_time, academic_session)
+      )
+    `);
+
     // Indexes
-    db.run('CREATE INDEX IF NOT EXISTS idx_students_phone ON students(phone)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_students_university_roll ON students(university_roll_number)');
     db.run('CREATE INDEX IF NOT EXISTS idx_students_section ON students(section)');
     db.run('CREATE INDEX IF NOT EXISTS idx_classrooms_section ON classrooms(section)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_timetable_section_day ON timetable_entries(section, day_of_week, start_time)');
 
     saveDatabase();
     console.log('✅ Database initialized successfully');
@@ -94,6 +192,7 @@ function getDatabase() {
  */
 function saveDatabase() {
   if (db) {
+    fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
     const data = db.export();
     const buffer = Buffer.from(data);
     fs.writeFileSync(DB_PATH, buffer);
@@ -133,4 +232,4 @@ function execute(sql, params = []) {
   return { changes, lastInsertRowid: lastId ? lastId.id : null };
 }
 
-module.exports = { initDatabase, getDatabase, saveDatabase, queryAll, queryOne, execute };
+module.exports = { DB_PATH, initDatabase, getDatabase, saveDatabase, queryAll, queryOne, execute };

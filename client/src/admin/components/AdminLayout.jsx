@@ -1,5 +1,5 @@
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
-import { HiOutlineViewGrid, HiOutlineUsers, HiOutlineBookOpen, HiOutlineOfficeBuilding, HiOutlineUpload, HiOutlineCog, HiOutlineLogout, HiOutlineLocationMarker } from 'react-icons/hi'
+import { HiOutlineViewGrid, HiOutlineUsers, HiOutlineBookOpen, HiOutlineOfficeBuilding, HiOutlineUpload, HiOutlineLogout, HiOutlineLocationMarker } from 'react-icons/hi'
 import { clearAdminSession, getAdminUser } from '../auth'
 
 const navItems = [
@@ -7,8 +7,7 @@ const navItems = [
   { to: '/admin/students', label: 'Students', icon: HiOutlineUsers },
   { to: '/admin/subjects', label: 'Subjects', icon: HiOutlineBookOpen },
   { to: '/admin/classrooms', label: 'Classrooms', icon: HiOutlineOfficeBuilding },
-  { to: '/admin/import', label: 'Import Excel', icon: HiOutlineUpload },
-  { to: '/admin/settings', label: 'Settings', icon: HiOutlineCog },
+  { to: '/admin/import', label: 'Import Students', icon: HiOutlineUpload },
 ]
 
 export default function AdminLayout() {
@@ -25,7 +24,7 @@ export default function AdminLayout() {
       <header className="border-b border-indigo-500/20 bg-navy-800/80 backdrop-blur">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-4">
           <Link to="/admin" className="inline-flex items-center gap-2 text-white font-semibold">
-            <span className="w-9 h-9 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center">
+            <span className="w-9 h-9 rounded-md bg-orange-700 flex items-center justify-center">
               <HiOutlineLocationMarker />
             </span>
             <span>Smart Classroom Locator Admin</span>

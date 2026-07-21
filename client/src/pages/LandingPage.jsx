@@ -1,164 +1,147 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { HiOutlinePhone, HiOutlineSearch, HiOutlineLocationMarker, HiOutlineAcademicCap } from 'react-icons/hi'
-import { HiSparkles } from 'react-icons/hi2'
-import { normalizePhone, isValidPhone } from '../utils/phone'
+import { HiOutlineAcademicCap, HiOutlineArrowRight, HiOutlineIdentification } from 'react-icons/hi'
+import publicApi from '../api/publicApi'
+import { isValidUniversityRollNumber, normalizeUniversityRollNumber } from '../utils/universityRoll'
 
 export default function LandingPage() {
-  const [phone, setPhone] = useState('')
+  const [universityRollNumber, setUniversityRollNumber] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
 
-  const handleSubmit = (e) => {
-    e.preventDefault()
+  const handleSubmit = async (event) => {
+    event.preventDefault()
     setError('')
 
-    // Validate phone number
-    const cleanPhone = normalizePhone(phone)
-    if (!cleanPhone) {
-      setError('Please enter your phone number.')
+    const cleanRollNumber = normalizeUniversityRollNumber(universityRollNumber)
+    if (!cleanRollNumber) {
+      setError('Enter your university roll number.')
       return
     }
-    if (!isValidPhone(cleanPhone)) {
-      setError('Please enter a valid 10-digit phone number.')
+    if (!isValidUniversityRollNumber(cleanRollNumber)) {
+      setError('That university roll number does not look valid.')
       return
     }
 
     setLoading(true)
-    // Navigate to result page — the API call happens there
-    setTimeout(() => {
-      navigate(`/result/${cleanPhone}`)
-    }, 400)
+    try {
+      const response = await publicApi.post('/student/lookup', {
+        university_roll_number: cleanRollNumber,
+      })
+      navigate(`/result/${encodeURIComponent(cleanRollNumber)}`, {
+        state: { universityRollNumber: cleanRollNumber, lookupData: response.data.data },
+      })
+    } catch (requestError) {
+      if (requestError.response?.status === 404) {
+        setError('No CSAI 2B student was found with that university roll number.')
+      } else if (requestError.response?.data?.message) {
+        setError(requestError.response.data.message)
+      } else {
+        setError('The schedule service is unavailable right now. Try again in a moment.')
+      }
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
-    <div className="relative min-h-screen flex items-center justify-center overflow-hidden">
-      {/* ── Animated Background ───────────────────────────── */}
-      <div className="absolute inset-0 bg-navy-900">
-        {/* Gradient orbs */}
-        <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] rounded-full bg-indigo-600/20 blur-[120px] animate-float" />
-        <div className="absolute bottom-[-20%] right-[-10%] w-[500px] h-[500px] rounded-full bg-sky-500/15 blur-[100px] animate-float" style={{ animationDelay: '3s' }} />
-        <div className="absolute top-[40%] right-[20%] w-[300px] h-[300px] rounded-full bg-violet-600/10 blur-[80px] animate-float" style={{ animationDelay: '1.5s' }} />
-        {/* Grid pattern */}
-        <div className="absolute inset-0 bg-grid opacity-50" />
-      </div>
-
-      {/* ── Content ───────────────────────────────────────── */}
-      <div className="relative z-10 w-full max-w-lg mx-auto px-6 py-12">
-
-        {/* Logo & Badge */}
-        <div className="text-center mb-8 animate-slide-up">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass-light mb-6">
-            <HiSparkles className="text-indigo-400 text-sm" />
-            <span className="text-xs font-medium text-indigo-300 tracking-wider uppercase">QR-Based Campus Navigation</span>
-          </div>
-
-          {/* Icon */}
-          <div className="mx-auto w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center mb-6 shadow-lg shadow-indigo-500/30">
-            <HiOutlineLocationMarker className="text-4xl text-white" />
-          </div>
-
-          {/* Title */}
-          <h1 className="text-4xl sm:text-5xl font-bold mb-3">
-            <span className="gradient-text">Smart Classroom</span>
-            <br />
-            <span className="text-white">Locator</span>
-          </h1>
-
-          {/* Subtitle */}
-          <p className="text-slate-400 text-lg max-w-sm mx-auto leading-relaxed">
-            Find your classroom in seconds.<br/>
-            Enter your registered phone number below.
-          </p>
-        </div>
-
-        {/* ── Search Card ──────────────────────────────────── */}
-        <div className="glass-card rounded-2xl p-8 animate-slide-up stagger-2">
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Phone Input */}
-            <div className="relative">
-              <HiOutlinePhone className="absolute left-4 top-1/2 -translate-y-1/2 text-xl text-indigo-400" />
-              <input
-                id="phone-input"
-                type="tel"
-                value={phone}
-                onChange={(e) => {
-                  setPhone(e.target.value)
-                  if (error) setError('')
-                }}
-                placeholder="Enter your phone number"
-                className="input-field pl-12"
-                maxLength={15}
-                autoComplete="tel"
-                autoFocus
-              />
+    <div className="min-h-screen bg-[#f3efe5] text-[#20211e]">
+      <header className="border-b border-[#20211e]/20">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-4 sm:px-8">
+          <div className="flex items-center gap-3">
+            <span className="flex h-9 w-9 items-center justify-center bg-[#20211e] text-[#f3efe5]">
+              <HiOutlineAcademicCap className="text-xl" />
+            </span>
+            <div>
+              <p className="font-serif text-lg font-bold leading-none">Find My Class</p>
+              <p className="mt-1 text-[11px] uppercase text-[#5d6259]">BBD University</p>
             </div>
+          </div>
+          <p className="hidden text-sm text-[#5d6259] sm:block">Odd semester / 2026-27</p>
+        </div>
+      </header>
 
-            {/* Error Message */}
-            {error && (
-              <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 animate-scale-in">
-                <svg className="w-5 h-5 text-red-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <p className="text-red-300 text-sm font-medium">{error}</p>
+      <main>
+        <section className="mx-auto max-w-6xl px-5 pb-12 pt-12 sm:px-8 md:pb-16 md:pt-20">
+          <p className="mb-5 text-xs font-bold uppercase text-[#a33a2b]">School of Engineering / CSAI 2B</p>
+          <div className="max-w-3xl">
+            <h1 className="font-serif text-5xl font-bold leading-[0.98] sm:text-6xl md:text-7xl">
+              CSAI 2B timetable
+            </h1>
+            <p className="mt-6 max-w-xl text-lg leading-7 text-[#55594f]">
+              Your weekly classes, faculty and room numbers from the department timetable. Search with the roll number printed on the class roster.
+            </p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="mt-10 max-w-3xl border-y border-[#20211e] py-6">
+            <label htmlFor="university-roll-input" className="mb-3 block text-sm font-bold">
+              University roll number
+            </label>
+            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+              <div className="relative">
+                <HiOutlineIdentification className="absolute left-4 top-1/2 -translate-y-1/2 text-xl text-[#6b6f65]" />
+                <input
+                  id="university-roll-input"
+                  type="text"
+                  value={universityRollNumber}
+                  onChange={(event) => {
+                    setUniversityRollNumber(event.target.value)
+                    if (error) setError('')
+                  }}
+                  placeholder="e.g. 1250439358"
+                  maxLength={30}
+                  autoFocus
+                  required
+                  aria-describedby={error ? 'roll-number-error' : 'roll-number-hint'}
+                  className="h-14 w-full border border-[#868a80] bg-[#fffdf7] pl-12 pr-4 text-lg font-semibold outline-none transition focus:border-[#a33a2b] focus:ring-2 focus:ring-[#a33a2b]/20"
+                />
               </div>
+              <button
+                type="submit"
+                disabled={loading}
+                className="flex h-14 items-center justify-center gap-3 bg-[#a33a2b] px-6 font-bold text-white transition hover:bg-[#842d22] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <span>{loading ? 'Checking roster...' : 'Open my timetable'}</span>
+                {!loading ? <HiOutlineArrowRight className="text-xl" /> : null}
+              </button>
+            </div>
+            {error ? (
+              <p id="roll-number-error" role="alert" className="mt-3 border-l-4 border-[#a33a2b] pl-3 text-sm font-medium text-[#842d22]">
+                {error}
+              </p>
+            ) : (
+              <p id="roll-number-hint" className="mt-3 text-sm text-[#6b6f65]">58 students are listed in the current roster.</p>
             )}
-
-            {/* Submit Button */}
-            <button
-              id="find-classroom-btn"
-              type="submit"
-              disabled={loading}
-              className="btn-primary w-full flex items-center justify-center gap-3"
-            >
-              {loading ? (
-                <>
-                  <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                  </svg>
-                  <span>Searching...</span>
-                </>
-              ) : (
-                <>
-                  <HiOutlineSearch className="text-xl" />
-                  <span>Find My Classroom</span>
-                </>
-              )}
-            </button>
           </form>
+        </section>
 
-          {/* Divider */}
-          <div className="flex items-center gap-4 mt-6 mb-4">
-            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-slate-600 to-transparent" />
-            <span className="text-xs text-slate-500 uppercase tracking-widest">How it works</span>
-            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-slate-600 to-transparent" />
+        <section className="bg-[#20211e] text-[#f3efe5]">
+          <div className="mx-auto grid max-w-6xl gap-8 px-5 py-6 sm:px-8 md:grid-cols-[220px_minmax(0,1fr)] md:items-start md:py-8">
+            <div className="md:pt-5">
+              <p className="text-xs font-bold uppercase text-[#e7b949]">Source sheet</p>
+              <h2 className="mt-3 font-serif text-3xl font-bold leading-tight">The department timetable, made searchable.</h2>
+              <p className="mt-4 text-sm leading-6 text-[#babdb4]">
+                Rooms and times follow the timetable issued for B.Tech second year. Tuesday is intentionally blank.
+              </p>
+            </div>
+            <figure className="border border-[#f3efe5]/30 bg-white p-2 shadow-[10px_10px_0_#a33a2b]">
+              <img
+                src="/csai2b-timetable.jpeg"
+                alt="Original CSAI 2B department timetable for academic session 2026-27"
+                className="h-64 w-full object-cover object-top sm:h-80 md:h-[420px]"
+              />
+              <figcaption className="bg-white px-2 pb-1 pt-3 text-xs text-[#55594f]">
+                Department of Computer Science and Engineering / issued timetable
+              </figcaption>
+            </figure>
           </div>
+        </section>
+      </main>
 
-          {/* Steps */}
-          <div className="grid grid-cols-3 gap-3">
-            {[
-              { icon: '📱', label: 'Scan QR Code' },
-              { icon: '📞', label: 'Enter Phone' },
-              { icon: '🏫', label: 'Find Room' },
-            ].map((step, i) => (
-              <div key={i} className="text-center p-3 rounded-xl glass-light hover:border-indigo-500/30 transition-all duration-300">
-                <div className="text-2xl mb-1">{step.icon}</div>
-                <p className="text-xs text-slate-400 font-medium">{step.label}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* ── Footer ───────────────────────────────────────── */}
-        <div className="text-center mt-8 animate-fade-in stagger-4">
-          <div className="flex items-center justify-center gap-2 text-slate-500 text-sm">
-            <HiOutlineAcademicCap className="text-lg" />
-            <span>Smart Classroom Locator © {new Date().getFullYear()}</span>
-          </div>
-        </div>
-      </div>
+      <footer className="bg-[#20211e] px-5 pb-8 pt-2 text-center text-xs text-[#8f9389]">
+        Academic session 2026-27 / Semester III
+      </footer>
     </div>
   )
 }

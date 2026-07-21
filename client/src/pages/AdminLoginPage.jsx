@@ -68,30 +68,36 @@ export default function AdminLoginPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="relative">
+            <label htmlFor="admin-username" className="sr-only">Username</label>
             <HiOutlineUser className="absolute left-4 top-1/2 -translate-y-1/2 text-indigo-400" />
             <input
+              id="admin-username"
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               placeholder="Username"
               className="input-field pl-11"
               autoComplete="username"
+              required
             />
           </div>
           <div className="relative">
+            <label htmlFor="admin-password" className="sr-only">Password</label>
             <HiOutlineLockClosed className="absolute left-4 top-1/2 -translate-y-1/2 text-indigo-400" />
             <input
+              id="admin-password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Password"
               className="input-field pl-11"
               autoComplete="current-password"
+              required
             />
           </div>
 
           {error && (
-            <div className="px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-sm text-red-300">
+            <div role="alert" className="px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-sm text-red-300">
               {error}
             </div>
           )}

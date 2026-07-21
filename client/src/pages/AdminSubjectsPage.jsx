@@ -125,9 +125,11 @@ export default function AdminSubjectsPage() {
         <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-3">
           <input
             className="input-field"
+            aria-label="Subject name"
             placeholder="Subject Name"
             value={subjectName}
             onChange={(e) => setSubjectName(e.target.value)}
+            required
           />
           <button type="submit" disabled={saving} className="btn-primary inline-flex items-center justify-center gap-2 sm:w-auto">
             <HiOutlinePlus />
@@ -144,8 +146,8 @@ export default function AdminSubjectsPage() {
           ) : null}
         </form>
 
-        {error ? <p className="mt-4 text-sm text-red-300">{error}</p> : null}
-        {success ? <p className="mt-4 text-sm text-emerald-300">{success}</p> : null}
+        {error ? <p role="alert" className="mt-4 text-sm text-red-300">{error}</p> : null}
+        {success ? <p role="status" className="mt-4 text-sm text-emerald-300">{success}</p> : null}
       </section>
 
       <section className="glass-card rounded-2xl p-6">

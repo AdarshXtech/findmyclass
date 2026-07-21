@@ -1,7 +1,15 @@
+const { loadEnvironment } = require('./env');
+
+loadEnvironment();
+
 const bcrypt = require('bcryptjs');
 const { initDatabase, getDatabase, execute, queryAll, queryOne } = require('./db');
 
 async function seedDatabase() {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('Demo seeding is disabled in production. Use npm run create-admin instead.');
+  }
+
   await initDatabase();
   const db = getDatabase();
 
@@ -21,23 +29,25 @@ async function seedDatabase() {
 
   // ── Seed Students ────────────────────────────────────────
   const students = [
-    ['Adarsh Tiwari',   '9876543210', 'B.Tech', 'CSE', 1, 'CSE-A'],
-    ['Priya Sharma',    '9876543211', 'B.Tech', 'CSE', 1, 'CSE-A'],
-    ['Rahul Kumar',     '9876543212', 'B.Tech', 'CSE', 1, 'CSE-A'],
-    ['Ananya Das',      '9876543213', 'B.Tech', 'CSE', 1, 'CSE-A'],
-    ['Vikash Yadav',    '9876543214', 'B.Tech', 'CSE', 1, 'CSE-A'],
-    ['Sneha Gupta',     '9876543215', 'B.Tech', 'CSE', 1, 'CSE-B'],
-    ['Amit Singh',      '9876543216', 'B.Tech', 'CSE', 1, 'CSE-B'],
-    ['Pooja Mehra',     '9876543217', 'B.Tech', 'CSE', 1, 'CSE-B'],
-    ['Neha Verma',      '9876543218', 'B.Tech', 'ECE', 1, 'ECE-A'],
-    ['Vikram Joshi',    '9876543219', 'B.Tech', 'ECE', 1, 'ECE-A'],
-    ['Kavita Patel',    '9876543220', 'B.Tech', 'ME',  1, 'ME-A'],
-    ['Rohit Mishra',    '9876543221', 'B.Tech', 'ME',  1, 'ME-A'],
+    ['Adarsh Tiwari', '1250000001', 1, 'B.Tech', 'CSE', 1, 'CSE-A'],
+    ['Priya Sharma', '1250000002', 2, 'B.Tech', 'CSE', 1, 'CSE-A'],
+    ['Rahul Kumar', '1250000003', 3, 'B.Tech', 'CSE', 1, 'CSE-A'],
+    ['Ananya Das', '1250000004', 4, 'B.Tech', 'CSE', 1, 'CSE-A'],
+    ['Vikash Yadav', '1250000005', 5, 'B.Tech', 'CSE', 1, 'CSE-A'],
+    ['Sneha Gupta', '1250000006', 1, 'B.Tech', 'CSE', 1, 'CSE-B'],
+    ['Amit Singh', '1250000007', 2, 'B.Tech', 'CSE', 1, 'CSE-B'],
+    ['Pooja Mehra', '1250000008', 3, 'B.Tech', 'CSE', 1, 'CSE-B'],
+    ['Neha Verma', '1250000009', 1, 'B.Tech', 'ECE', 1, 'ECE-A'],
+    ['Vikram Joshi', '1250000010', 2, 'B.Tech', 'ECE', 1, 'ECE-A'],
+    ['Kavita Patel', '1250000011', 1, 'B.Tech', 'ME', 1, 'ME-A'],
+    ['Rohit Mishra', '1250000012', 2, 'B.Tech', 'ME', 1, 'ME-A'],
   ];
 
   for (const s of students) {
     execute(
-      'INSERT INTO students (name, phone, course, branch, year, section) VALUES (?, ?, ?, ?, ?, ?)',
+      `INSERT INTO students (
+         name, university_roll_number, class_roll_number, course, branch, year, section
+       ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
       s
     );
   }
@@ -95,7 +105,7 @@ async function seedDatabase() {
   console.log('\n✅ Database seeded successfully!');
   console.log('─────────────────────────────────────');
   console.log('Admin credentials : admin / admin123');
-  console.log('Sample phones     : 9876543210 – 9876543221');
+  console.log('Sample roll range : 1250000001 - 1250000012');
   console.log('Sections          : CSE-A, CSE-B, ECE-A, ME-A');
   console.log('─────────────────────────────────────\n');
 }

@@ -3,12 +3,16 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const multer = require('multer');
-const xlsx = require('xlsx');
+const path = require('path');
+const { Readable } = require('stream');
+const ExcelJS = require('exceljs');
 const { queryAll, queryOne, execute } = require('../config/db');
 const { authenticateToken, JWT_SECRET } = require('../middleware/auth');
 const {
-  normalizePhone,
-  isValidPhone,
+  normalizeUniversityRollNumber,
+  isValidUniversityRollNumber,
+  normalizeClassRollNumber,
+  isValidClassRollNumber,
   normalizeSection,
   isValidSection,
   normalizeWing,
@@ -103,7 +107,7 @@ router.get('/students', authenticateToken, (req, res) => {
     const params = [];
 
     if (search) {
-      query += ' AND (name LIKE ? OR phone LIKE ?)';
+      query += ' AND (name LIKE ? OR university_roll_number LIKE ?)';
       params.push(`%${search}%`, `%${search}%`);
     }
     if (section) {
@@ -124,16 +128,25 @@ router.get('/students', authenticateToken, (req, res) => {
 /** POST /api/admin/students */
 router.post('/students', authenticateToken, (req, res) => {
   try {
-    const { name, phone, course, branch, year, section } = req.body;
-    const cleanedPhone = normalizePhone(phone);
+    const { name, university_roll_number, class_roll_number, course, branch, year, section } = req.body;
+    const cleanedName = String(name || '').trim();
+    const cleanedUniversityRoll = university_roll_number
+      ? normalizeUniversityRollNumber(university_roll_number)
+      : null;
+    const parsedClassRoll = normalizeClassRollNumber(class_roll_number);
+    const cleanedCourse = String(course || '').trim();
+    const cleanedBranch = String(branch || '').trim();
     const cleanedSection = normalizeSection(section);
     const parsedYear = normalizeYear(year);
 
-    if (!name || !phone || !course || !branch || !year || !section) {
+    if (!cleanedName || !cleanedUniversityRoll || !cleanedCourse || !cleanedBranch || !parsedYear || !cleanedSection) {
       return res.status(400).json({ success: false, message: 'All fields are required.' });
     }
-    if (!isValidPhone(cleanedPhone)) {
-      return res.status(400).json({ success: false, message: 'Please enter a valid 10-digit phone number.' });
+    if (!isValidUniversityRollNumber(cleanedUniversityRoll)) {
+      return res.status(400).json({ success: false, message: 'Please enter a valid university roll number.' });
+    }
+    if (!isValidClassRollNumber(parsedClassRoll)) {
+      return res.status(400).json({ success: false, message: 'Class roll number must be between 1 and 999.' });
     }
     if (!isValidYear(parsedYear)) {
       return res.status(400).json({ success: false, message: 'Year must be between 1 and 8.' });
@@ -142,24 +155,30 @@ router.post('/students', authenticateToken, (req, res) => {
       return res.status(400).json({ success: false, message: 'Please enter a valid section.' });
     }
 
-    const existing = queryOne('SELECT student_id FROM students WHERE phone = ?', [cleanedPhone]);
-    if (existing) {
-      return res.status(409).json({ success: false, message: 'Phone number already registered.' });
+    const existingUniversityRoll = queryOne(
+      'SELECT student_id FROM students WHERE university_roll_number = ?',
+      [cleanedUniversityRoll]
+    );
+    if (existingUniversityRoll) {
+      return res.status(409).json({ success: false, message: 'University roll number already registered.' });
     }
 
     const result = execute(
-      'INSERT INTO students (name, phone, course, branch, year, section) VALUES (?, ?, ?, ?, ?, ?)',
-      [String(name).trim(), cleanedPhone, String(course).trim(), String(branch).trim(), parsedYear, cleanedSection]
+      `INSERT INTO students (
+         name, university_roll_number, class_roll_number, course, branch, year, section
+       ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [cleanedName, cleanedUniversityRoll, parsedClassRoll, cleanedCourse, cleanedBranch, parsedYear, cleanedSection]
     );
 
     res.status(201).json({
       success: true,
       data: {
         student_id: result.lastInsertRowid,
-        name: String(name).trim(),
-        phone: cleanedPhone,
-        course: String(course).trim(),
-        branch: String(branch).trim(),
+        name: cleanedName,
+        university_roll_number: cleanedUniversityRoll,
+        class_roll_number: parsedClassRoll,
+        course: cleanedCourse,
+        branch: cleanedBranch,
         year: parsedYear,
         section: cleanedSection
       }
@@ -174,26 +193,11 @@ router.post('/students', authenticateToken, (req, res) => {
 router.put('/students/:id', authenticateToken, (req, res) => {
   try {
     const { id } = req.params;
-    const { name, phone, course, branch, year, section } = req.body;
+    const { name, university_roll_number, class_roll_number, course, branch, year, section } = req.body;
 
     const existing = queryOne('SELECT * FROM students WHERE student_id = ?', [Number(id)]);
     if (!existing) {
       return res.status(404).json({ success: false, message: 'Student not found.' });
-    }
-
-    let finalPhone = existing.phone;
-    if (phone !== undefined) {
-      finalPhone = normalizePhone(phone);
-      if (!isValidPhone(finalPhone)) {
-        return res.status(400).json({ success: false, message: 'Please enter a valid 10-digit phone number.' });
-      }
-    }
-
-    if (finalPhone !== existing.phone) {
-      const phoneTaken = queryOne('SELECT student_id FROM students WHERE phone = ? AND student_id != ?', [finalPhone, Number(id)]);
-      if (phoneTaken) {
-        return res.status(409).json({ success: false, message: 'Phone number already registered.' });
-      }
     }
 
     let finalYear = existing.year;
@@ -212,13 +216,49 @@ router.put('/students/:id', authenticateToken, (req, res) => {
       }
     }
 
+    let finalUniversityRoll = existing.university_roll_number;
+    if (university_roll_number !== undefined) {
+      finalUniversityRoll = university_roll_number
+        ? normalizeUniversityRollNumber(university_roll_number)
+        : '';
+      if (!isValidUniversityRollNumber(finalUniversityRoll)) {
+        return res.status(400).json({ success: false, message: 'Please enter a valid university roll number.' });
+      }
+    }
+    if (finalUniversityRoll !== existing.university_roll_number) {
+      const rollTaken = queryOne(
+        'SELECT student_id FROM students WHERE university_roll_number = ? AND student_id != ?',
+        [finalUniversityRoll, Number(id)]
+      );
+      if (rollTaken) {
+        return res.status(409).json({ success: false, message: 'University roll number already registered.' });
+      }
+    }
+
+    const finalClassRoll = class_roll_number !== undefined
+      ? normalizeClassRollNumber(class_roll_number)
+      : existing.class_roll_number;
+    if (!isValidClassRollNumber(finalClassRoll)) {
+      return res.status(400).json({ success: false, message: 'Class roll number must be between 1 and 999.' });
+    }
+
+    const finalName = name !== undefined ? String(name).trim() : existing.name;
+    const finalCourse = course !== undefined ? String(course).trim() : existing.course;
+    const finalBranch = branch !== undefined ? String(branch).trim() : existing.branch;
+    if (!finalName || !finalCourse || !finalBranch) {
+      return res.status(400).json({ success: false, message: 'Name, course, and branch cannot be empty.' });
+    }
+
     execute(
-      'UPDATE students SET name=?, phone=?, course=?, branch=?, year=?, section=? WHERE student_id=?',
+      `UPDATE students
+       SET name=?, university_roll_number=?, class_roll_number=?, course=?, branch=?, year=?, section=?
+       WHERE student_id=?`,
       [
-        name !== undefined ? String(name).trim() : existing.name,
-        finalPhone,
-        course !== undefined ? String(course).trim() : existing.course,
-        branch !== undefined ? String(branch).trim() : existing.branch,
+        finalName,
+        finalUniversityRoll,
+        finalClassRoll,
+        finalCourse,
+        finalBranch,
         finalYear,
         finalSection,
         Number(id)
@@ -345,7 +385,7 @@ router.get('/classrooms', authenticateToken, (req, res) => {
 
     if (section) {
       query += ' WHERE section = ?';
-      params.push(section);
+      params.push(normalizeSection(section));
     }
 
     query += ' ORDER BY section, subject';
@@ -490,27 +530,109 @@ const upload = multer({
   storage,
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    if (file.originalname.match(/\.(xlsx|xls|csv)$/i)) {
+    if (file.originalname.match(/\.(xlsx|csv)$/i)) {
       cb(null, true);
     } else {
-      cb(new Error('Only Excel (.xlsx, .xls) and CSV files are allowed.'));
+      cb(new Error('Only Excel (.xlsx) and CSV files are allowed.'));
     }
   }
 });
 
+function uploadStudentFile(req, res, next) {
+  upload.single('file')(req, res, (error) => {
+    if (!error) {
+      next();
+      return;
+    }
+
+    const status = error.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
+    const message = error.code === 'LIMIT_FILE_SIZE'
+      ? 'The file exceeds the 5MB upload limit.'
+      : error.message;
+    res.status(status).json({ success: false, message });
+  });
+}
+
+function getCellText(value) {
+  if (value === null || value === undefined) return '';
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value !== 'object') return String(value).trim();
+  if (value.text !== undefined) return String(value.text).trim();
+  if (value.result !== undefined) return String(value.result).trim();
+  if (Array.isArray(value.richText)) {
+    return value.richText.map((part) => part.text || '').join('').trim();
+  }
+  return String(value).trim();
+}
+
+async function readStudentRows(file) {
+  const workbook = new ExcelJS.Workbook();
+  const extension = path.extname(file.originalname).toLowerCase();
+  let worksheet;
+
+  if (extension === '.xlsx') {
+    await workbook.xlsx.load(file.buffer);
+    worksheet = workbook.worksheets[0];
+  } else {
+    worksheet = await workbook.csv.read(Readable.from([file.buffer]));
+  }
+
+  if (!worksheet || worksheet.actualRowCount < 2) return [];
+
+  const headerRow = worksheet.getRow(1);
+  const headers = [];
+  for (let column = 1; column <= worksheet.actualColumnCount; column++) {
+    headers.push(
+      getCellText(headerRow.getCell(column).value)
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_|_$/g, '')
+    );
+  }
+
+  const requiredHeaders = ['name', 'course', 'branch', 'year', 'section'];
+  const missingHeaders = requiredHeaders.filter((header) => !headers.includes(header));
+  if (missingHeaders.length > 0) {
+    throw new Error(`Missing required columns: ${missingHeaders.join(', ')}`);
+  }
+  if (!headers.includes('university_roll_number')) {
+    throw new Error('Missing required column: university_roll_number');
+  }
+
+  const rows = [];
+  for (let rowNumber = 2; rowNumber <= worksheet.rowCount; rowNumber++) {
+    const worksheetRow = worksheet.getRow(rowNumber);
+    const row = { rowNumber };
+    headers.forEach((header, index) => {
+      if (header) row[header] = getCellText(worksheetRow.getCell(index + 1).value);
+    });
+
+    if (headers.some((header) => header && row[header] !== '')) {
+      rows.push(row);
+    }
+  }
+  return rows;
+}
+
 /** POST /api/admin/import/students */
-router.post('/import/students', authenticateToken, upload.single('file'), (req, res) => {
+router.post('/import/students', authenticateToken, uploadStudentFile, async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ success: false, message: 'No file uploaded.' });
     }
 
-    const workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const data = xlsx.utils.sheet_to_json(sheet);
+    let data;
+    try {
+      data = await readStudentRows(req.file);
+    } catch (error) {
+      return res.status(400).json({
+        success: false,
+        message: `Could not read the import file. ${error.message}`
+      });
+    }
 
     if (data.length === 0) {
-      return res.status(400).json({ success: false, message: 'The file is empty.' });
+      return res.status(400).json({ success: false, message: 'The file has no student rows.' });
     }
 
     let imported = 0;
@@ -519,54 +641,80 @@ router.post('/import/students', authenticateToken, upload.single('file'), (req, 
 
     for (let i = 0; i < data.length; i++) {
       const row = data[i];
-      const name    = row.Name    || row.name    || row.NAME;
-      const phone   = normalizePhone(row.Phone || row.phone || row.PHONE || '');
-      const course  = row.Course  || row.course  || row.COURSE;
-      const branch  = row.Branch  || row.branch  || row.BRANCH;
-      const year    = normalizeYear(row.Year || row.year || row.YEAR);
-      const section = normalizeSection(row.Section || row.section || row.SECTION);
+      const name = String(row.name || '').trim();
+      const universityRoll = row.university_roll_number
+        ? normalizeUniversityRollNumber(row.university_roll_number)
+        : null;
+      const classRoll = normalizeClassRollNumber(row.class_roll_number);
+      const course = String(row.course || '').trim();
+      const branch = String(row.branch || '').trim();
+      const year = normalizeYear(row.year);
+      const section = normalizeSection(row.section);
 
-      if (!name || !phone || !course || !branch || !year || !section) {
-        errors.push(`Row ${i + 2}: Missing required fields`);
+      if (!name || !course || !branch || !year || !section) {
+        errors.push(`Row ${row.rowNumber}: Missing required fields`);
         skipped++;
         continue;
       }
-      if (!isValidPhone(phone)) {
-        errors.push(`Row ${i + 2}: Invalid phone number`);
+      if (!universityRoll) {
+        errors.push(`Row ${row.rowNumber}: University roll number is required`);
+        skipped++;
+        continue;
+      }
+      if (!isValidUniversityRollNumber(universityRoll)) {
+        errors.push(`Row ${row.rowNumber}: Invalid university roll number`);
+        skipped++;
+        continue;
+      }
+      if (!isValidClassRollNumber(classRoll)) {
+        errors.push(`Row ${row.rowNumber}: Invalid class roll number`);
         skipped++;
         continue;
       }
       if (!isValidYear(year)) {
-        errors.push(`Row ${i + 2}: Invalid year`);
+        errors.push(`Row ${row.rowNumber}: Invalid year`);
         skipped++;
         continue;
       }
       if (!isValidSection(section)) {
-        errors.push(`Row ${i + 2}: Invalid section`);
+        errors.push(`Row ${row.rowNumber}: Invalid section`);
         skipped++;
         continue;
       }
 
       try {
-        const existing = queryOne('SELECT student_id FROM students WHERE phone = ?', [phone]);
+        const existing = queryOne(
+          'SELECT student_id FROM students WHERE university_roll_number = ?',
+          [universityRoll]
+        );
         if (existing) {
+          errors.push(`Row ${row.rowNumber}: University roll number already registered`);
           skipped++;
           continue;
         }
         execute(
-          'INSERT INTO students (name, phone, course, branch, year, section) VALUES (?, ?, ?, ?, ?, ?)',
-          [String(name).trim(), phone, String(course).trim(), String(branch).trim(), year, section]
+          `INSERT INTO students (
+             name, university_roll_number, class_roll_number, course, branch, year, section
+           ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [name, universityRoll, classRoll, course, branch, year, section]
         );
         imported++;
       } catch (err) {
-        errors.push(`Row ${i + 2}: ${err.message}`);
+        errors.push(`Row ${row.rowNumber}: ${err.message}`);
         skipped++;
       }
     }
 
+    const displayedErrors = errors.slice(0, 100);
     res.json({
       success: true,
-      data: { total: data.length, imported, skipped, errors: errors.slice(0, 10) }
+      data: {
+        total: data.length,
+        imported,
+        skipped,
+        errors: displayedErrors,
+        omittedErrors: Math.max(0, errors.length - displayedErrors.length)
+      }
     });
   } catch (error) {
     console.error('Import error:', error);

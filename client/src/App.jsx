@@ -4,7 +4,6 @@ import ResultPage from './pages/ResultPage'
 import NotFoundPage from './pages/NotFoundPage'
 import AdminLoginPage from './pages/AdminLoginPage'
 import AdminDashboardPage from './pages/AdminDashboardPage'
-import AdminPlaceholderPage from './pages/AdminPlaceholderPage'
 import AdminStudentsPage from './pages/AdminStudentsPage'
 import AdminSubjectsPage from './pages/AdminSubjectsPage'
 import AdminClassroomsPage from './pages/AdminClassroomsPage'
@@ -18,7 +17,7 @@ function App() {
       <Routes>
         {/* Student Routes */}
         <Route path="/" element={<LandingPage />} />
-        <Route path="/result/:phone" element={<ResultPage />} />
+        <Route path="/result/:universityRollNumber" element={<ResultPage />} />
 
         {/* Admin Auth Route */}
         <Route path="/admin/login" element={<AdminLoginPage />} />
@@ -31,10 +30,6 @@ function App() {
             <Route path="subjects" element={<AdminSubjectsPage />} />
             <Route path="classrooms" element={<AdminClassroomsPage />} />
             <Route path="import" element={<AdminImportPage />} />
-            <Route
-              path="settings"
-              element={<AdminPlaceholderPage title="Settings" description="This module will be expanded in Part 7." />}
-            />
           </Route>
         </Route>
 

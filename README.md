@@ -1,69 +1,91 @@
 # Smart Classroom Locator (findmyclass)
 
-QR-based classroom locator for students with an admin panel for managing students, subjects, and classroom assignments.
+Class schedule locator for students with an authenticated admin panel for managing students, subjects, room assignments, and student imports. Students look up their schedule by university roll number.
 
 ## Tech Stack
 
-- Frontend: React + Vite + Tailwind CSS
-- Backend: Node.js + Express
-- Database: sql.js (file-based SQLite at `server/database.sqlite`)
-- Auth: JWT (admin only)
-
-## Project Structure
-
-- `client/` - student and admin web app
-- `server/` - REST API and data layer
+- Frontend: React 18, React Router 6, Vite 6, Tailwind CSS 3
+- Backend: Node.js 20.12+, Express 4
+- Database: sql.js with a file-backed SQLite database
+- Authentication: server-verified JWTs for admin routes
+- Imports: ExcelJS for `.xlsx` and `.csv` files
 
 ## Local Setup
 
-### 1) Backend
+### Backend
 
-1. Copy `server/.env.example` to `server/.env` and set values.
-2. Install dependencies:
-   - `cd server`
-   - `npm install`
-3. Seed sample data:
-   - `npm run seed`
-4. Start API:
-   - `npm run dev` (or `npm start`)
+```powershell
+cd server
+Copy-Item .env.example .env
+npm ci
+npm run load-csai2b
+npm run create-admin
+npm run dev
+```
 
-### 2) Frontend
+Before `npm run create-admin`, replace every example secret in `.env`. `ADMIN_PASSWORD` must contain at least 12 characters. The command creates the configured admin or rotates its password if it already exists.
 
-1. Copy `client/.env.example` to `client/.env` if you need custom API URL.
-2. Install dependencies:
-   - `cd client`
-   - `npm install`
-3. Start app:
-   - `npm run dev`
+`npm run load-csai2b` loads the supplied 58-student CSAI 2B roster and its 2026-27 timetable without deleting unrelated records. The API runs at `http://localhost:5000` by default.
 
-By default in local development:
+### Frontend
 
-- Frontend: `http://localhost:3000`
-- Backend: `http://localhost:5000`
-- Vite proxy forwards `/api` to backend.
+```powershell
+cd client
+Copy-Item .env.example .env
+npm ci
+npm run dev
+```
+
+The app runs at `http://localhost:3000`. In development, Vite proxies `/api` to the backend.
 
 ## Environment Variables
 
-### Backend (`server/.env`)
+Backend (`server/.env`):
 
-- `PORT`: API server port (default `5000`)
-- `JWT_SECRET`: JWT signing secret (required in production)
-- `CLIENT_ORIGIN`: comma-separated allowed frontend origins for CORS
+- `PORT`: API port; defaults to `5000`.
+- `JWT_SECRET`: JWT signing secret. Required when `NODE_ENV=production`.
+- `CLIENT_ORIGIN`: optional comma-separated allowed frontend origins. Leave empty for the same-origin production deployment.
+- `DATABASE_PATH`: SQLite file path; defaults to `server/database.sqlite`.
+- `ADMIN_USERNAME`: used only by `npm run create-admin`.
+- `ADMIN_PASSWORD`: used only by `npm run create-admin`; minimum 12 characters.
 
-### Frontend (`client/.env`)
+Frontend (`client/.env`):
 
-- `VITE_API_BASE_URL`: optional absolute backend origin (for production/reverse-proxy setups).  
-  Example: `https://api.college-domain.in`
+- `VITE_API_BASE_URL`: optional backend origin. Leave empty when using the development proxy or a same-origin production reverse proxy.
 
-## Production Notes
+## Demo Data
 
-- Set `NODE_ENV=production` on server.
-- Always set a strong `JWT_SECRET` in production.
-- Set `CLIENT_ORIGIN` to trusted frontend domain(s).
-- Build frontend with `npm run build` in `client/`.
-- Serve `client/dist` from your preferred web server and run backend with `npm start`.
+Demo records are never created by normal application startup and the SQLite database is not committed. For local development only, `npm run seed` replaces all current database records with the repository's sample dataset. Seeding is blocked when `NODE_ENV=production`.
 
-## Admin Credentials (Seed Data)
+## CSAI 2B Source Data
 
-- Username: `admin`
-- Password: `admin123`
+The application dataset is stored in `server/data/csai2b-2026.json`. Its extraction decisions, section-label discrepancy, and excluded non-CSAI2B row are documented in `server/data/README.md`. University roll number is the student lookup identifier.
+
+## Verification
+
+```powershell
+cd server
+npm test
+npm audit --omit=dev
+
+cd ../client
+npm run build
+npm audit --omit=dev
+```
+
+See [PRODUCTION_READINESS.md](PRODUCTION_READINESS.md) for the verified feature map, test evidence, known limitations, and deployment checks that still require an external environment.
+
+## Deploy To Render
+
+The included `render.yaml` deploys the React build and Express API as one Starter web service. It mounts a 1 GB persistent disk at `/var/data`, generates the production JWT secret, loads the confirmed CSAI 2B dataset on startup, and checks `/api/health` during deploys.
+
+1. Push this repository to GitHub.
+2. Open [Render Blueprints](https://dashboard.render.com/blueprints) and create a Blueprint from the repository.
+3. Review the Starter service and persistent-disk charges, then apply the Blueprint.
+4. After the first deploy, verify the public URL with university roll number `1250439358`.
+
+To enable the admin panel, open the Render service shell and run the following after setting temporary `ADMIN_USERNAME` and `ADMIN_PASSWORD` environment variables:
+
+```sh
+npm run create-admin --prefix server
+```

@@ -1,5 +1,11 @@
+const { loadEnvironment } = require('./config/env');
+
+loadEnvironment();
+
 const express = require('express');
 const cors = require('cors');
+const fs = require('fs');
+const path = require('path');
 const { initDatabase } = require('./config/db');
 const studentRoutes = require('./routes/student');
 const adminRoutes = require('./routes/admin');
@@ -10,7 +16,7 @@ const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || '';
 
 function buildCorsOptions() {
   if (!CLIENT_ORIGIN) {
-    return { origin: true };
+    return { origin: process.env.NODE_ENV === 'production' ? false : true };
   }
 
   const allowedOrigins = CLIENT_ORIGIN.split(',')
@@ -18,7 +24,7 @@ function buildCorsOptions() {
     .filter(Boolean);
 
   return {
-    origin: function (origin, callback) {
+    origin(origin, callback) {
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
         return;
@@ -28,16 +34,13 @@ function buildCorsOptions() {
   };
 }
 
-// ── Middleware ──────────────────────────────────────────────
 app.use(cors(buildCorsOptions()));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ── API Routes ─────────────────────────────────────────────
 app.use('/api/student', studentRoutes);
 app.use('/api/admin', adminRoutes);
 
-// ── Health Check ───────────────────────────────────────────
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
@@ -46,7 +49,21 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// ── Global Error Handler ───────────────────────────────────
+app.use('/api', (req, res) => {
+  res.status(404).json({
+    success: false,
+    message: 'API endpoint not found.'
+  });
+});
+
+const clientDistPath = path.join(__dirname, '..', 'client', 'dist');
+if (fs.existsSync(clientDistPath)) {
+  app.use(express.static(clientDistPath));
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(clientDistPath, 'index.html'));
+  });
+}
+
 app.use((err, req, res, next) => {
   console.error('Unhandled Error:', err.stack);
   res.status(500).json({
@@ -55,16 +72,25 @@ app.use((err, req, res, next) => {
   });
 });
 
-// ── Initialize DB then Start Server ────────────────────────
-initDatabase().then(() => {
-  app.listen(PORT, () => {
-    console.log(`\n🚀 Smart Classroom Locator API`);
-    console.log(`   Server running on http://localhost:${PORT}`);
-    console.log(`   Health check: http://localhost:${PORT}/api/health\n`);
-  });
-}).catch((err) => {
-  console.error('Failed to initialize database:', err);
-  process.exit(1);
-});
+async function startServer(port = PORT) {
+  await initDatabase();
 
-module.exports = app;
+  return new Promise((resolve, reject) => {
+    const server = app.listen(port, () => {
+      const address = server.address();
+      const activePort = typeof address === 'object' ? address.port : port;
+      console.log(`Smart Classroom Locator API running on http://localhost:${activePort}`);
+      resolve(server);
+    });
+    server.on('error', reject);
+  });
+}
+
+if (require.main === module) {
+  startServer().catch((err) => {
+    console.error('Failed to start server:', err);
+    process.exit(1);
+  });
+}
+
+module.exports = { app, startServer };

@@ -1,21 +1,23 @@
-const PHONE_DIGITS = 10;
 const SECTION_PATTERN = /^[A-Za-z0-9-]{2,20}$/;
 const WING_PATTERN = /^[A-C]$/i;
+const UNIVERSITY_ROLL_PATTERN = /^[A-Z0-9-]{4,30}$/;
 
-function normalizePhone(input) {
-  if (input === undefined || input === null) {
-    return '';
-  }
-
-  let cleanPhone = String(input).replace(/[^\d]/g, '');
-  if (cleanPhone.length === 12 && cleanPhone.startsWith('91')) {
-    cleanPhone = cleanPhone.slice(2);
-  }
-  return cleanPhone;
+function normalizeUniversityRollNumber(input) {
+  return String(input || '').trim().replace(/\s+/g, '').toUpperCase();
 }
 
-function isValidPhone(phone) {
-  return /^\d{10}$/.test(phone);
+function isValidUniversityRollNumber(value) {
+  return UNIVERSITY_ROLL_PATTERN.test(value);
+}
+
+function normalizeClassRollNumber(input) {
+  if (input === undefined || input === null || input === '') return null;
+  const parsed = Number(input);
+  return Number.isInteger(parsed) ? parsed : NaN;
+}
+
+function isValidClassRollNumber(value) {
+  return value === null || (Number.isInteger(value) && value >= 1 && value <= 999);
 }
 
 function normalizeSection(section) {
@@ -44,9 +46,10 @@ function isValidYear(year) {
 }
 
 module.exports = {
-  PHONE_DIGITS,
-  normalizePhone,
-  isValidPhone,
+  normalizeUniversityRollNumber,
+  isValidUniversityRollNumber,
+  normalizeClassRollNumber,
+  isValidClassRollNumber,
   normalizeSection,
   isValidSection,
   normalizeWing,

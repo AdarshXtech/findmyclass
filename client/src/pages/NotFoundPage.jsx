@@ -17,7 +17,7 @@ export default function NotFoundPage() {
             404
           </span>
           <div className="absolute inset-0 flex items-center justify-center">
-            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/30">
+            <div className="w-20 h-20 rounded-md bg-orange-700 flex items-center justify-center shadow-lg shadow-black/20">
               <HiOutlineLocationMarker className="text-4xl text-white" />
             </div>
           </div>

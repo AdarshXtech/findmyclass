@@ -1,245 +1,243 @@
-import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import {
-  HiOutlineLocationMarker,
   HiOutlineArrowLeft,
-  HiOutlineUser,
-  HiOutlineAcademicCap,
-  HiOutlineBookOpen,
-  HiOutlineOfficeBuilding,
+  HiOutlineCalendar,
+  HiOutlineClock,
+  HiOutlineLocationMarker,
 } from 'react-icons/hi'
-import { HiBuildingOffice2 } from 'react-icons/hi2'
-import { normalizePhone, isValidPhone } from '../utils/phone'
 import publicApi from '../api/publicApi'
+import { isValidUniversityRollNumber, normalizeUniversityRollNumber } from '../utils/universityRoll'
+
+const weekdays = [
+  { id: 1, name: 'Monday', shortName: 'MON' },
+  { id: 2, name: 'Tuesday', shortName: 'TUE' },
+  { id: 3, name: 'Wednesday', shortName: 'WED' },
+  { id: 4, name: 'Thursday', shortName: 'THU' },
+  { id: 5, name: 'Friday', shortName: 'FRI' },
+]
+
+function formatName(name) {
+  return String(name || '').toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase())
+}
+
+function formatTime(value) {
+  const [hourValue, minute = '00'] = String(value || '').split(':')
+  const hour = Number(hourValue)
+  if (!Number.isInteger(hour)) return value
+  return `${hour % 12 || 12}:${minute} ${hour >= 12 ? 'PM' : 'AM'}`
+}
 
 export default function ResultPage() {
-  const { phone } = useParams()
+  const { universityRollNumber } = useParams()
   const navigate = useNavigate()
-  const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const location = useLocation()
+  const normalizedRollNumber = normalizeUniversityRollNumber(universityRollNumber)
+  const initialData = location.state?.universityRollNumber === normalizedRollNumber
+    ? location.state?.lookupData
+    : null
+  const [data, setData] = useState(initialData || null)
+  const [loading, setLoading] = useState(!initialData)
   const [error, setError] = useState('')
-
-  useEffect(() => {
-    lookupStudent()
-  }, [phone])
+  const [canRetry, setCanRetry] = useState(false)
 
   const lookupStudent = async () => {
     setLoading(true)
     setError('')
-    const cleanPhone = normalizePhone(phone)
+    setCanRetry(false)
+    setData(null)
 
-    if (!isValidPhone(cleanPhone)) {
-      setError('Please enter a valid 10-digit phone number.')
+    if (!isValidUniversityRollNumber(normalizedRollNumber)) {
+      setError('Enter a valid university roll number.')
       setLoading(false)
       return
     }
 
     try {
-      const response = await publicApi.post('/student/lookup', { phone: cleanPhone })
-      if (response.data.success) {
-        setData(response.data.data)
-      }
-    } catch (err) {
-      if (err.response?.status === 404) {
-        setError('No student found. Please enter your registered phone number.')
+      const response = await publicApi.post('/student/lookup', {
+        university_roll_number: normalizedRollNumber,
+      })
+      setData(response.data.data)
+    } catch (requestError) {
+      if (requestError.response?.status === 404) {
+        setError('No CSAI 2B student was found with that university roll number.')
       } else {
-        setError('Something went wrong. Please try again later.')
+        setError(requestError.response?.data?.message || 'The schedule service is unavailable right now.')
+        setCanRetry(true)
       }
     } finally {
       setLoading(false)
     }
   }
 
-  const getYearSuffix = (year) => {
-    const suffixes = { 1: 'st', 2: 'nd', 3: 'rd' }
-    return `${year}${suffixes[year] || 'th'} Year`
-  }
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'auto' })
+  }, [universityRollNumber])
 
-  const getWingColor = (wing) => {
-    const colors = {
-      A: { bg: 'from-emerald-500/20 to-emerald-600/10', text: 'text-emerald-400', border: 'border-emerald-500/20', badge: 'bg-emerald-500/20 text-emerald-300' },
-      B: { bg: 'from-sky-500/20 to-sky-600/10', text: 'text-sky-400', border: 'border-sky-500/20', badge: 'bg-sky-500/20 text-sky-300' },
-      C: { bg: 'from-amber-500/20 to-amber-600/10', text: 'text-amber-400', border: 'border-amber-500/20', badge: 'bg-amber-500/20 text-amber-300' },
-    }
-    return colors[wing] || colors.A
-  }
+  useEffect(() => {
+    if (!initialData) lookupStudent()
+  }, [universityRollNumber])
 
-  // ── Loading State ──────────────────────────────────────
+  const timetableByDay = useMemo(() => {
+    const grouped = new Map(weekdays.map((day) => [day.id, []]))
+    for (const entry of data?.timetable || []) grouped.get(entry.dayOfWeek)?.push(entry)
+    return grouped
+  }, [data])
+
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-navy-900">
-        <div className="text-center animate-fade-in">
-          <div className="relative mx-auto w-20 h-20 mb-6">
-            <div className="absolute inset-0 rounded-full border-4 border-indigo-500/20"></div>
-            <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-indigo-500 animate-spin"></div>
-            <HiOutlineLocationMarker className="absolute inset-0 m-auto text-3xl text-indigo-400" />
-          </div>
-          <p className="text-slate-400 font-medium">Locating your classrooms...</p>
+      <div className="flex min-h-screen items-center justify-center bg-[#f3efe5] px-5 text-[#20211e]">
+        <div className="border-l-4 border-[#a33a2b] pl-5">
+          <p className="font-serif text-2xl font-bold">Reading the class roster</p>
+          <p className="mt-1 text-sm text-[#6b6f65]">Loading timetable and room assignments...</p>
         </div>
       </div>
     )
   }
 
-  // ── Error State ────────────────────────────────────────
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-navy-900 px-6">
-        <div className="absolute inset-0 bg-grid opacity-30" />
-        <div className="relative glass-card rounded-2xl p-10 max-w-md w-full text-center animate-scale-in">
-          <div className="mx-auto w-16 h-16 rounded-2xl bg-red-500/10 flex items-center justify-center mb-6">
-            <svg className="w-8 h-8 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
+      <div className="flex min-h-screen items-center justify-center bg-[#f3efe5] px-5 text-[#20211e]">
+        <div className="w-full max-w-lg border-y border-[#20211e] py-8">
+          <p className="text-xs font-bold uppercase text-[#a33a2b]">{canRetry ? 'Service unavailable' : 'Roster check'}</p>
+          <h1 className="mt-3 font-serif text-4xl font-bold">We could not open that timetable.</h1>
+          <p className="mt-4 leading-7 text-[#55594f]">{error}</p>
+          <div className="mt-7 flex flex-wrap gap-3">
+            {canRetry ? <button onClick={lookupStudent} className="bg-[#a33a2b] px-5 py-3 font-bold text-white">Retry</button> : null}
+            <button onClick={() => navigate('/')} className="flex items-center gap-2 border border-[#20211e] px-5 py-3 font-bold">
+              <HiOutlineArrowLeft /> Search again
+            </button>
           </div>
-          <h2 className="text-2xl font-bold text-white mb-3">Not Found</h2>
-          <p className="text-slate-400 mb-8 leading-relaxed">{error}</p>
-          <button
-            onClick={() => navigate('/')}
-            className="btn-primary inline-flex items-center gap-2"
-          >
-            <HiOutlineArrowLeft className="text-lg" />
-            Try Again
-          </button>
         </div>
       </div>
     )
   }
 
-  const { student, classrooms } = data
+  const { student, timetable = [], classrooms = [] } = data
+  const displayName = formatName(student.name)
+  const displaySection = student.section === 'CSAI2B' ? 'CSAI 2B' : student.section
+  const teachingEntries = timetable.filter((entry) => entry.sessionType !== 'Break')
+  const subjectCount = new Set(teachingEntries.map((entry) => entry.subjectCode || entry.subjectName)).size
 
-  // ── Success State ──────────────────────────────────────
   return (
-    <div className="min-h-screen bg-navy-900 relative">
-      {/* Background */}
-      <div className="absolute inset-0">
-        <div className="absolute top-0 left-[-10%] w-[500px] h-[500px] rounded-full bg-indigo-600/10 blur-[120px]" />
-        <div className="absolute bottom-0 right-[-10%] w-[400px] h-[400px] rounded-full bg-violet-600/10 blur-[100px]" />
-        <div className="absolute inset-0 bg-grid opacity-30" />
-      </div>
+    <div className="min-h-screen bg-[#f3efe5] text-[#20211e]">
+      <header className="border-b border-[#20211e]/20 bg-[#fffdf7]">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4 sm:px-8">
+          <button onClick={() => navigate('/')} className="flex h-10 w-10 items-center justify-center border border-[#20211e] transition hover:bg-[#20211e] hover:text-white" aria-label="Search again" title="Search again">
+            <HiOutlineArrowLeft className="text-xl" />
+          </button>
+          <p className="font-serif text-lg font-bold">Find My Class</p>
+          <p className="text-xs font-bold text-[#a33a2b]">2026-27</p>
+        </div>
+      </header>
 
-      <div className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 py-8">
-
-        {/* ── Back Button ──────────────────────────────────── */}
-        <button
-          id="back-btn"
-          onClick={() => navigate('/')}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl glass-light text-slate-300 hover:text-white hover:border-indigo-500/30 transition-all duration-300 mb-6 animate-fade-in"
-        >
-          <HiOutlineArrowLeft />
-          <span className="text-sm font-medium">Search Again</span>
-        </button>
-
-        {/* ── Student Profile Card ─────────────────────────── */}
-        <div className="glass-card rounded-2xl p-6 sm:p-8 mb-8 animate-slide-up">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5">
-            {/* Avatar */}
-            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center flex-shrink-0 shadow-lg shadow-indigo-500/25">
-              <span className="text-2xl sm:text-3xl font-bold text-white">
-                {student.name.charAt(0)}
-              </span>
+      <main className="mx-auto max-w-6xl px-5 py-10 sm:px-8 md:py-14">
+        <section className="border-b-2 border-[#20211e] pb-8">
+          <p className="text-xs font-bold uppercase text-[#a33a2b]">{displaySection} / Semester III</p>
+          <div className="mt-4 grid gap-7 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+            <div>
+              <h1 className="font-serif text-4xl font-bold leading-tight sm:text-5xl">{displayName}</h1>
+              <p className="mt-2 text-[#62665d]">University roll {student.universityRollNumber}</p>
             </div>
-
-            {/* Info */}
-            <div className="flex-1 min-w-0">
-              <h1 className="text-2xl sm:text-3xl font-bold text-white mb-1">
-                Welcome, {student.name.split(' ')[0]}! 👋
-              </h1>
-              <p className="text-slate-400 text-sm sm:text-base">
-                Here are your classroom details for this semester
-              </p>
-            </div>
-          </div>
-
-          {/* Stats Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
-            {[
-              { icon: HiOutlineAcademicCap, label: 'Course', value: `${student.course} ${student.branch}` },
-              { icon: HiOutlineBookOpen, label: 'Year', value: getYearSuffix(student.year) },
-              { icon: HiOutlineUser, label: 'Section', value: student.section },
-              { icon: HiBuildingOffice2, label: 'Subjects', value: `${classrooms.length} Classes` },
-            ].map((item, i) => (
-              <div key={i} className="glass-light rounded-xl p-4 text-center hover:border-indigo-500/20 transition-all duration-300">
-                <item.icon className="mx-auto text-xl text-indigo-400 mb-2" />
-                <p className="text-xs text-slate-500 mb-1">{item.label}</p>
-                <p className="text-sm font-semibold text-white truncate">{item.value}</p>
+            <dl className="grid grid-cols-3 border border-[#20211e]/30 bg-[#fffdf7]">
+              <div className="border-r border-[#20211e]/20 px-4 py-3">
+                <dt className="text-[10px] font-bold uppercase text-[#73776d]">Course</dt>
+                <dd className="mt-1 font-bold">{student.course} {student.branch}</dd>
               </div>
-            ))}
+              <div className="border-r border-[#20211e]/20 px-4 py-3">
+                <dt className="text-[10px] font-bold uppercase text-[#73776d]">Year</dt>
+                <dd className="mt-1 font-bold">Year {student.year}</dd>
+              </div>
+              <div className="px-4 py-3">
+                <dt className="text-[10px] font-bold uppercase text-[#73776d]">Class roll</dt>
+                <dd className="mt-1 font-bold">{student.classRollNumber || '-'}</dd>
+              </div>
+            </dl>
           </div>
+        </section>
+
+        <div className="mb-7 mt-10 flex flex-wrap items-baseline justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <HiOutlineCalendar className="text-2xl text-[#a33a2b]" />
+            <h2 className="font-serif text-3xl font-bold">Weekly timetable</h2>
+          </div>
+          {timetable.length ? <p className="text-sm text-[#6b6f65]">{subjectCount} subjects / {teachingEntries.length} sessions</p> : null}
         </div>
 
-        {/* ── Section Title ────────────────────────────────── */}
-        <div className="flex items-center gap-3 mb-5 animate-slide-up stagger-2">
-          <HiOutlineLocationMarker className="text-2xl text-indigo-400" />
-          <h2 className="text-xl font-bold text-white">Your Classroom Locations</h2>
-          <div className="flex-1 h-px bg-gradient-to-r from-indigo-500/30 to-transparent" />
-        </div>
-
-        {/* ── Classroom Cards Grid ─────────────────────────── */}
-        {classrooms.length === 0 ? (
-          <div className="glass-card rounded-2xl p-8 text-center animate-slide-up">
-            <p className="text-white font-semibold mb-2">No classroom assignments available yet.</p>
-            <p className="text-slate-400 text-sm">Please contact your department for updated room allocation.</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {classrooms.map((classroom, index) => {
-              const wingColor = getWingColor(classroom.wing)
+        {timetable.length ? (
+          <div className="border-t-2 border-[#20211e]">
+            {weekdays.map((day) => {
+              const entries = timetableByDay.get(day.id) || []
+              const classCount = entries.filter((entry) => entry.sessionType !== 'Break').length
               return (
-                <div
-                  key={classroom.id}
-                  className={`glass-card rounded-2xl p-5 sm:p-6 animate-slide-up opacity-0 hover:border-indigo-500/30 transition-all duration-300 hover:-translate-y-1`}
-                  style={{ animationDelay: `${0.15 * (index + 1)}s`, animationFillMode: 'forwards' }}
-                >
-                  {/* Subject Header */}
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${wingColor.bg} flex items-center justify-center`}>
-                        <HiOutlineBookOpen className={`text-xl ${wingColor.text}`} />
-                      </div>
-                      <div>
-                        <h3 className="font-bold text-white text-lg leading-tight">{classroom.subject}</h3>
-                      </div>
-                    </div>
-                    <span className={`px-3 py-1 rounded-lg text-xs font-bold ${wingColor.badge}`}>
-                      Wing {classroom.wing}
-                    </span>
+                <section key={day.id} className="grid border-b border-[#20211e]/35 md:grid-cols-[150px_minmax(0,1fr)]">
+                  <div className="flex items-baseline justify-between bg-[#e6b845] px-4 py-4 md:block md:py-6">
+                    <p className="text-xs font-black">{day.shortName}</p>
+                    <h3 className="mt-1 font-serif text-xl font-bold">{day.name}</h3>
+                    <p className="mt-3 text-xs md:block">{classCount ? `${classCount} sessions` : 'No classes'}</p>
                   </div>
-
-                  {/* Details */}
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="glass-light rounded-xl p-3 text-center">
-                      <HiOutlineOfficeBuilding className="mx-auto text-lg text-slate-400 mb-1" />
-                      <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Floor</p>
-                      <p className="text-sm font-semibold text-white">{classroom.floor}</p>
+                  {entries.length ? (
+                    <div className="divide-y divide-[#20211e]/20 bg-[#fffdf7]">
+                      {entries.map((entry) => entry.sessionType === 'Break' ? (
+                        <article key={entry.id} className="grid gap-3 bg-[#f3dfaa] px-4 py-4 sm:grid-cols-[190px_minmax(0,1fr)_120px] sm:items-center sm:px-6">
+                          <div className="flex items-center gap-2 whitespace-nowrap text-sm font-bold">
+                            <HiOutlineClock className="text-lg text-[#a33a2b]" />
+                            <span>{formatTime(entry.startTime)} - {formatTime(entry.endTime)}</span>
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-serif text-lg font-bold">Lunch break</p>
+                          </div>
+                          <div className="text-sm font-medium text-[#6b5b32] sm:text-right">No class scheduled</div>
+                        </article>
+                      ) : (
+                        <article key={entry.id} className="grid gap-3 px-4 py-5 sm:grid-cols-[190px_minmax(0,1fr)_120px] sm:items-center sm:px-6">
+                          <div className="flex items-center gap-2 whitespace-nowrap text-sm font-bold">
+                            <HiOutlineClock className="text-lg text-[#a33a2b]" />
+                            <span>{formatTime(entry.startTime)} - {formatTime(entry.endTime)}</span>
+                          </div>
+                          <div className="min-w-0">
+                            <div className="mb-1 flex flex-wrap items-center gap-2 text-xs">
+                              {entry.subjectCode ? <span className="font-black text-[#17726a]">{entry.subjectCode}</span> : null}
+                              <span className="text-[#73776d]">{entry.sessionType}</span>
+                            </div>
+                            <p className="font-bold leading-5">{entry.subjectName}</p>
+                            {entry.facultyName ? <p className="mt-1 text-sm text-[#6b6f65]">{entry.facultyName}</p> : null}
+                          </div>
+                          <div className="flex items-center gap-2 font-bold sm:justify-end">
+                            <HiOutlineLocationMarker className="text-lg text-[#a33a2b]" />
+                            <span>{entry.room ? `Room ${entry.room}` : 'Room not listed'}</span>
+                          </div>
+                        </article>
+                      ))}
                     </div>
-                    <div className="glass-light rounded-xl p-3 text-center">
-                      <HiBuildingOffice2 className="mx-auto text-lg text-slate-400 mb-1" />
-                      <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Wing</p>
-                      <p className="text-sm font-semibold text-white">{classroom.wing} Wing</p>
-                    </div>
-                    <div className="glass-light rounded-xl p-3 text-center">
-                      <HiOutlineLocationMarker className="mx-auto text-lg text-indigo-400 mb-1" />
-                      <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Room</p>
-                      <p className="text-sm font-bold text-indigo-300">{classroom.room}</p>
-                    </div>
-                  </div>
-                </div>
+                  ) : (
+                    <div className="flex items-center bg-[#fffdf7] px-6 py-8 text-sm text-[#6b6f65]">No classes are listed for Tuesday.</div>
+                  )}
+                </section>
               )
             })}
           </div>
+        ) : classrooms.length ? (
+          <section className="border-y border-[#20211e] bg-[#fffdf7] py-5">
+            {classrooms.map((classroom) => (
+              <div key={classroom.id} className="flex justify-between gap-4 border-b border-[#20211e]/20 px-4 py-3 last:border-0">
+                <span className="font-bold">{classroom.subject}</span>
+                <span>Room {classroom.room}</span>
+              </div>
+            ))}
+          </section>
+        ) : (
+          <section className="border-y border-[#20211e] py-8">
+            <p className="font-bold">No timetable is available for this section.</p>
+            <p className="mt-1 text-sm text-[#6b6f65]">Contact the department for an updated schedule.</p>
+          </section>
         )}
 
-        {/* ── Footer Note ──────────────────────────────────── */}
-        <div className="text-center mt-10 mb-6 animate-fade-in stagger-6">
-          <p className="text-sm text-slate-500">
-            Room assignments may change. Contact your department for the latest updates.
-          </p>
-          <div className="flex items-center justify-center gap-2 mt-3 text-slate-600 text-xs">
-            <HiOutlineAcademicCap />
-            <span>Smart Classroom Locator © {new Date().getFullYear()}</span>
-          </div>
-        </div>
-      </div>
+        <footer className="mt-10 flex flex-wrap items-center justify-between gap-2 border-t border-[#20211e]/20 pt-5 text-xs text-[#73776d]">
+          <span>Academic session {timetable[0]?.academicSession || '2026-27'}</span>
+          <span>Room assignments may be revised by the department.</span>
+        </footer>
+      </main>
     </div>
   )
 }

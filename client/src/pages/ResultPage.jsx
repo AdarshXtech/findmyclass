@@ -168,15 +168,17 @@ export default function ResultPage() {
           <div className="border-t-2 border-[#20211e]">
             {weekdays.map((day) => {
               const entries = timetableByDay.get(day.id) || []
-              const classCount = entries.filter((entry) => entry.sessionType !== 'Break').length
+              const teachingDayEntries = entries.filter((entry) => entry.sessionType !== 'Break')
+              const classCount = teachingDayEntries.length
+              const isDayOff = classCount === 0
               return (
                 <section key={day.id} className="grid border-b border-[#20211e]/35 md:grid-cols-[150px_minmax(0,1fr)]">
                   <div className="flex items-baseline justify-between bg-[#e6b845] px-4 py-4 md:block md:py-6">
                     <p className="text-xs font-black">{day.shortName}</p>
                     <h3 className="mt-1 font-serif text-xl font-bold">{day.name}</h3>
-                    <p className="mt-3 text-xs md:block">{classCount ? `${classCount} sessions` : 'No classes'}</p>
+                    <p className="mt-3 text-xs md:block">{isDayOff ? 'Day off' : `${classCount} sessions`}</p>
                   </div>
-                  {entries.length ? (
+                  {!isDayOff ? (
                     <div className="divide-y divide-[#20211e]/20 bg-[#fffdf7]">
                       {entries.map((entry) => entry.sessionType === 'Break' ? (
                         <article key={entry.id} className="grid gap-3 bg-[#f3dfaa] px-4 py-4 sm:grid-cols-[190px_minmax(0,1fr)_120px] sm:items-center sm:px-6">
@@ -211,7 +213,9 @@ export default function ResultPage() {
                       ))}
                     </div>
                   ) : (
-                    <div className="flex items-center bg-[#fffdf7] px-6 py-8 text-sm text-[#6b6f65]">No classes are listed for Tuesday.</div>
+                    <div className="flex items-center bg-[#fffdf7] px-6 py-8">
+                      <p className="font-serif text-xl font-bold text-[#55594f]">Day off</p>
+                    </div>
                   )}
                 </section>
               )

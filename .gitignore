@@ -3,5 +3,6 @@ dist/
 .env
 *.log
 tmp/
+.vercel/
 server/database.sqlite
 server/database.sqlite-*

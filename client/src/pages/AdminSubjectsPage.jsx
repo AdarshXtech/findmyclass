@@ -58,22 +58,44 @@ export default function AdminSubjectsPage() {
     }
 
     setSaving(true)
+    const previousSubjects = subjects
+    const submittedName = subjectName
+    const submittedEditingId = editingId
+    const optimisticId = editingId || `optimistic-${Date.now()}`
+    const optimisticSubject = { subject_id: optimisticId, subject_name: payload.subject_name }
+    setSubjects((current) => [
+      ...current.filter((subject) => subject.subject_id !== editingId),
+      optimisticSubject,
+    ].sort((a, b) => a.subject_name.localeCompare(b.subject_name)))
+    resetForm()
+
     try {
+      let response
       if (editingId) {
-        await adminApi.put(`/subjects/${editingId}`, payload)
+        response = await adminApi.put(`/subjects/${editingId}`, payload)
         setSuccess('Subject updated successfully.')
       } else {
-        await adminApi.post('/subjects', payload)
+        response = await adminApi.post('/subjects', payload)
         setSuccess('Subject added successfully.')
       }
-      resetForm()
-      await fetchSubjects()
+
+      const savedSubject = response.data.data
+      setSubjects((current) => [
+        ...current.filter((subject) => (
+          subject.subject_id !== optimisticId && subject.subject_id !== submittedEditingId
+        )),
+        savedSubject,
+      ].sort((a, b) => a.subject_name.localeCompare(b.subject_name)))
     } catch (err) {
+      setSubjects(previousSubjects)
+      setEditingId(submittedEditingId)
+      setSubjectName(submittedName)
       if (err.response?.status === 401 || err.response?.status === 403) {
         handleUnauthorized()
         return
       }
-      setError(err.response?.data?.message || 'Failed to save subject.')
+      setError(`${err.response?.data?.message || 'Failed to save subject.'} Changes were rolled back.`)
+      setSuccess('')
     } finally {
       setSaving(false)
     }
@@ -95,19 +117,23 @@ export default function AdminSubjectsPage() {
     setDeletingId(subject.subject_id)
     setError('')
     setSuccess('')
+    const previousSubjects = subjects
+    const wasEditing = editingId === subject.subject_id
+    setSubjects((current) => current.filter((entry) => entry.subject_id !== subject.subject_id))
+    if (wasEditing) resetForm()
+
     try {
       await adminApi.delete(`/subjects/${subject.subject_id}`)
       setSuccess('Subject deleted successfully.')
-      if (editingId === subject.subject_id) {
-        resetForm()
-      }
-      await fetchSubjects()
     } catch (err) {
+      setSubjects(previousSubjects)
+      if (wasEditing) handleEdit(subject)
       if (err.response?.status === 401 || err.response?.status === 403) {
         handleUnauthorized()
         return
       }
-      setError(err.response?.data?.message || 'Failed to delete subject.')
+      setError(`${err.response?.data?.message || 'Failed to delete subject.'} The subject was restored.`)
+      setSuccess('')
     } finally {
       setDeletingId(null)
     }

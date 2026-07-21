@@ -4,9 +4,10 @@ loadEnvironment();
 
 const express = require('express');
 const cors = require('cors');
+const compression = require('compression');
 const fs = require('fs');
 const path = require('path');
-const { initDatabase } = require('./config/db');
+const { initDatabase, getDatabaseDependencyState } = require('./config/db');
 const studentRoutes = require('./routes/student');
 const adminRoutes = require('./routes/admin');
 
@@ -35,6 +36,7 @@ function buildCorsOptions() {
 }
 
 app.use(cors(buildCorsOptions()));
+app.use(compression({ threshold: 1024 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -45,7 +47,8 @@ app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
     message: 'Smart Classroom Locator API is running',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    database: getDatabaseDependencyState()
   });
 });
 

@@ -1,8 +1,10 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const http = require('node:http');
 const os = require('node:os');
 const path = require('node:path');
+const zlib = require('node:zlib');
 
 const testDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'findmyclass-'));
 process.env.NODE_ENV = 'test';
@@ -52,6 +54,21 @@ async function apiRequest(urlPath, options = {}) {
   });
   const responseBody = await response.json();
   return { status: response.status, body: responseBody };
+}
+
+function rawApiRequest(urlPath, headers = {}) {
+  return new Promise((resolve, reject) => {
+    const request = http.get(`${baseUrl}${urlPath}`, { headers }, (response) => {
+      const chunks = [];
+      response.on('data', (chunk) => chunks.push(chunk));
+      response.on('end', () => resolve({
+        status: response.statusCode,
+        headers: response.headers,
+        body: Buffer.concat(chunks),
+      }));
+    });
+    request.on('error', reject);
+  });
 }
 
 test.before(async () => {
@@ -183,6 +200,7 @@ test('health, lookup, authentication, CRUD, and import workflows', async (t) => 
       body: { year: 3 },
     });
     assert.equal(updated.status, 200);
+    assert.equal(updated.body.data.year, 3);
 
     const filtered = await apiRequest('/api/admin/students?section=cse-b', { token });
     assert.equal(filtered.status, 200);
@@ -245,6 +263,7 @@ test('health, lookup, authentication, CRUD, and import workflows', async (t) => 
       body: { room: '211' },
     });
     assert.equal(updated.status, 200);
+    assert.equal(updated.body.data.room, '211');
 
     const removed = await apiRequest(`/api/admin/classrooms/${classroomId}`, {
       method: 'DELETE',
@@ -313,5 +332,50 @@ test('health, lookup, authentication, CRUD, and import workflows', async (t) => 
       body: malformedForm,
     });
     assert.equal(malformed.status, 400);
+  });
+
+  await t.test('batches large imports and negotiates compressed JSON responses', async (t) => {
+    const rows = ['Name,University Roll Number,Class Roll Number,Course,Branch,Year,Section'];
+    for (let index = 0; index < 250; index++) {
+      rows.push(`Bulk Student ${index},77${String(index).padStart(8, '0')},${index + 1},B.Tech,CSE,2,CSE-B`);
+    }
+    const form = new FormData();
+    form.append('file', new Blob([rows.join('\n')], { type: 'text/csv' }), 'bulk-students.csv');
+
+    const startedAt = performance.now();
+    const imported = await apiRequest('/api/admin/import/students', {
+      method: 'POST',
+      token,
+      body: form,
+    });
+    const durationMs = performance.now() - startedAt;
+    assert.equal(imported.status, 200);
+    assert.equal(imported.body.data.imported, 250);
+    assert.equal(imported.body.data.skipped, 0);
+    assert.ok(durationMs < 2000, `Bulk import took ${durationMs.toFixed(1)}ms`);
+    t.diagnostic(`250-row import completed in ${durationMs.toFixed(1)}ms`);
+
+    const authorization = { Authorization: `Bearer ${token}` };
+    const identity = await rawApiRequest('/api/admin/students', {
+      ...authorization,
+      'Accept-Encoding': 'identity',
+    });
+    const compressed = await rawApiRequest('/api/admin/students', {
+      ...authorization,
+      'Accept-Encoding': 'gzip',
+    });
+
+    assert.equal(identity.status, 200);
+    assert.equal(identity.headers['content-encoding'], undefined);
+    assert.equal(compressed.status, 200);
+    assert.equal(compressed.headers['content-encoding'], 'gzip');
+    assert.ok(compressed.body.length < identity.body.length * 0.35);
+    t.diagnostic(
+      `gzip reduced ${identity.body.length} bytes to ${compressed.body.length} bytes ` +
+      `(${((1 - compressed.body.length / identity.body.length) * 100).toFixed(1)}% smaller)`
+    );
+    const parsed = JSON.parse(zlib.gunzipSync(compressed.body).toString('utf8'));
+    assert.equal(parsed.success, true);
+    assert.ok(parsed.data.length >= 250);
   });
 });

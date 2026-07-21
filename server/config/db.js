@@ -2,6 +2,7 @@ const initSqlJs = require('sql.js');
 const { Pool } = require('pg');
 const fs = require('fs');
 const path = require('path');
+const { CircuitBreaker } = require('../utils/circuit-breaker');
 
 const configuredDatabasePath = String(process.env.DATABASE_PATH || '').trim();
 const DB_PATH = configuredDatabasePath
@@ -12,6 +13,22 @@ const DATABASE_URL = String(process.env.DATABASE_URL || '').trim();
 let sqlite = null;
 let pool = null;
 let dbReady = null;
+
+function isPostgresDependencyFailure(error) {
+  const code = String(error?.code || '');
+  return code === 'DEPENDENCY_TIMEOUT'
+    || code.startsWith('08')
+    || ['ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', '57P01', '57P02', '57P03', '53300'].includes(code)
+    || /connection|timeout|terminated unexpectedly/i.test(String(error?.message || ''));
+}
+
+const postgresCircuit = new CircuitBreaker({
+  failureThreshold: 3,
+  resetTimeoutMs: 10000,
+  timeoutMs: 6000,
+  maxConcurrent: 8,
+  isFailure: isPostgresDependencyFailure,
+});
 
 function sqliteQueryAll(sql, params = []) {
   const stmt = sqlite.prepare(sql);
@@ -203,7 +220,14 @@ function initDatabase() {
       const adapter = memoryDatabase.adapters.createPg();
       pool = new adapter.Pool();
     } else {
-      pool = new Pool({ connectionString: DATABASE_URL });
+      pool = new Pool({
+        connectionString: DATABASE_URL,
+        max: 8,
+        connectionTimeoutMillis: 4000,
+        idleTimeoutMillis: 30000,
+        query_timeout: 5000,
+        statement_timeout: 5000,
+      });
     }
     dbReady = createPostgresSchema().then(() => {
       console.log('PostgreSQL database initialized successfully');
@@ -238,7 +262,7 @@ function postgresSql(sql) {
 }
 
 async function queryAll(sql, params = []) {
-  if (pool) return (await pool.query(postgresSql(sql), params)).rows;
+  if (pool) return (await protectedPostgresQuery(pool, sql, params)).rows;
   return sqliteQueryAll(sql, params);
 }
 
@@ -248,17 +272,7 @@ async function queryOne(sql, params = []) {
 
 async function execute(sql, params = []) {
   if (pool) {
-    const isInsert = /^\s*INSERT\s+/i.test(sql);
-    const statement = isInsert && !/\bRETURNING\b/i.test(sql)
-      ? `${sql.trim().replace(/;$/, '')} RETURNING *`
-      : sql;
-    const result = await pool.query(postgresSql(statement), params);
-    const insertedRow = result.rows[0] || null;
-    const idKey = insertedRow && Object.keys(insertedRow).find((key) => key.endsWith('_id'));
-    return {
-      changes: result.rowCount,
-      lastInsertRowid: idKey ? insertedRow[idKey] : null,
-    };
+    return postgresExecute(pool, sql, params);
   }
 
   sqlite.run(sql, params);
@@ -266,6 +280,105 @@ async function execute(sql, params = []) {
   const lastId = sqliteQueryOne('SELECT last_insert_rowid() as id');
   saveDatabase();
   return { changes, lastInsertRowid: lastId?.id || null };
+}
+
+function protectedPostgresQuery(executor, sql, params = []) {
+  const operation = () => executor.query(postgresSql(sql), params);
+  return DATABASE_URL === 'pg-mem://test' ? operation() : postgresCircuit.execute(operation);
+}
+
+async function postgresExecute(executor, sql, params = [], { returning = true } = {}) {
+  const isInsert = /^\s*INSERT\s+/i.test(sql);
+  const statement = returning && isInsert && !/\bRETURNING\b/i.test(sql)
+    ? `${sql.trim().replace(/;$/, '')} RETURNING *`
+    : sql;
+  const result = await protectedPostgresQuery(executor, statement, params);
+  const insertedRow = result.rows[0] || null;
+  const idKey = insertedRow && Object.keys(insertedRow).find((key) => key.endsWith('_id'));
+  return {
+    changes: result.rowCount,
+    lastInsertRowid: idKey ? insertedRow[idKey] : null,
+  };
+}
+
+function validateIdentifier(identifier) {
+  if (!/^[a-z_][a-z0-9_]*$/i.test(identifier)) {
+    throw new Error(`Unsafe SQL identifier: ${identifier}`);
+  }
+  return identifier;
+}
+
+async function insertManyWith(operations, table, columns, rows, { suffix = '', chunkSize = 200 } = {}) {
+  if (!rows.length) return { changes: 0 };
+
+  const safeTable = validateIdentifier(table);
+  const safeColumns = columns.map(validateIdentifier);
+  let changes = 0;
+
+  for (let offset = 0; offset < rows.length; offset += chunkSize) {
+    const chunk = rows.slice(offset, offset + chunkSize);
+    const placeholders = chunk
+      .map(() => `(${safeColumns.map(() => '?').join(', ')})`)
+      .join(', ');
+    const sql = `INSERT INTO ${safeTable} (${safeColumns.join(', ')}) VALUES ${placeholders} ${suffix}`.trim();
+    const result = await operations.execute(sql, chunk.flat(), { returning: false });
+    changes += result.changes;
+  }
+
+  return { changes };
+}
+
+async function withTransaction(callback) {
+  if (pool) {
+    const client = await pool.connect();
+    const operations = {
+      queryAll: async (sql, params = []) => (await protectedPostgresQuery(client, sql, params)).rows,
+      queryOne: async (sql, params = []) => (await operations.queryAll(sql, params))[0] || null,
+      execute: (sql, params = [], options = {}) => postgresExecute(client, sql, params, options),
+    };
+    operations.insertMany = (table, columns, rows, options) => insertManyWith(operations, table, columns, rows, options);
+
+    try {
+      await client.query('BEGIN');
+      const result = await callback(operations);
+      await client.query('COMMIT');
+      return result;
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  const operations = {
+    queryAll: async (sql, params = []) => sqliteQueryAll(sql, params),
+    queryOne: async (sql, params = []) => sqliteQueryOne(sql, params),
+    execute: async (sql, params = []) => {
+      sqlite.run(sql, params);
+      return { changes: sqlite.getRowsModified(), lastInsertRowid: sqliteQueryOne('SELECT last_insert_rowid() AS id')?.id || null };
+    },
+  };
+  operations.insertMany = (table, columns, rows, options) => insertManyWith(operations, table, columns, rows, options);
+
+  sqlite.run('BEGIN TRANSACTION');
+  try {
+    const result = await callback(operations);
+    sqlite.run('COMMIT');
+    saveDatabase();
+    return result;
+  } catch (error) {
+    sqlite.run('ROLLBACK');
+    throw error;
+  }
+}
+
+async function insertMany(table, columns, rows, options = {}) {
+  return withTransaction((transaction) => transaction.insertMany(table, columns, rows, options));
+}
+
+function getDatabaseDependencyState() {
+  return pool ? postgresCircuit.snapshot() : { state: 'local', failures: 0, active: 0 };
 }
 
 module.exports = {
@@ -276,4 +389,7 @@ module.exports = {
   queryAll,
   queryOne,
   execute,
+  insertMany,
+  withTransaction,
+  getDatabaseDependencyState,
 };

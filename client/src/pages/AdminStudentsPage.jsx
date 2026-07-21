@@ -14,6 +14,10 @@ const initialForm = {
   section: '',
 }
 
+function sortStudents(entries) {
+  return [...entries].sort((a, b) => a.name.localeCompare(b.name))
+}
+
 export default function AdminStudentsPage() {
   const navigate = useNavigate()
   const [students, setStudents] = useState([])
@@ -106,23 +110,61 @@ export default function AdminStudentsPage() {
     }
 
     setSaving(true)
+    const previousStudents = students
+    const previousSections = sections
+    const submittedForm = form
+    const submittedEditingId = editingId
+    const optimisticId = editingId || `optimistic-${Date.now()}`
+    const optimisticStudent = { student_id: optimisticId, ...payload }
+    const matchesCurrentView = (student) => {
+      const normalizedSearch = search.trim().toLowerCase()
+      return (!sectionFilter || student.section === sectionFilter)
+        && (!normalizedSearch
+          || student.name.toLowerCase().includes(normalizedSearch)
+          || student.university_roll_number.toLowerCase().includes(normalizedSearch))
+    }
+
+    setStudents((current) => {
+      const withoutCurrent = current.filter((student) => student.student_id !== editingId)
+      return matchesCurrentView(optimisticStudent)
+        ? sortStudents([...withoutCurrent, optimisticStudent])
+        : withoutCurrent
+    })
+    if (!sections.includes(payload.section)) {
+      setSections((current) => [...current, payload.section].sort())
+    }
+    resetForm()
+
     try {
+      let response
       if (editingId) {
-        await adminApi.put(`/students/${editingId}`, payload)
+        response = await adminApi.put(`/students/${editingId}`, payload)
         setSuccess('Student updated successfully.')
       } else {
-        await adminApi.post('/students', payload)
+        response = await adminApi.post('/students', payload)
         setSuccess('Student added successfully.')
       }
 
-      resetForm()
-      await fetchData()
+      const savedStudent = response.data.data
+      setStudents((current) => {
+        const withoutOptimistic = current.filter((student) => (
+          student.student_id !== optimisticId && student.student_id !== submittedEditingId
+        ))
+        return matchesCurrentView(savedStudent)
+          ? sortStudents([...withoutOptimistic, savedStudent])
+          : withoutOptimistic
+      })
     } catch (err) {
+      setStudents(previousStudents)
+      setSections(previousSections)
+      setEditingId(submittedEditingId)
+      setForm(submittedForm)
       if (err.response?.status === 401 || err.response?.status === 403) {
         handleUnauthorized()
         return
       }
-      setError(err.response?.data?.message || 'Failed to save student.')
+      setError(`${err.response?.data?.message || 'Failed to save student.'} Changes were rolled back.`)
+      setSuccess('')
     } finally {
       setSaving(false)
     }
@@ -152,19 +194,23 @@ export default function AdminStudentsPage() {
     setDeletingId(student.student_id)
     setError('')
     setSuccess('')
+    const previousStudents = students
+    const wasEditing = editingId === student.student_id
+    setStudents((current) => current.filter((entry) => entry.student_id !== student.student_id))
+    if (wasEditing) resetForm()
+
     try {
       await adminApi.delete(`/students/${student.student_id}`)
       setSuccess('Student deleted successfully.')
-      if (editingId === student.student_id) {
-        resetForm()
-      }
-      await fetchData()
     } catch (err) {
+      setStudents(previousStudents)
+      if (wasEditing) handleEdit(student)
       if (err.response?.status === 401 || err.response?.status === 403) {
         handleUnauthorized()
         return
       }
-      setError(err.response?.data?.message || 'Failed to delete student.')
+      setError(`${err.response?.data?.message || 'Failed to delete student.'} The student was restored.`)
+      setSuccess('')
     } finally {
       setDeletingId(null)
     }

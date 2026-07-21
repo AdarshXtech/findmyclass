@@ -12,6 +12,12 @@ const initialForm = {
   room: '',
 }
 
+function sortClassrooms(entries) {
+  return [...entries].sort((a, b) => (
+    a.section.localeCompare(b.section) || a.subject.localeCompare(b.subject)
+  ))
+}
+
 export default function AdminClassroomsPage() {
   const navigate = useNavigate()
   const [classrooms, setClassrooms] = useState([])
@@ -86,22 +92,49 @@ export default function AdminClassroomsPage() {
     }
 
     setSaving(true)
+    const previousClassrooms = classrooms
+    const submittedForm = form
+    const submittedEditingId = editingId
+    const optimisticId = editingId || `optimistic-${Date.now()}`
+    const optimisticClassroom = { classroom_id: optimisticId, ...payload }
+    const matchesCurrentView = (classroom) => !sectionFilter || classroom.section === sectionFilter
+    setClassrooms((current) => {
+      const withoutCurrent = current.filter((classroom) => classroom.classroom_id !== editingId)
+      return matchesCurrentView(optimisticClassroom)
+        ? sortClassrooms([...withoutCurrent, optimisticClassroom])
+        : withoutCurrent
+    })
+    resetForm()
+
     try {
+      let response
       if (editingId) {
-        await adminApi.put(`/classrooms/${editingId}`, payload)
+        response = await adminApi.put(`/classrooms/${editingId}`, payload)
         setSuccess('Classroom assignment updated successfully.')
       } else {
-        await adminApi.post('/classrooms', payload)
+        response = await adminApi.post('/classrooms', payload)
         setSuccess('Classroom assignment added successfully.')
       }
-      resetForm()
-      await fetchData()
+
+      const savedClassroom = response.data.data
+      setClassrooms((current) => {
+        const withoutOptimistic = current.filter((classroom) => (
+          classroom.classroom_id !== optimisticId && classroom.classroom_id !== submittedEditingId
+        ))
+        return matchesCurrentView(savedClassroom)
+          ? sortClassrooms([...withoutOptimistic, savedClassroom])
+          : withoutOptimistic
+      })
     } catch (err) {
+      setClassrooms(previousClassrooms)
+      setEditingId(submittedEditingId)
+      setForm(submittedForm)
       if (err.response?.status === 401 || err.response?.status === 403) {
         handleUnauthorized()
         return
       }
-      setError(err.response?.data?.message || 'Failed to save classroom assignment.')
+      setError(`${err.response?.data?.message || 'Failed to save classroom assignment.'} Changes were rolled back.`)
+      setSuccess('')
     } finally {
       setSaving(false)
     }
@@ -129,19 +162,23 @@ export default function AdminClassroomsPage() {
     setDeletingId(classroom.classroom_id)
     setError('')
     setSuccess('')
+    const previousClassrooms = classrooms
+    const wasEditing = editingId === classroom.classroom_id
+    setClassrooms((current) => current.filter((entry) => entry.classroom_id !== classroom.classroom_id))
+    if (wasEditing) resetForm()
+
     try {
       await adminApi.delete(`/classrooms/${classroom.classroom_id}`)
       setSuccess('Classroom assignment deleted successfully.')
-      if (editingId === classroom.classroom_id) {
-        resetForm()
-      }
-      await fetchData()
     } catch (err) {
+      setClassrooms(previousClassrooms)
+      if (wasEditing) handleEdit(classroom)
       if (err.response?.status === 401 || err.response?.status === 403) {
         handleUnauthorized()
         return
       }
-      setError(err.response?.data?.message || 'Failed to delete classroom assignment.')
+      setError(`${err.response?.data?.message || 'Failed to delete classroom assignment.'} The assignment was restored.`)
+      setSuccess('')
     } finally {
       setDeletingId(null)
     }

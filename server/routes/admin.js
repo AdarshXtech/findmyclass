@@ -6,7 +6,7 @@ const multer = require('multer');
 const path = require('path');
 const { Readable } = require('stream');
 const ExcelJS = require('exceljs');
-const { queryAll, queryOne, execute } = require('../config/db');
+const { queryAll, queryOne, execute, withTransaction } = require('../config/db');
 const { authenticateToken, JWT_SECRET } = require('../middleware/auth');
 const {
   normalizeUniversityRollNumber,
@@ -271,7 +271,20 @@ router.put('/students/:id', authenticateToken, async (req, res) => {
       ]
     );
 
-    res.json({ success: true, message: 'Student updated successfully.' });
+    res.json({
+      success: true,
+      message: 'Student updated successfully.',
+      data: {
+        student_id: Number(id),
+        name: finalName,
+        university_roll_number: finalUniversityRoll,
+        class_roll_number: finalClassRoll,
+        course: finalCourse,
+        branch: finalBranch,
+        year: finalYear,
+        section: finalSection,
+      }
+    });
   } catch (error) {
     console.error('Update student error:', error);
     res.status(500).json({ success: false, message: 'Something went wrong.' });
@@ -354,7 +367,11 @@ router.put('/subjects/:id', authenticateToken, async (req, res) => {
     }
 
     await execute('UPDATE subjects SET subject_name = ? WHERE subject_id = ?', [subjectName, Number(id)]);
-    res.json({ success: true, message: 'Subject updated successfully.' });
+    res.json({
+      success: true,
+      message: 'Subject updated successfully.',
+      data: { subject_id: Number(id), subject_name: subjectName }
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Something went wrong.' });
   }
@@ -490,7 +507,18 @@ router.put('/classrooms/:id', authenticateToken, async (req, res) => {
       ]
     );
 
-    res.json({ success: true, message: 'Classroom updated successfully.' });
+    res.json({
+      success: true,
+      message: 'Classroom updated successfully.',
+      data: {
+        classroom_id: Number(id),
+        section: finalSection,
+        subject: finalSubject,
+        floor: finalFloor,
+        wing: finalWing,
+        room: finalRoom,
+      }
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Something went wrong.' });
   }
@@ -641,9 +669,10 @@ router.post('/import/students', authenticateToken, uploadStudentFile, async (req
       return res.status(400).json({ success: false, message: 'The file has no student rows.' });
     }
 
-    let imported = 0;
     let skipped = 0;
     const errors = [];
+    const candidates = [];
+    const seenRolls = new Set();
 
     for (let i = 0; i < data.length; i++) {
       const row = data[i];
@@ -688,27 +717,56 @@ router.post('/import/students', authenticateToken, uploadStudentFile, async (req
         continue;
       }
 
-      try {
-        const existing = await queryOne(
-          'SELECT student_id FROM students WHERE university_roll_number = ?',
-          [universityRoll]
-        );
-        if (existing) {
-          errors.push(`Row ${row.rowNumber}: University roll number already registered`);
-          skipped++;
-          continue;
-        }
-        await execute(
-          `INSERT INTO students (
-             name, university_roll_number, class_roll_number, course, branch, year, section
-           ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-          [name, universityRoll, classRoll, course, branch, year, section]
-        );
-        imported++;
-      } catch (err) {
-        errors.push(`Row ${row.rowNumber}: ${err.message}`);
+      if (seenRolls.has(universityRoll)) {
+        errors.push(`Row ${row.rowNumber}: Duplicate university roll number in import file`);
         skipped++;
+        continue;
       }
+      seenRolls.add(universityRoll);
+      candidates.push({
+        rowNumber: row.rowNumber,
+        universityRoll,
+        values: [name, universityRoll, classRoll, course, branch, year, section],
+      });
+    }
+
+    const importResult = await withTransaction(async (transaction) => {
+      const registeredRolls = new Set();
+
+      for (let offset = 0; offset < candidates.length; offset += 400) {
+        const chunk = candidates.slice(offset, offset + 400);
+        const placeholders = chunk.map(() => '?').join(', ');
+        const rows = await transaction.queryAll(
+          `SELECT university_roll_number FROM students WHERE university_roll_number IN (${placeholders})`,
+          chunk.map((candidate) => candidate.universityRoll)
+        );
+        for (const row of rows) registeredRolls.add(row.university_roll_number);
+      }
+
+      const pending = [];
+      for (const candidate of candidates) {
+        if (registeredRolls.has(candidate.universityRoll)) {
+          errors.push(`Row ${candidate.rowNumber}: University roll number already registered`);
+          skipped++;
+        } else {
+          pending.push(candidate);
+        }
+      }
+
+      const result = await transaction.insertMany(
+        'students',
+        ['name', 'university_roll_number', 'class_roll_number', 'course', 'branch', 'year', 'section'],
+        pending.map((candidate) => candidate.values),
+        { suffix: 'ON CONFLICT (university_roll_number) DO NOTHING', chunkSize: 200 }
+      );
+
+      return { imported: result.changes, attempted: pending.length };
+    });
+
+    if (importResult.imported < importResult.attempted) {
+      const conflicts = importResult.attempted - importResult.imported;
+      skipped += conflicts;
+      errors.push(`${conflicts} row(s): University roll number was registered during import`);
     }
 
     const displayedErrors = errors.slice(0, 100);
@@ -716,7 +774,7 @@ router.post('/import/students', authenticateToken, uploadStudentFile, async (req
       success: true,
       data: {
         total: data.length,
-        imported,
+        imported: importResult.imported,
         skipped,
         errors: displayedErrors,
         omittedErrors: Math.max(0, errors.length - displayedErrors.length)

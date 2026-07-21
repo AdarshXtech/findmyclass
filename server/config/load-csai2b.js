@@ -3,19 +3,20 @@ const { loadEnvironment } = require('./env');
 loadEnvironment();
 
 const dataset = require('../data/csai2b-2026.json');
-const { initDatabase, queryOne, execute } = require('./db');
+const { initDatabase, queryAll, withTransaction } = require('./db');
 
 async function loadCsai2b() {
   await initDatabase();
 
-  let studentsCreated = 0;
-  let studentsUpdated = 0;
-  for (const student of dataset.students) {
-    const existing = await queryOne(
-      'SELECT student_id FROM students WHERE university_roll_number = ?',
-      [student.universityRollNumber]
-    );
-    const values = [
+  const rollPlaceholders = dataset.students.map(() => '?').join(', ');
+  const existingStudents = await queryAll(
+    `SELECT university_roll_number FROM students WHERE university_roll_number IN (${rollPlaceholders})`,
+    dataset.students.map((student) => student.universityRollNumber)
+  );
+  const existingRolls = new Set(existingStudents.map((student) => student.university_roll_number));
+  const studentsCreated = dataset.students.filter((student) => !existingRolls.has(student.universityRollNumber)).length;
+  const studentsUpdated = dataset.students.length - studentsCreated;
+  const studentRows = dataset.students.map((student) => [
       student.name,
       student.universityRollNumber,
       student.classRollNumber,
@@ -23,44 +24,8 @@ async function loadCsai2b() {
       dataset.branch,
       dataset.year,
       dataset.section,
-    ];
-
-    if (existing) {
-      await execute(
-        `UPDATE students
-         SET name=?, university_roll_number=?, class_roll_number=?, course=?, branch=?, year=?, section=?
-         WHERE student_id=?`,
-        [...values, existing.student_id]
-      );
-      studentsUpdated++;
-    } else {
-      await execute(
-        `INSERT INTO students (
-           name, university_roll_number, class_roll_number, course, branch, year, section
-         ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        values
-      );
-      studentsCreated++;
-    }
-  }
-
-  for (const subject of dataset.subjects) {
-    const existing = await queryOne('SELECT subject_id FROM subjects WHERE subject_name = ?', [subject.name]);
-    if (!existing) await execute('INSERT INTO subjects (subject_name) VALUES (?)', [subject.name]);
-  }
-
-  await execute(
-    'DELETE FROM timetable_entries WHERE section = ? AND academic_session = ?',
-    [dataset.section, dataset.academicSession]
-  );
-  for (const entry of dataset.timetable) {
-    await execute(
-      `INSERT INTO timetable_entries (
-         section, day_of_week, start_time, end_time, subject_code, subject_name,
-         session_type, faculty_code, faculty_name, room, academic_session,
-         semester, source_label
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
+  ]);
+  const timetableRows = dataset.timetable.map((entry) => [
         dataset.section,
         entry.dayOfWeek,
         entry.startTime,
@@ -74,9 +39,43 @@ async function loadCsai2b() {
         dataset.academicSession,
         dataset.semester,
         dataset.sourceSectionLabels.timetable,
-      ]
+  ]);
+
+  await withTransaction(async (transaction) => {
+    await transaction.insertMany(
+      'students',
+      ['name', 'university_roll_number', 'class_roll_number', 'course', 'branch', 'year', 'section'],
+      studentRows,
+      {
+        suffix: `ON CONFLICT (university_roll_number) DO UPDATE SET
+          name = excluded.name,
+          class_roll_number = excluded.class_roll_number,
+          course = excluded.course,
+          branch = excluded.branch,
+          year = excluded.year,
+          section = excluded.section`,
+      }
     );
-  }
+    await transaction.insertMany(
+      'subjects',
+      ['subject_name'],
+      dataset.subjects.map((subject) => [subject.name]),
+      { suffix: 'ON CONFLICT (subject_name) DO NOTHING' }
+    );
+    await transaction.execute(
+      'DELETE FROM timetable_entries WHERE section = ? AND academic_session = ?',
+      [dataset.section, dataset.academicSession]
+    );
+    await transaction.insertMany(
+      'timetable_entries',
+      [
+        'section', 'day_of_week', 'start_time', 'end_time', 'subject_code', 'subject_name',
+        'session_type', 'faculty_code', 'faculty_name', 'room', 'academic_session',
+        'semester', 'source_label',
+      ],
+      timetableRows
+    );
+  });
 
   console.log(
     `Loaded ${dataset.displayName}: ${studentsCreated} students created, ` +

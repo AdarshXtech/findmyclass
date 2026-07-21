@@ -126,10 +126,10 @@ export default function LandingPage() {
         <section className="bg-[#20211e] text-[#f3efe5]">
           <div className="mx-auto grid max-w-6xl gap-8 px-5 py-6 sm:px-8 md:grid-cols-[220px_minmax(0,1fr)] md:items-start md:py-8">
             <div className="md:pt-5">
-              <p className="font-mono text-xs font-bold uppercase text-[#e7b949]">BBDU campus</p>
-              <h2 className="mt-3 font-display text-3xl font-bold leading-tight">A familiar Lucknow landmark.</h2>
+              <p className="font-mono text-xs font-bold uppercase text-[#e7b949]">BBDU / Lucknow</p>
+              <h2 className="mt-3 font-display text-3xl font-bold leading-tight">Babu Banarasi Das University.</h2>
               <p className="mt-4 text-sm leading-6 text-[#babdb4]">
-                The university's red-and-white facade and central dome form an unmistakable presence on the BBDU campus.
+                Located at BBD City on Ayodhya Road, BBDU is a state private university focused on teaching, learning and research across a multidisciplinary campus.
               </p>
             </div>
             <figure className="border border-[#f3efe5]/30 bg-white p-2 shadow-[10px_10px_0_#a33a2b]">

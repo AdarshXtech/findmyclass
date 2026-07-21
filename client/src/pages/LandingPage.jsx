@@ -127,9 +127,9 @@ export default function LandingPage() {
           <div className="mx-auto grid max-w-6xl gap-8 px-5 py-6 sm:px-8 md:grid-cols-[220px_minmax(0,1fr)] md:items-start md:py-8">
             <div className="md:pt-5">
               <p className="font-mono text-xs font-bold uppercase text-[#e7b949]">BBDU campus</p>
-              <h2 className="mt-3 font-display text-3xl font-bold leading-tight">Your day starts here.</h2>
+              <h2 className="mt-3 font-display text-3xl font-bold leading-tight">A familiar Lucknow landmark.</h2>
               <p className="mt-4 text-sm leading-6 text-[#babdb4]">
-                Check the day, time and classroom before heading across campus. Tuesday remains a day off for CSAI 2B.
+                The university's red-and-white facade and central dome form an unmistakable presence on the BBDU campus.
               </p>
             </div>
             <figure className="border border-[#f3efe5]/30 bg-white p-2 shadow-[10px_10px_0_#a33a2b]">

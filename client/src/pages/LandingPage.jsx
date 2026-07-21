@@ -74,7 +74,7 @@ export default function LandingPage() {
           <p className="mb-5 font-mono text-xs font-bold uppercase text-[#a33a2b]">School of Engineering / CSAI 2B</p>
           <div className="max-w-3xl">
             <h1 className="font-display text-5xl font-bold leading-[0.98] sm:text-6xl md:text-7xl">
-              CSAI 2B timetable
+              BBDU timetable
             </h1>
             <p className="mt-6 max-w-xl text-lg leading-7 text-[#55594f]">
               Your weekly classes, faculty and room numbers from the department timetable. Search with the roll number printed on the class roster.

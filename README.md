@@ -77,14 +77,16 @@ See [PRODUCTION_READINESS.md](PRODUCTION_READINESS.md) for the verified feature 
 
 ## Deploy To Render
 
-The included `render.yaml` deploys the React build and Express API as one Starter web service. It mounts a 1 GB persistent disk at `/var/data`, generates the production JWT secret, loads the confirmed CSAI 2B dataset on startup, and checks `/api/health` during deploys.
+The included `render.yaml` deploys the React build and Express API as one free web service. It generates the production JWT secret, rebuilds the confirmed CSAI 2B database on startup, and checks `/api/health` during deploys.
 
 1. Push this repository to GitHub.
 2. Open [Render Blueprints](https://dashboard.render.com/blueprints) and create a Blueprint from the repository.
-3. Review the Starter service and persistent-disk charges, then apply the Blueprint.
+3. Review and apply the free Blueprint.
 4. After the first deploy, verify the public URL with university roll number `1250439358`.
 
-To enable the admin panel, open the Render service shell and run the following after setting temporary `ADMIN_USERNAME` and `ADMIN_PASSWORD` environment variables:
+Render's free filesystem is temporary. The confirmed roster and timetable are restored from the repository on every restart, but admin accounts and changes made through the admin panel do not persist. Use a paid persistent disk before relying on admin changes in production.
+
+On a deployment with persistent storage, enable the admin panel by opening the Render service shell and running the following after setting temporary `ADMIN_USERNAME` and `ADMIN_PASSWORD` environment variables:
 
 ```sh
 npm run create-admin --prefix server

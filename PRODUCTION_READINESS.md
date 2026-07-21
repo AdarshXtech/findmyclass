@@ -57,7 +57,7 @@ Subject CRUD is marked partially functional because classroom assignments store 
 
 ### Requires External Verification
 
-- The production database path must be backed by persistent storage.
+- Free-tier deployments rebuild the confirmed CSAI 2B dataset after restarts; admin accounts and admin changes require persistent storage.
 - The deployed QR code must be tested against the final public URL.
 - CORS must be checked against the exact deployed frontend origin.
 

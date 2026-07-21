@@ -2,18 +2,14 @@ services:
   - type: web
     name: findmyclass
     runtime: node
-    plan: starter
+    plan: free
     buildCommand: npm run build
     startCommand: npm start
     healthCheckPath: /api/health
-    disk:
-      name: findmyclass-data
-      mountPath: /var/data
-      sizeGB: 1
     envVars:
       - key: NODE_ENV
         value: production
       - key: DATABASE_PATH
-        value: /var/data/database.sqlite
+        value: /tmp/findmyclass/database.sqlite
       - key: JWT_SECRET
         generateValue: true

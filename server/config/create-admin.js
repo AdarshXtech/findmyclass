@@ -18,15 +18,15 @@ async function createAdmin() {
 
   await initDatabase();
   const passwordHash = await bcrypt.hash(password, 12);
-  const existing = queryOne('SELECT admin_id FROM admins WHERE username = ?', [username]);
+  const existing = await queryOne('SELECT admin_id FROM admins WHERE username = ?', [username]);
 
   if (existing) {
-    execute('UPDATE admins SET password = ? WHERE admin_id = ?', [passwordHash, existing.admin_id]);
+    await execute('UPDATE admins SET password = ? WHERE admin_id = ?', [passwordHash, existing.admin_id]);
     console.log(`Updated admin account: ${username}`);
     return;
   }
 
-  execute('INSERT INTO admins (username, password) VALUES (?, ?)', [username, passwordHash]);
+  await execute('INSERT INTO admins (username, password) VALUES (?, ?)', [username, passwordHash]);
   console.log(`Created admin account: ${username}`);
 }
 
@@ -34,4 +34,3 @@ createAdmin().catch((error) => {
   console.error(error.message);
   process.exit(1);
 });
-

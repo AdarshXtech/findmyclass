@@ -3,7 +3,7 @@ const { loadEnvironment } = require('./env');
 loadEnvironment();
 
 const bcrypt = require('bcryptjs');
-const { initDatabase, getDatabase, execute, queryAll, queryOne } = require('./db');
+const { initDatabase, execute } = require('./db');
 
 async function seedDatabase() {
   if (process.env.NODE_ENV === 'production') {
@@ -11,18 +11,16 @@ async function seedDatabase() {
   }
 
   await initDatabase();
-  const db = getDatabase();
-
   // ── Clear existing data ──────────────────────────────────
-  db.run('DELETE FROM classrooms');
-  db.run('DELETE FROM subjects');
-  db.run('DELETE FROM students');
-  db.run('DELETE FROM admins');
+  await execute('DELETE FROM classrooms');
+  await execute('DELETE FROM subjects');
+  await execute('DELETE FROM students');
+  await execute('DELETE FROM admins');
   console.log('🗑️  Cleared existing data');
 
   // ── Seed Admin ───────────────────────────────────────────
   const hashedPassword = await bcrypt.hash('admin123', 10);
-  execute('INSERT INTO admins (username, password) VALUES (?, ?)', [
+  await execute('INSERT INTO admins (username, password) VALUES (?, ?)', [
     'admin', hashedPassword
   ]);
   console.log('👤 Admin seeded: admin / admin123');
@@ -44,7 +42,7 @@ async function seedDatabase() {
   ];
 
   for (const s of students) {
-    execute(
+    await execute(
       `INSERT INTO students (
          name, university_roll_number, class_roll_number, course, branch, year, section
        ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -61,7 +59,7 @@ async function seedDatabase() {
   ];
 
   for (const s of subjects) {
-    execute('INSERT INTO subjects (subject_name) VALUES (?)', [s]);
+    await execute('INSERT INTO subjects (subject_name) VALUES (?)', [s]);
   }
   console.log(`📖 Seeded ${subjects.length} subjects`);
 
@@ -94,7 +92,7 @@ async function seedDatabase() {
   ];
 
   for (const c of classrooms) {
-    execute(
+    await execute(
       'INSERT INTO classrooms (section, subject, floor, wing, room) VALUES (?, ?, ?, ?, ?)',
       c
     );

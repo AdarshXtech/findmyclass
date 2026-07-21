@@ -38,7 +38,7 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    const admin = queryOne('SELECT * FROM admins WHERE username = ?', [username]);
+    const admin = await queryOne('SELECT * FROM admins WHERE username = ?', [username]);
 
     if (!admin) {
       return res.status(401).json({ success: false, message: 'Invalid credentials.' });
@@ -73,20 +73,26 @@ router.post('/login', async (req, res) => {
 // ════════════════════════════════════════════════════════════
 
 /** GET /api/admin/stats */
-router.get('/stats', authenticateToken, (req, res) => {
+router.get('/stats', authenticateToken, async (req, res) => {
   try {
-    const totalStudents   = queryOne('SELECT COUNT(*) as count FROM students').count;
-    const totalSubjects   = queryOne('SELECT COUNT(*) as count FROM subjects').count;
-    const totalClassrooms = queryOne('SELECT COUNT(*) as count FROM classrooms').count;
-    const totalSections   = queryOne('SELECT COUNT(DISTINCT section) as count FROM students').count;
+    const totalStudents   = Number((await queryOne('SELECT COUNT(*) as count FROM students')).count);
+    const totalSubjects   = Number((await queryOne('SELECT COUNT(*) as count FROM subjects')).count);
+    const totalClassrooms = Number((await queryOne('SELECT COUNT(*) as count FROM classrooms')).count);
+    const totalSections   = Number((await queryOne('SELECT COUNT(DISTINCT section) as count FROM students')).count);
 
-    const sectionWise = queryAll(
+    const sectionWise = await queryAll(
       'SELECT section, COUNT(*) as count FROM students GROUP BY section ORDER BY section'
     );
 
     res.json({
       success: true,
-      data: { totalStudents, totalSubjects, totalClassrooms, totalSections, sectionWise }
+      data: {
+        totalStudents,
+        totalSubjects,
+        totalClassrooms,
+        totalSections,
+        sectionWise: sectionWise.map((row) => ({ ...row, count: Number(row.count) }))
+      }
     });
   } catch (error) {
     console.error('Stats error:', error);
@@ -99,7 +105,7 @@ router.get('/stats', authenticateToken, (req, res) => {
 // ════════════════════════════════════════════════════════════
 
 /** GET /api/admin/students */
-router.get('/students', authenticateToken, (req, res) => {
+router.get('/students', authenticateToken, async (req, res) => {
   try {
     const { search, section } = req.query;
 
@@ -117,7 +123,7 @@ router.get('/students', authenticateToken, (req, res) => {
     }
 
     query += ' ORDER BY name';
-    const students = queryAll(query, params);
+    const students = await queryAll(query, params);
     res.json({ success: true, data: students });
   } catch (error) {
     console.error('Get students error:', error);
@@ -126,7 +132,7 @@ router.get('/students', authenticateToken, (req, res) => {
 });
 
 /** POST /api/admin/students */
-router.post('/students', authenticateToken, (req, res) => {
+router.post('/students', authenticateToken, async (req, res) => {
   try {
     const { name, university_roll_number, class_roll_number, course, branch, year, section } = req.body;
     const cleanedName = String(name || '').trim();
@@ -155,7 +161,7 @@ router.post('/students', authenticateToken, (req, res) => {
       return res.status(400).json({ success: false, message: 'Please enter a valid section.' });
     }
 
-    const existingUniversityRoll = queryOne(
+    const existingUniversityRoll = await queryOne(
       'SELECT student_id FROM students WHERE university_roll_number = ?',
       [cleanedUniversityRoll]
     );
@@ -163,7 +169,7 @@ router.post('/students', authenticateToken, (req, res) => {
       return res.status(409).json({ success: false, message: 'University roll number already registered.' });
     }
 
-    const result = execute(
+    const result = await execute(
       `INSERT INTO students (
          name, university_roll_number, class_roll_number, course, branch, year, section
        ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -190,12 +196,12 @@ router.post('/students', authenticateToken, (req, res) => {
 });
 
 /** PUT /api/admin/students/:id */
-router.put('/students/:id', authenticateToken, (req, res) => {
+router.put('/students/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
     const { name, university_roll_number, class_roll_number, course, branch, year, section } = req.body;
 
-    const existing = queryOne('SELECT * FROM students WHERE student_id = ?', [Number(id)]);
+    const existing = await queryOne('SELECT * FROM students WHERE student_id = ?', [Number(id)]);
     if (!existing) {
       return res.status(404).json({ success: false, message: 'Student not found.' });
     }
@@ -226,7 +232,7 @@ router.put('/students/:id', authenticateToken, (req, res) => {
       }
     }
     if (finalUniversityRoll !== existing.university_roll_number) {
-      const rollTaken = queryOne(
+      const rollTaken = await queryOne(
         'SELECT student_id FROM students WHERE university_roll_number = ? AND student_id != ?',
         [finalUniversityRoll, Number(id)]
       );
@@ -249,7 +255,7 @@ router.put('/students/:id', authenticateToken, (req, res) => {
       return res.status(400).json({ success: false, message: 'Name, course, and branch cannot be empty.' });
     }
 
-    execute(
+    await execute(
       `UPDATE students
        SET name=?, university_roll_number=?, class_roll_number=?, course=?, branch=?, year=?, section=?
        WHERE student_id=?`,
@@ -273,16 +279,16 @@ router.put('/students/:id', authenticateToken, (req, res) => {
 });
 
 /** DELETE /api/admin/students/:id */
-router.delete('/students/:id', authenticateToken, (req, res) => {
+router.delete('/students/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
 
-    const existing = queryOne('SELECT * FROM students WHERE student_id = ?', [Number(id)]);
+    const existing = await queryOne('SELECT * FROM students WHERE student_id = ?', [Number(id)]);
     if (!existing) {
       return res.status(404).json({ success: false, message: 'Student not found.' });
     }
 
-    execute('DELETE FROM students WHERE student_id = ?', [Number(id)]);
+    await execute('DELETE FROM students WHERE student_id = ?', [Number(id)]);
     res.json({ success: true, message: 'Student deleted successfully.' });
   } catch (error) {
     console.error('Delete student error:', error);
@@ -295,9 +301,9 @@ router.delete('/students/:id', authenticateToken, (req, res) => {
 // ════════════════════════════════════════════════════════════
 
 /** GET /api/admin/subjects */
-router.get('/subjects', authenticateToken, (req, res) => {
+router.get('/subjects', authenticateToken, async (req, res) => {
   try {
-    const subjects = queryAll('SELECT * FROM subjects ORDER BY subject_name');
+    const subjects = await queryAll('SELECT * FROM subjects ORDER BY subject_name');
     res.json({ success: true, data: subjects });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Something went wrong.' });
@@ -305,19 +311,19 @@ router.get('/subjects', authenticateToken, (req, res) => {
 });
 
 /** POST /api/admin/subjects */
-router.post('/subjects', authenticateToken, (req, res) => {
+router.post('/subjects', authenticateToken, async (req, res) => {
   try {
     const subjectName = String(req.body.subject_name || '').trim();
     if (!subjectName) {
       return res.status(400).json({ success: false, message: 'Subject name is required.' });
     }
 
-    const existing = queryOne('SELECT subject_id FROM subjects WHERE subject_name = ?', [subjectName]);
+    const existing = await queryOne('SELECT subject_id FROM subjects WHERE subject_name = ?', [subjectName]);
     if (existing) {
       return res.status(409).json({ success: false, message: 'Subject already exists.' });
     }
 
-    const result = execute('INSERT INTO subjects (subject_name) VALUES (?)', [subjectName]);
+    const result = await execute('INSERT INTO subjects (subject_name) VALUES (?)', [subjectName]);
     res.status(201).json({ success: true, data: { subject_id: result.lastInsertRowid, subject_name: subjectName } });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Something went wrong.' });
@@ -325,12 +331,12 @@ router.post('/subjects', authenticateToken, (req, res) => {
 });
 
 /** PUT /api/admin/subjects/:id */
-router.put('/subjects/:id', authenticateToken, (req, res) => {
+router.put('/subjects/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
     const subjectName = String(req.body.subject_name || '').trim();
 
-    const existing = queryOne('SELECT * FROM subjects WHERE subject_id = ?', [Number(id)]);
+    const existing = await queryOne('SELECT * FROM subjects WHERE subject_id = ?', [Number(id)]);
     if (!existing) {
       return res.status(404).json({ success: false, message: 'Subject not found.' });
     }
@@ -339,7 +345,7 @@ router.put('/subjects/:id', authenticateToken, (req, res) => {
       return res.status(400).json({ success: false, message: 'Subject name is required.' });
     }
 
-    const nameTaken = queryOne(
+    const nameTaken = await queryOne(
       'SELECT subject_id FROM subjects WHERE subject_name = ? AND subject_id != ?',
       [subjectName, Number(id)]
     );
@@ -347,7 +353,7 @@ router.put('/subjects/:id', authenticateToken, (req, res) => {
       return res.status(409).json({ success: false, message: 'Subject already exists.' });
     }
 
-    execute('UPDATE subjects SET subject_name = ? WHERE subject_id = ?', [subjectName, Number(id)]);
+    await execute('UPDATE subjects SET subject_name = ? WHERE subject_id = ?', [subjectName, Number(id)]);
     res.json({ success: true, message: 'Subject updated successfully.' });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Something went wrong.' });
@@ -355,16 +361,16 @@ router.put('/subjects/:id', authenticateToken, (req, res) => {
 });
 
 /** DELETE /api/admin/subjects/:id */
-router.delete('/subjects/:id', authenticateToken, (req, res) => {
+router.delete('/subjects/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
 
-    const existing = queryOne('SELECT * FROM subjects WHERE subject_id = ?', [Number(id)]);
+    const existing = await queryOne('SELECT * FROM subjects WHERE subject_id = ?', [Number(id)]);
     if (!existing) {
       return res.status(404).json({ success: false, message: 'Subject not found.' });
     }
 
-    execute('DELETE FROM subjects WHERE subject_id = ?', [Number(id)]);
+    await execute('DELETE FROM subjects WHERE subject_id = ?', [Number(id)]);
     res.json({ success: true, message: 'Subject deleted successfully.' });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Something went wrong.' });
@@ -376,7 +382,7 @@ router.delete('/subjects/:id', authenticateToken, (req, res) => {
 // ════════════════════════════════════════════════════════════
 
 /** GET /api/admin/classrooms */
-router.get('/classrooms', authenticateToken, (req, res) => {
+router.get('/classrooms', authenticateToken, async (req, res) => {
   try {
     const { section } = req.query;
 
@@ -389,7 +395,7 @@ router.get('/classrooms', authenticateToken, (req, res) => {
     }
 
     query += ' ORDER BY section, subject';
-    const classrooms = queryAll(query, params);
+    const classrooms = await queryAll(query, params);
     res.json({ success: true, data: classrooms });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Something went wrong.' });
@@ -397,7 +403,7 @@ router.get('/classrooms', authenticateToken, (req, res) => {
 });
 
 /** POST /api/admin/classrooms */
-router.post('/classrooms', authenticateToken, (req, res) => {
+router.post('/classrooms', authenticateToken, async (req, res) => {
   try {
     const section = normalizeSection(req.body.section);
     const subject = String(req.body.subject || '').trim();
@@ -415,7 +421,7 @@ router.post('/classrooms', authenticateToken, (req, res) => {
       return res.status(400).json({ success: false, message: 'Wing must be A, B, or C.' });
     }
 
-    const existing = queryOne(
+    const existing = await queryOne(
       'SELECT classroom_id FROM classrooms WHERE section = ? AND subject = ?',
       [section, subject]
     );
@@ -423,7 +429,7 @@ router.post('/classrooms', authenticateToken, (req, res) => {
       return res.status(409).json({ success: false, message: 'This subject is already assigned for this section.' });
     }
 
-    const result = execute(
+    const result = await execute(
       'INSERT INTO classrooms (section, subject, floor, wing, room) VALUES (?, ?, ?, ?, ?)',
       [section, subject, floor, wing, room]
     );
@@ -438,12 +444,12 @@ router.post('/classrooms', authenticateToken, (req, res) => {
 });
 
 /** PUT /api/admin/classrooms/:id */
-router.put('/classrooms/:id', authenticateToken, (req, res) => {
+router.put('/classrooms/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
     const { section, subject, floor, wing, room } = req.body;
 
-    const existing = queryOne('SELECT * FROM classrooms WHERE classroom_id = ?', [Number(id)]);
+    const existing = await queryOne('SELECT * FROM classrooms WHERE classroom_id = ?', [Number(id)]);
     if (!existing) {
       return res.status(404).json({ success: false, message: 'Classroom assignment not found.' });
     }
@@ -464,7 +470,7 @@ router.put('/classrooms/:id', authenticateToken, (req, res) => {
       return res.status(400).json({ success: false, message: 'Wing must be A, B, or C.' });
     }
 
-    const duplicate = queryOne(
+    const duplicate = await queryOne(
       'SELECT classroom_id FROM classrooms WHERE section = ? AND subject = ? AND classroom_id != ?',
       [finalSection, finalSubject, Number(id)]
     );
@@ -472,7 +478,7 @@ router.put('/classrooms/:id', authenticateToken, (req, res) => {
       return res.status(409).json({ success: false, message: 'This subject is already assigned for this section.' });
     }
 
-    execute(
+    await execute(
       'UPDATE classrooms SET section=?, subject=?, floor=?, wing=?, room=? WHERE classroom_id=?',
       [
         finalSection,
@@ -491,16 +497,16 @@ router.put('/classrooms/:id', authenticateToken, (req, res) => {
 });
 
 /** DELETE /api/admin/classrooms/:id */
-router.delete('/classrooms/:id', authenticateToken, (req, res) => {
+router.delete('/classrooms/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
 
-    const existing = queryOne('SELECT * FROM classrooms WHERE classroom_id = ?', [Number(id)]);
+    const existing = await queryOne('SELECT * FROM classrooms WHERE classroom_id = ?', [Number(id)]);
     if (!existing) {
       return res.status(404).json({ success: false, message: 'Classroom assignment not found.' });
     }
 
-    execute('DELETE FROM classrooms WHERE classroom_id = ?', [Number(id)]);
+    await execute('DELETE FROM classrooms WHERE classroom_id = ?', [Number(id)]);
     res.json({ success: true, message: 'Classroom deleted successfully.' });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Something went wrong.' });
@@ -512,9 +518,9 @@ router.delete('/classrooms/:id', authenticateToken, (req, res) => {
 // ════════════════════════════════════════════════════════════
 
 /** GET /api/admin/sections */
-router.get('/sections', authenticateToken, (req, res) => {
+router.get('/sections', authenticateToken, async (req, res) => {
   try {
-    const sections = queryAll('SELECT DISTINCT section FROM students ORDER BY section');
+    const sections = await queryAll('SELECT DISTINCT section FROM students ORDER BY section');
     res.json({ success: true, data: sections.map(s => s.section) });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Something went wrong.' });
@@ -683,7 +689,7 @@ router.post('/import/students', authenticateToken, uploadStudentFile, async (req
       }
 
       try {
-        const existing = queryOne(
+        const existing = await queryOne(
           'SELECT student_id FROM students WHERE university_roll_number = ?',
           [universityRoll]
         );
@@ -692,7 +698,7 @@ router.post('/import/students', authenticateToken, uploadStudentFile, async (req
           skipped++;
           continue;
         }
-        execute(
+        await execute(
           `INSERT INTO students (
              name, university_roll_number, class_roll_number, course, branch, year, section
            ) VALUES (?, ?, ?, ?, ?, ?, ?)`,

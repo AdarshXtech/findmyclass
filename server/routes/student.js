@@ -7,7 +7,7 @@ const { normalizeUniversityRollNumber, isValidUniversityRollNumber } = require('
  * POST /api/student/lookup
  * Lookup a student by university roll number and return their schedule.
  */
-router.post('/lookup', (req, res) => {
+router.post('/lookup', async (req, res) => {
   try {
     const suppliedRollNumber = req.body.university_roll_number ?? req.body.identifier;
 
@@ -26,7 +26,7 @@ router.post('/lookup', (req, res) => {
       });
     }
 
-    const matches = queryAll(
+    const matches = await queryAll(
       `SELECT student_id, name, university_roll_number, class_roll_number,
               course, branch, year, section
        FROM students
@@ -50,12 +50,12 @@ router.post('/lookup', (req, res) => {
     const student = matches[0];
 
     // Get all classroom assignments for the student's section
-    const classrooms = queryAll(
+    const classrooms = await queryAll(
       'SELECT classroom_id, section, subject, floor, wing, room FROM classrooms WHERE section = ? ORDER BY subject',
       [student.section]
     );
 
-    const timetable = queryAll(
+    const timetable = await queryAll(
       `SELECT timetable_entry_id, day_of_week, start_time, end_time,
               subject_code, subject_name, session_type, faculty_code,
               faculty_name, room, academic_session, semester

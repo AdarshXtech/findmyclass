@@ -11,7 +11,7 @@ async function loadCsai2b() {
   let studentsCreated = 0;
   let studentsUpdated = 0;
   for (const student of dataset.students) {
-    const existing = queryOne(
+    const existing = await queryOne(
       'SELECT student_id FROM students WHERE university_roll_number = ?',
       [student.universityRollNumber]
     );
@@ -26,7 +26,7 @@ async function loadCsai2b() {
     ];
 
     if (existing) {
-      execute(
+      await execute(
         `UPDATE students
          SET name=?, university_roll_number=?, class_roll_number=?, course=?, branch=?, year=?, section=?
          WHERE student_id=?`,
@@ -34,7 +34,7 @@ async function loadCsai2b() {
       );
       studentsUpdated++;
     } else {
-      execute(
+      await execute(
         `INSERT INTO students (
            name, university_roll_number, class_roll_number, course, branch, year, section
          ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -45,16 +45,16 @@ async function loadCsai2b() {
   }
 
   for (const subject of dataset.subjects) {
-    const existing = queryOne('SELECT subject_id FROM subjects WHERE subject_name = ?', [subject.name]);
-    if (!existing) execute('INSERT INTO subjects (subject_name) VALUES (?)', [subject.name]);
+    const existing = await queryOne('SELECT subject_id FROM subjects WHERE subject_name = ?', [subject.name]);
+    if (!existing) await execute('INSERT INTO subjects (subject_name) VALUES (?)', [subject.name]);
   }
 
-  execute(
+  await execute(
     'DELETE FROM timetable_entries WHERE section = ? AND academic_session = ?',
     [dataset.section, dataset.academicSession]
   );
   for (const entry of dataset.timetable) {
-    execute(
+    await execute(
       `INSERT INTO timetable_entries (
          section, day_of_week, start_time, end_time, subject_code, subject_name,
          session_type, faculty_code, faculty_name, room, academic_session,

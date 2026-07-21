@@ -57,7 +57,7 @@ Subject CRUD is marked partially functional because classroom assignments store 
 
 ### Requires External Verification
 
-- Free-tier deployments rebuild the confirmed CSAI 2B dataset after restarts; admin accounts and admin changes require persistent storage.
+- Production uses external PostgreSQL so roster, admin accounts, and admin changes survive Render restarts.
 - The deployed QR code must be tested against the final public URL.
 - CORS must be checked against the exact deployed frontend origin.
 

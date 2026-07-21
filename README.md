@@ -6,7 +6,7 @@ Class schedule locator for students with an authenticated admin panel for managi
 
 - Frontend: React 18, React Router 6, Vite 6, Tailwind CSS 3
 - Backend: Node.js 20.12+, Express 4
-- Database: sql.js with a file-backed SQLite database
+- Database: PostgreSQL in production, with file-backed SQLite for local development
 - Authentication: server-verified JWTs for admin routes
 - Imports: ExcelJS for `.xlsx` and `.csv` files
 
@@ -46,6 +46,7 @@ Backend (`server/.env`):
 - `JWT_SECRET`: JWT signing secret. Required when `NODE_ENV=production`.
 - `CLIENT_ORIGIN`: optional comma-separated allowed frontend origins. Leave empty for the same-origin production deployment.
 - `DATABASE_PATH`: SQLite file path; defaults to `server/database.sqlite`.
+- `DATABASE_URL`: PostgreSQL connection string. When set, it takes precedence over local SQLite.
 - `ADMIN_USERNAME`: used only by `npm run create-admin`.
 - `ADMIN_PASSWORD`: used only by `npm run create-admin`; minimum 12 characters.
 
@@ -66,6 +67,7 @@ The application dataset is stored in `server/data/csai2b-2026.json`. Its extract
 ```powershell
 cd server
 npm test
+npm run test:postgres
 npm audit --omit=dev
 
 cd ../client
@@ -75,19 +77,20 @@ npm audit --omit=dev
 
 See [PRODUCTION_READINESS.md](PRODUCTION_READINESS.md) for the verified feature map, test evidence, known limitations, and deployment checks that still require an external environment.
 
-## Deploy To Render
+## Free Deployment
 
-The included `render.yaml` deploys the React build and Express API as one free web service. It generates the production JWT secret, rebuilds the confirmed CSAI 2B database on startup, and checks `/api/health` during deploys.
+The deployment is split across three services so database changes persist without a paid disk:
 
-1. Push this repository to GitHub.
-2. Open [Render Blueprints](https://dashboard.render.com/blueprints) and create a Blueprint from the repository.
-3. Review and apply the free Blueprint.
-4. After the first deploy, verify the public URL with university roll number `1250439358`.
+- Neon hosts PostgreSQL.
+- Render runs the Express API from `server/` using `render.yaml`.
+- Vercel builds the React app from `client/` using `client/vercel.json`.
 
-Render's free filesystem is temporary. The confirmed roster and timetable are restored from the repository on every restart, but admin accounts and changes made through the admin panel do not persist. Use a paid persistent disk before relying on admin changes in production.
+Create a Neon project and copy its pooled connection string. When creating the Render Blueprint, provide that value as `DATABASE_URL` and the final Vercel origin as `CLIENT_ORIGIN`. In Vercel, set the project root to `client` and set `VITE_API_BASE_URL` to the Render service origin. The backend loads the confirmed CSAI 2B source data idempotently on startup.
 
-On a deployment with persistent storage, enable the admin panel by opening the Render service shell and running the following after setting temporary `ADMIN_USERNAME` and `ADMIN_PASSWORD` environment variables:
+To enable the admin panel, set `ADMIN_USERNAME` and `ADMIN_PASSWORD` for a local shell connected to the production `DATABASE_URL`, then run:
 
 ```sh
 npm run create-admin --prefix server
 ```
+
+After deployment, verify the Vercel URL with university roll number `1250439358`.

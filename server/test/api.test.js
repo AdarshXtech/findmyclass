@@ -7,6 +7,7 @@ const path = require('node:path');
 const testDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'findmyclass-'));
 process.env.NODE_ENV = 'test';
 process.env.DATABASE_PATH = path.join(testDirectory, 'test.sqlite');
+process.env.DATABASE_URL = process.env.TEST_DATABASE_ADAPTER === 'postgres' ? 'pg-mem://test' : '';
 process.env.JWT_SECRET = 'test-only-secret-with-sufficient-length';
 process.env.CLIENT_ORIGIN = 'http://localhost:3000';
 
@@ -56,19 +57,19 @@ async function apiRequest(urlPath, options = {}) {
 test.before(async () => {
   await initDatabase();
   const password = await bcrypt.hash('correct-horse-battery-staple', 4);
-  execute('INSERT INTO admins (username, password) VALUES (?, ?)', ['admin', password]);
-  execute(
+  await execute('INSERT INTO admins (username, password) VALUES (?, ?)', ['admin', password]);
+  await execute(
     `INSERT INTO students (
        name, university_roll_number, class_roll_number, course, branch, year, section
      ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
     ['Test Student', '1250439000', 1, 'B.Tech', 'CSE', 1, 'CSE-A']
   );
-  execute('INSERT INTO subjects (subject_name) VALUES (?)', ['Mathematics']);
-  execute(
+  await execute('INSERT INTO subjects (subject_name) VALUES (?)', ['Mathematics']);
+  await execute(
     'INSERT INTO classrooms (section, subject, floor, wing, room) VALUES (?, ?, ?, ?, ?)',
     ['CSE-A', 'Mathematics', '3rd Floor', 'B', '305']
   );
-  execute(
+  await execute(
     `INSERT INTO timetable_entries (
        section, day_of_week, start_time, end_time, subject_code, subject_name,
        session_type, faculty_name, room, academic_session, semester, source_label
@@ -101,8 +102,14 @@ test('health, lookup, authentication, CRUD, and import workflows', async (t) => 
   });
 
   await t.test('validates and completes student lookup', async () => {
+    const schemaQuery = process.env.DATABASE_URL
+      ? `SELECT column_name AS name
+         FROM information_schema.columns
+         WHERE table_name = 'students'
+         ORDER BY ordinal_position`
+      : 'PRAGMA table_info(students)';
     assert.deepEqual(
-      queryAll('PRAGMA table_info(students)').map((column) => column.name),
+      (await queryAll(schemaQuery)).map((column) => column.name),
       ['student_id', 'name', 'university_roll_number', 'class_roll_number', 'course', 'branch', 'year', 'section', 'created_at']
     );
 

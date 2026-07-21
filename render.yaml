@@ -3,13 +3,16 @@ services:
     name: findmyclass
     runtime: node
     plan: free
-    buildCommand: npm run build
-    startCommand: npm start
+    rootDir: server
+    buildCommand: npm ci
+    startCommand: npm run start:production
     healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
         value: production
-      - key: DATABASE_PATH
-        value: /tmp/findmyclass/database.sqlite
+      - key: DATABASE_URL
+        sync: false
+      - key: CLIENT_ORIGIN
+        sync: false
       - key: JWT_SECRET
         generateValue: true

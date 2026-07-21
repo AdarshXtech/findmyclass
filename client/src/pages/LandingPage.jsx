@@ -126,20 +126,20 @@ export default function LandingPage() {
         <section className="bg-[#20211e] text-[#f3efe5]">
           <div className="mx-auto grid max-w-6xl gap-8 px-5 py-6 sm:px-8 md:grid-cols-[220px_minmax(0,1fr)] md:items-start md:py-8">
             <div className="md:pt-5">
-              <p className="font-mono text-xs font-bold uppercase text-[#e7b949]">On campus</p>
-              <h2 className="mt-3 font-display text-3xl font-bold leading-tight">Know the room before the bell.</h2>
+              <p className="font-mono text-xs font-bold uppercase text-[#e7b949]">BBDU campus</p>
+              <h2 className="mt-3 font-display text-3xl font-bold leading-tight">Your day starts here.</h2>
               <p className="mt-4 text-sm leading-6 text-[#babdb4]">
-                Check the day, time and classroom before heading across the engineering block. Tuesday remains a day off for CSAI 2B.
+                Check the day, time and classroom before heading across campus. Tuesday remains a day off for CSAI 2B.
               </p>
             </div>
             <figure className="border border-[#f3efe5]/30 bg-white p-2 shadow-[10px_10px_0_#a33a2b]">
               <img
-                src="/engineering-corridor.webp"
-                alt="Students walking through an engineering building corridor with classroom signs"
+                src="/bbdu-campus.webp"
+                alt="Babu Banarasi Das University campus building in Lucknow"
                 className="h-64 w-full object-cover object-top sm:h-80 md:h-[420px]"
               />
               <figcaption className="bg-white px-2 pb-1 pt-3 text-xs text-[#55594f]">
-                Engineering block / classroom wayfinding
+                Babu Banarasi Das University / Lucknow
               </figcaption>
             </figure>
           </div>

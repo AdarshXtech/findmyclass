@@ -6,7 +6,7 @@ import {
   HiOutlineClock,
   HiOutlineLocationMarker,
 } from 'react-icons/hi'
-import publicApi from '../api/publicApi'
+import { lookupStudentSchedule } from '../api/publicApi'
 import { isValidUniversityRollNumber, normalizeUniversityRollNumber } from '../utils/universityRoll'
 
 const weekdays = [
@@ -38,6 +38,7 @@ export default function ResultPage() {
     : null
   const [data, setData] = useState(initialData || null)
   const [loading, setLoading] = useState(!initialData)
+  const [loadingMessage, setLoadingMessage] = useState('Loading timetable and room assignments...')
   const [error, setError] = useState('')
   const [canRetry, setCanRetry] = useState(false)
 
@@ -46,6 +47,7 @@ export default function ResultPage() {
     setError('')
     setCanRetry(false)
     setData(null)
+    setLoadingMessage('Loading timetable and room assignments...')
 
     if (!isValidUniversityRollNumber(normalizedRollNumber)) {
       setError('Enter a valid university roll number.')
@@ -53,9 +55,13 @@ export default function ResultPage() {
       return
     }
 
+    const wakeMessageTimer = window.setTimeout(() => {
+      setLoadingMessage('The free server is waking up. This can take about a minute...')
+    }, 6000)
+
     try {
-      const response = await publicApi.post('/student/lookup', {
-        university_roll_number: normalizedRollNumber,
+      const response = await lookupStudentSchedule(normalizedRollNumber, {
+        onRetry: () => setLoadingMessage('Server is awake. Retrying the timetable...'),
       })
       setData(response.data.data)
     } catch (requestError) {
@@ -66,6 +72,7 @@ export default function ResultPage() {
         setCanRetry(true)
       }
     } finally {
+      window.clearTimeout(wakeMessageTimer)
       setLoading(false)
     }
   }
@@ -89,7 +96,7 @@ export default function ResultPage() {
       <div className="flex min-h-screen items-center justify-center bg-[#f3efe5] px-5 text-[#20211e]">
         <div className="border-l-4 border-[#a33a2b] pl-5">
           <p className="font-display text-2xl font-bold">Reading the class roster</p>
-          <p className="mt-1 text-sm text-[#6b6f65]">Loading timetable and room assignments...</p>
+          <p className="mt-1 text-sm text-[#6b6f65]">{loadingMessage}</p>
         </div>
       </div>
     )

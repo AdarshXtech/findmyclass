@@ -1,13 +1,14 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { HiOutlineAcademicCap, HiOutlineArrowRight, HiOutlineIdentification } from 'react-icons/hi'
-import publicApi from '../api/publicApi'
+import { lookupStudentSchedule } from '../api/publicApi'
 import { isValidUniversityRollNumber, normalizeUniversityRollNumber } from '../utils/universityRoll'
 
 export default function LandingPage() {
   const [universityRollNumber, setUniversityRollNumber] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [loadingMessage, setLoadingMessage] = useState('Checking roster...')
   const navigate = useNavigate()
 
   const handleSubmit = async (event) => {
@@ -25,9 +26,14 @@ export default function LandingPage() {
     }
 
     setLoading(true)
+    setLoadingMessage('Checking roster...')
+    const wakeMessageTimer = window.setTimeout(() => {
+      setLoadingMessage('Waking the free server...')
+    }, 6000)
+
     try {
-      const response = await publicApi.post('/student/lookup', {
-        university_roll_number: cleanRollNumber,
+      const response = await lookupStudentSchedule(cleanRollNumber, {
+        onRetry: () => setLoadingMessage('Server is awake. Retrying...'),
       })
       navigate(`/result/${encodeURIComponent(cleanRollNumber)}`, {
         state: { universityRollNumber: cleanRollNumber, lookupData: response.data.data },
@@ -41,6 +47,7 @@ export default function LandingPage() {
         setError('The schedule service is unavailable right now. Try again in a moment.')
       }
     } finally {
+      window.clearTimeout(wakeMessageTimer)
       setLoading(false)
     }
   }
@@ -102,7 +109,7 @@ export default function LandingPage() {
                 disabled={loading}
                 className="flex h-14 items-center justify-center gap-3 bg-[#a33a2b] px-6 font-bold text-white transition hover:bg-[#842d22] disabled:cursor-not-allowed disabled:opacity-60"
               >
-                <span>{loading ? 'Checking roster...' : 'Open my timetable'}</span>
+                <span>{loading ? loadingMessage : 'Open my timetable'}</span>
                 {!loading ? <HiOutlineArrowRight className="text-xl" /> : null}
               </button>
             </div>

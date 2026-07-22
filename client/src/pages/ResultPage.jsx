@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   HiOutlineArrowLeft,
   HiOutlineCalendar,
@@ -8,8 +8,6 @@ import {
   HiOutlineMenuAlt3,
   HiOutlineX,
 } from 'react-icons/hi'
-import { lookupStudentSchedule } from '../api/publicApi'
-import { isValidUniversityRollNumber, normalizeUniversityRollNumber } from '../utils/universityRoll'
 
 const weekdays = [
   { id: 1, name: 'Monday', shortName: 'MON' },
@@ -89,67 +87,19 @@ function EmptySchedule({ message, detail }) {
 }
 
 export default function ResultPage() {
-  const { universityRollNumber } = useParams()
   const navigate = useNavigate()
   const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
-  const normalizedRollNumber = normalizeUniversityRollNumber(universityRollNumber)
-  const initialData = location.state?.universityRollNumber === normalizedRollNumber
-    ? location.state?.lookupData
-    : null
-  const [data, setData] = useState(initialData || null)
-  const [loading, setLoading] = useState(!initialData)
-  const [loadingMessage, setLoadingMessage] = useState('Loading timetable and room assignments...')
-  const [error, setError] = useState('')
-  const [canRetry, setCanRetry] = useState(false)
+  const data = location.state?.lookupData || null
   const [menuOpen, setMenuOpen] = useState(false)
   const [now, setNow] = useState(() => new Date())
   const currentDay = now.getDay()
   const [expandedDay, setExpandedDay] = useState(() => currentDay >= 1 && currentDay <= 6 ? currentDay : 1)
   const activeView = searchParams.get('view') === 'weekly' ? 'weekly' : 'daily'
 
-  const lookupStudent = async () => {
-    setLoading(true)
-    setError('')
-    setCanRetry(false)
-    setData(null)
-    setLoadingMessage('Loading timetable and room assignments...')
-
-    if (!isValidUniversityRollNumber(normalizedRollNumber)) {
-      setError('Enter a valid university roll number.')
-      setLoading(false)
-      return
-    }
-
-    const wakeMessageTimer = window.setTimeout(() => {
-      setLoadingMessage('The free server is waking up. This can take about a minute...')
-    }, 6000)
-
-    try {
-      const response = await lookupStudentSchedule(normalizedRollNumber, {
-        onRetry: () => setLoadingMessage('Server is awake. Retrying the timetable...'),
-      })
-      setData(response.data.data)
-    } catch (requestError) {
-      if (requestError.response?.status === 404) {
-        setError('No CSAI 2B student was found with that university roll number.')
-      } else {
-        setError(requestError.response?.data?.message || 'The schedule service is unavailable right now.')
-        setCanRetry(true)
-      }
-    } finally {
-      window.clearTimeout(wakeMessageTimer)
-      setLoading(false)
-    }
-  }
-
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'auto' })
-  }, [universityRollNumber])
-
-  useEffect(() => {
-    if (!initialData) lookupStudent()
-  }, [universityRollNumber])
+  }, [])
 
   useEffect(() => {
     const clock = window.setInterval(() => setNow(new Date()), 60000)
@@ -173,28 +123,16 @@ export default function ResultPage() {
     return grouped
   }, [data])
 
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-[#f3efe5] px-5 text-[#20211e]">
-        <div className="border-l-4 border-[#a33a2b] pl-5" role="status">
-          <p className="font-display text-2xl font-bold">Reading the class roster</p>
-          <p className="mt-1 text-sm text-[#6b6f65]">{loadingMessage}</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (error) {
+  if (!data) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#f3efe5] px-5 text-[#20211e]">
         <div className="w-full max-w-lg border-y border-[#20211e] py-8">
-          <p className="text-xs font-bold uppercase text-[#a33a2b]">{canRetry ? 'Service unavailable' : 'Roster check'}</p>
+          <p className="text-xs font-bold uppercase text-[#a33a2b]">Student verification</p>
           <h1 className="mt-3 font-display text-4xl font-bold">We could not open that timetable.</h1>
-          <p className="mt-4 leading-7 text-[#55594f]">{error}</p>
+          <p className="mt-4 leading-7 text-[#55594f]">Verify your name and phone number to open your assigned timetable.</p>
           <div className="mt-7 flex flex-wrap gap-3">
-            {canRetry ? <button onClick={lookupStudent} className="bg-[#a33a2b] px-5 py-3 font-bold text-white">Retry</button> : null}
             <button onClick={() => navigate('/')} className="flex items-center gap-2 border border-[#20211e] px-5 py-3 font-bold">
-              <HiOutlineArrowLeft /> Search again
+              <HiOutlineArrowLeft /> Verify student
             </button>
           </div>
         </div>
@@ -204,7 +142,7 @@ export default function ResultPage() {
 
   const { student, timetable = [], classrooms = [] } = data
   const displayName = formatName(student.name)
-  const displaySection = student.section === 'CSAI2B' ? 'CSAI 2B' : student.section
+  const displaySection = String(student.section || '').replace(/^(CSAI)(\d)([A-Z])$/, '$1 $2$3')
   const teachingEntries = timetable.filter((entry) => entry.sessionType !== 'Break')
   const subjectCount = new Set(teachingEntries.map((entry) => entry.subjectCode || entry.subjectName)).size
   const todayEntries = timetableByDay.get(currentDay) || []
@@ -229,7 +167,7 @@ export default function ResultPage() {
   const studentDetails = [
     ['Course', `${student.course} ${student.branch}`],
     ['Year', `Year ${student.year}`],
-    ['Class roll number', student.classRollNumber || 'Not listed'],
+    ['Class', displaySection],
     ['Floor', locationValues.floor],
     ['Wing', locationValues.wing],
     ['Classroom number', locationValues.classroom],
@@ -294,7 +232,6 @@ export default function ResultPage() {
           <div className="mt-4 grid gap-7 lg:grid-cols-[minmax(0,1fr)_minmax(520px,auto)] lg:items-end">
             <div>
               <h1 className="font-display text-4xl font-bold leading-tight sm:text-5xl">{displayName}</h1>
-              <p className="mt-2 text-[#62665d]">University roll <span className="font-mono">{student.universityRollNumber}</span></p>
             </div>
             <div>
               <dl className="grid grid-cols-2 border border-[#20211e]/30 bg-[#fffdf7] sm:grid-cols-3">

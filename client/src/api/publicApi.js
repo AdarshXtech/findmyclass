@@ -5,19 +5,20 @@ const baseURL = apiRoot ? `${apiRoot.replace(/\/$/, '')}/api` : '/api'
 
 const publicApi = axios.create({ baseURL })
 
-const transientStatuses = new Set([408, 425, 429, 500, 502, 503, 504])
+const transientStatuses = new Set([408, 425, 500, 502, 503, 504])
 
 function wait(milliseconds) {
   return new Promise((resolve) => window.setTimeout(resolve, milliseconds))
 }
 
-export async function lookupStudentSchedule(universityRollNumber, { onRetry } = {}) {
+export async function lookupStudentSchedule({ name, phoneNumber }, { onRetry } = {}) {
   let lastError
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
       return await publicApi.post('/student/lookup', {
-        university_roll_number: universityRollNumber,
+        name,
+        phone_number: phoneNumber,
       })
     } catch (error) {
       lastError = error

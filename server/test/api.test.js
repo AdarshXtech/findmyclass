@@ -12,12 +12,15 @@ process.env.DATABASE_PATH = path.join(testDirectory, 'test.sqlite');
 process.env.DATABASE_URL = process.env.TEST_DATABASE_ADAPTER === 'postgres' ? 'pg-mem://test' : '';
 process.env.JWT_SECRET = 'test-only-secret-with-sufficient-length';
 process.env.CLIENT_ORIGIN = 'http://localhost:3000';
+process.env.PHONE_LOOKUP_SECRET = 'test-only-phone-lookup-secret';
 
 const bcrypt = require('bcryptjs');
 const ExcelJS = require('exceljs');
 const { startServer } = require('../server');
 const { initDatabase, execute, queryAll } = require('../config/db');
 const csai2bDataset = require('../data/csai2b-2026.json');
+const csai2gDataset = require('../data/csai2g-2026.json');
+const { normalizeStudentName, hashPhoneNumber } = require('../utils/student-identity');
 
 let server;
 let baseUrl;
@@ -35,6 +38,19 @@ test('CSAI 2B source dataset contains only the confirmed class roster and timeta
     { classRollNumber: 41, universityRollNumber: '1250439358', name: 'RUDRANSH KUMAR SINGH' }
   );
   assert.equal(csai2bDataset.students.some((student) => student.name === 'PRATIK SINGH'), false);
+});
+
+test('CSAI 2G source dataset matches the supplied class timetable', () => {
+  assert.equal(csai2gDataset.section, 'CSAI2G');
+  assert.equal(csai2gDataset.timetable.length, 28);
+  assert.equal(csai2gDataset.timetable.filter((entry) => entry.dayOfWeek === 1).length, 0);
+  assert.equal(csai2gDataset.timetable.filter((entry) => entry.sessionType === 'Break').length, 4);
+  assert.equal(csai2gDataset.timetable.filter((entry) => entry.sessionType !== 'Break').length, 24);
+  const tuesdayLab = csai2gDataset.timetable.find((entry) => entry.subjectCode === 'NCS4352');
+  assert.deepEqual(
+    { day: tuesdayLab.dayOfWeek, start: tuesdayLab.startTime, end: tuesdayLab.endTime, room: tuesdayLab.room },
+    { day: 2, start: '14:00', end: '16:00', room: '516' }
+  );
 });
 
 async function apiRequest(urlPath, options = {}) {
@@ -77,14 +93,44 @@ test.before(async () => {
   await execute('INSERT INTO admins (username, password) VALUES (?, ?)', ['admin', password]);
   await execute(
     `INSERT INTO students (
-       name, university_roll_number, class_roll_number, course, branch, year, section
-     ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    ['Test Student', '1250439000', 1, 'B.Tech', 'CSE', 1, 'CSE-A']
+       name, normalized_name, phone_lookup_hash, phone_last_four,
+       university_roll_number, class_roll_number, course, branch, year, section
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ['Test Student', 'TEST STUDENT', hashPhoneNumber('7000000001'), '0001', '1250439000', 1, 'B.Tech', 'CSE', 1, 'CSE-A']
   );
+  const accessStudents = [
+    ['Rudansh Kumar Singh', '7000000101', '1250439358', 'CSAI2B'],
+    ['Adarsh Yadav', '7000000102', '1250439029', 'CSAI2G'],
+    ['Adarash Tiwari', '7000000103', '1250439028', 'CSAI2B'],
+    ['No Schedule Student', '7000000002', '1250439998', 'CSE-Z'],
+  ];
+  for (const [name, phone, universityRoll, section] of accessStudents) {
+    await execute(
+      `INSERT INTO students (
+         name, normalized_name, phone_lookup_hash, phone_last_four,
+         university_roll_number, class_roll_number, course, branch, year, section
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [name, normalizeStudentName(name), hashPhoneNumber(phone), phone.slice(-4), universityRoll, null, 'B.Tech', 'CSE AI', 2, section]
+    );
+  }
   await execute('INSERT INTO subjects (subject_name) VALUES (?)', ['Mathematics']);
   await execute(
     'INSERT INTO classrooms (section, subject, floor, wing, room) VALUES (?, ?, ?, ?, ?)',
     ['CSE-A', 'Mathematics', '3rd Floor', 'B', '305']
+  );
+  await execute(
+    `INSERT INTO timetable_entries (
+       section, day_of_week, start_time, end_time, subject_code, subject_name,
+       session_type, faculty_name, room, academic_session, semester, source_label
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ['CSAI2B', 1, '09:00', '10:00', 'NCS4302', 'Data Structure using C', 'Lecture', 'Ms. Jyoti Yadav', '407', '2026-27', 'III', 'TEST-2B']
+  );
+  await execute(
+    `INSERT INTO timetable_entries (
+       section, day_of_week, start_time, end_time, subject_code, subject_name,
+       session_type, faculty_name, room, academic_session, semester, source_label
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ['CSAI2G', 2, '09:00', '10:00', 'NCS4302', 'Data Structure using C', 'Lecture', 'Mr. Gaurav Singh', '409', '2026-27', 'III', 'TEST-2G']
   );
   await execute(
     `INSERT INTO timetable_entries (
@@ -127,30 +173,36 @@ test('health, lookup, authentication, CRUD, and import workflows', async (t) => 
       : 'PRAGMA table_info(students)';
     assert.deepEqual(
       (await queryAll(schemaQuery)).map((column) => column.name),
-      ['student_id', 'name', 'university_roll_number', 'class_roll_number', 'course', 'branch', 'year', 'section', 'created_at']
+      [
+        'student_id', 'name', 'normalized_name', 'phone_lookup_hash', 'phone_last_four',
+        'university_roll_number', 'class_roll_number', 'course', 'branch', 'year', 'section', 'created_at',
+      ]
     );
 
     const invalid = await apiRequest('/api/student/lookup', {
       method: 'POST',
-      body: { university_roll_number: '123' },
+      body: { name: 'Test Student', phone_number: '700000001' },
     });
     assert.equal(invalid.status, 400);
 
     const missing = await apiRequest('/api/student/lookup', {
       method: 'POST',
-      body: { university_roll_number: '9999999999' },
+      body: { name: 'Test Student', phone_number: '7000000099' },
     });
     assert.equal(missing.status, 404);
+    assert.equal(missing.body.message, 'Student details not found. Please check your name and phone number.');
 
     const found = await apiRequest('/api/student/lookup', {
       method: 'POST',
-      body: { university_roll_number: '1250439000' },
+      body: { name: '  test   STUDENT ', phone_number: '+91 70000 00001' },
     });
     assert.equal(found.status, 200);
     assert.equal(found.body.data.student.name, 'Test Student');
+    assert.equal(found.body.data.student.maskedPhone, '******0001');
+    assert.equal(found.body.data.student.universityRollNumber, undefined);
+    assert.equal(found.body.data.student.classRollNumber, undefined);
     assert.equal(found.body.data.classrooms[0].room, '305');
 
-    assert.equal(found.body.data.student.classRollNumber, 1);
     assert.equal(found.body.data.timetable[0].subjectCode, 'NBS4301');
     assert.equal(found.body.data.timetable[0].room, '305');
     assert.equal(found.body.data.timetable[0].classroomNumber, '305');
@@ -158,6 +210,43 @@ test('health, lookup, authentication, CRUD, and import workflows', async (t) => 
     assert.equal(found.body.data.timetable[0].floor, 'Floor 3');
     assert.equal(found.body.data.timetable[0].wing, 'A');
     assert.equal(found.body.data.timetable[0].locationDisplay, 'Floor 3 \u00b7 Wing A \u00b7 Classroom 305');
+  });
+
+  await t.test('maps verified students to their shared class timetable', async () => {
+    const cases = [
+      ['Rudansh Kumar Singh', '7000000101', 'CSAI2B', 'Ms. Jyoti Yadav'],
+      ['Adarsh Yadav', '70000 00102', 'CSAI2G', 'Mr. Gaurav Singh'],
+      ['Adarash Tiwari', '+91 7000000103', 'CSAI2B', 'Ms. Jyoti Yadav'],
+    ];
+
+    for (const [name, phone, section, faculty] of cases) {
+      const response = await apiRequest('/api/student/lookup', {
+        method: 'POST',
+        body: { name: name.toUpperCase(), phone_number: phone },
+      });
+      assert.equal(response.status, 200, name);
+      assert.equal(response.body.data.student.section, section, name);
+      assert.equal(response.body.data.timetable[0].facultyName, faculty, name);
+    }
+
+    const wrongPhone = await apiRequest('/api/student/lookup', {
+      method: 'POST',
+      body: { name: 'Rudansh Kumar Singh', phone_number: '7000000102' },
+    });
+    const wrongName = await apiRequest('/api/student/lookup', {
+      method: 'POST',
+      body: { name: 'Unknown Student', phone_number: '7000000101' },
+    });
+    assert.equal(wrongPhone.status, 404);
+    assert.equal(wrongName.status, 404);
+    assert.equal(wrongPhone.body.message, wrongName.body.message);
+
+    const noTimetable = await apiRequest('/api/student/lookup', {
+      method: 'POST',
+      body: { name: 'No Schedule Student', phone_number: '7000000002' },
+    });
+    assert.equal(noTimetable.status, 404);
+    assert.equal(noTimetable.body.message, 'No timetable is currently available for your assigned class.');
   });
 
   await t.test('rejects invalid credentials and protects admin endpoints', async () => {
@@ -180,7 +269,7 @@ test('health, lookup, authentication, CRUD, and import workflows', async (t) => 
 
     const stats = await apiRequest('/api/admin/stats', { token });
     assert.equal(stats.status, 200);
-    assert.equal(stats.body.data.totalStudents, 1);
+    assert.equal(stats.body.data.totalStudents, 5);
   });
 
   await t.test('persists student create, update, filter, and delete operations', async () => {
@@ -238,8 +327,7 @@ test('health, lookup, authentication, CRUD, and import workflows', async (t) => 
       method: 'POST',
       body: { university_roll_number: '1250439999' },
     });
-    assert.equal(rollLookup.status, 200);
-    assert.equal(rollLookup.body.data.student.name, 'Roll Only Student');
+    assert.equal(rollLookup.status, 400);
   });
 
   await t.test('persists subject and classroom CRUD operations', async () => {
@@ -395,5 +483,21 @@ test('health, lookup, authentication, CRUD, and import workflows', async (t) => 
     const parsed = JSON.parse(zlib.gunzipSync(compressed.body).toString('utf8'));
     assert.equal(parsed.success, true);
     assert.ok(parsed.data.length >= 250);
+  });
+
+  await t.test('temporarily rate limits repeated failed identity matches', async () => {
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const response = await apiRequest('/api/student/lookup', {
+        method: 'POST',
+        body: { name: 'Unknown Student', phone_number: `800000000${attempt}` },
+      });
+      assert.equal(response.status, 404);
+    }
+
+    const blocked = await apiRequest('/api/student/lookup', {
+      method: 'POST',
+      body: { name: 'Test Student', phone_number: '7000000001' },
+    });
+    assert.equal(blocked.status, 429);
   });
 });

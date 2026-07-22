@@ -45,16 +45,15 @@ function sqliteQueryOne(sql, params = []) {
 
 function migrateSqliteStudentsTable() {
   const columns = sqliteQueryAll('PRAGMA table_info(students)');
-  const expectedColumns = [
+  const requiredColumns = [
     'student_id', 'name', 'university_roll_number', 'class_roll_number',
     'course', 'branch', 'year', 'section', 'created_at',
   ];
   const universityRollColumn = columns.find((column) => column.name === 'university_roll_number');
   const hasClassRoll = columns.some((column) => column.name === 'class_roll_number');
-  const hasExactColumns = columns.length === expectedColumns.length
-    && expectedColumns.every((name) => columns.some((column) => column.name === name));
+  const hasRequiredColumns = requiredColumns.every((name) => columns.some((column) => column.name === name));
 
-  if (hasExactColumns && universityRollColumn?.notnull === 1) return;
+  if (hasRequiredColumns && universityRollColumn?.notnull === 1) return;
   if (!universityRollColumn) {
     throw new Error('Student records must be assigned university roll numbers before upgrading the database.');
   }
@@ -74,6 +73,9 @@ function migrateSqliteStudentsTable() {
       CREATE TABLE students_migrated (
         student_id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
+        normalized_name TEXT,
+        phone_lookup_hash TEXT,
+        phone_last_four TEXT,
         university_roll_number TEXT NOT NULL UNIQUE,
         class_roll_number INTEGER,
         course TEXT NOT NULL,
@@ -85,10 +87,11 @@ function migrateSqliteStudentsTable() {
     `);
     sqlite.run(`
       INSERT INTO students_migrated (
-        student_id, name, university_roll_number, class_roll_number,
+        student_id, name, normalized_name, phone_lookup_hash, phone_last_four,
+        university_roll_number, class_roll_number,
         course, branch, year, section, created_at
       )
-      SELECT student_id, name, university_roll_number,
+      SELECT student_id, name, UPPER(TRIM(name)), NULL, NULL, university_roll_number,
              ${hasClassRoll ? 'class_roll_number' : 'NULL'},
              course, branch, year, section, created_at
       FROM students
@@ -107,6 +110,9 @@ function createSqliteSchema() {
     CREATE TABLE IF NOT EXISTS students (
       student_id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
+      normalized_name TEXT,
+      phone_lookup_hash TEXT,
+      phone_last_four TEXT,
       university_roll_number TEXT NOT NULL UNIQUE,
       class_roll_number INTEGER,
       course TEXT NOT NULL,
@@ -117,6 +123,17 @@ function createSqliteSchema() {
     )
   `);
   migrateSqliteStudentsTable();
+  const studentColumns = sqliteQueryAll('PRAGMA table_info(students)');
+  if (!studentColumns.some((column) => column.name === 'normalized_name')) {
+    sqlite.run('ALTER TABLE students ADD COLUMN normalized_name TEXT');
+  }
+  if (!studentColumns.some((column) => column.name === 'phone_lookup_hash')) {
+    sqlite.run('ALTER TABLE students ADD COLUMN phone_lookup_hash TEXT');
+  }
+  if (!studentColumns.some((column) => column.name === 'phone_last_four')) {
+    sqlite.run('ALTER TABLE students ADD COLUMN phone_last_four TEXT');
+  }
+  sqlite.run('UPDATE students SET normalized_name = UPPER(TRIM(name)) WHERE normalized_name IS NULL');
   sqlite.run('CREATE TABLE IF NOT EXISTS subjects (subject_id INTEGER PRIMARY KEY AUTOINCREMENT, subject_name TEXT NOT NULL UNIQUE, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)');
   sqlite.run('CREATE TABLE IF NOT EXISTS classrooms (classroom_id INTEGER PRIMARY KEY AUTOINCREMENT, section TEXT NOT NULL, subject TEXT NOT NULL, floor TEXT NOT NULL, wing TEXT NOT NULL, room TEXT NOT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)');
   sqlite.run('CREATE TABLE IF NOT EXISTS admins (admin_id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL UNIQUE, password TEXT NOT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)');
@@ -141,6 +158,8 @@ function createSqliteSchema() {
     )
   `);
   sqlite.run('CREATE INDEX IF NOT EXISTS idx_students_university_roll ON students(university_roll_number)');
+  sqlite.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_students_phone_lookup_hash ON students(phone_lookup_hash) WHERE phone_lookup_hash IS NOT NULL');
+  sqlite.run('CREATE INDEX IF NOT EXISTS idx_students_identity ON students(normalized_name, phone_lookup_hash)');
   sqlite.run('CREATE INDEX IF NOT EXISTS idx_students_section ON students(section)');
   sqlite.run('CREATE INDEX IF NOT EXISTS idx_classrooms_section ON classrooms(section)');
   sqlite.run('CREATE INDEX IF NOT EXISTS idx_timetable_section_day ON timetable_entries(section, day_of_week, start_time)');
@@ -151,6 +170,9 @@ async function createPostgresSchema() {
     CREATE TABLE IF NOT EXISTS students (
       student_id SERIAL PRIMARY KEY,
       name TEXT NOT NULL,
+      normalized_name TEXT,
+      phone_lookup_hash TEXT,
+      phone_last_four TEXT,
       university_roll_number TEXT NOT NULL UNIQUE,
       class_roll_number INTEGER,
       course TEXT NOT NULL,
@@ -159,6 +181,9 @@ async function createPostgresSchema() {
       section TEXT NOT NULL,
       created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
     );
+    ALTER TABLE students ADD COLUMN IF NOT EXISTS normalized_name TEXT;
+    ALTER TABLE students ADD COLUMN IF NOT EXISTS phone_lookup_hash TEXT;
+    ALTER TABLE students ADD COLUMN IF NOT EXISTS phone_last_four TEXT;
     CREATE TABLE IF NOT EXISTS subjects (
       subject_id SERIAL PRIMARY KEY,
       subject_name TEXT NOT NULL UNIQUE,
@@ -198,6 +223,8 @@ async function createPostgresSchema() {
       UNIQUE (section, day_of_week, start_time, academic_session)
     );
     CREATE INDEX IF NOT EXISTS idx_students_university_roll ON students(university_roll_number);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_students_phone_lookup_hash ON students(phone_lookup_hash) WHERE phone_lookup_hash IS NOT NULL;
+    CREATE INDEX IF NOT EXISTS idx_students_identity ON students(normalized_name, phone_lookup_hash);
     CREATE INDEX IF NOT EXISTS idx_students_section ON students(section);
     CREATE INDEX IF NOT EXISTS idx_classrooms_section ON classrooms(section);
     CREATE INDEX IF NOT EXISTS idx_timetable_section_day ON timetable_entries(section, day_of_week, start_time);

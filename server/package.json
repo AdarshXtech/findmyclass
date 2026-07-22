@@ -9,6 +9,7 @@
     "dev": "node --watch server.js",
     "seed": "node config/seed.js",
     "load-csai2b": "node config/load-csai2b.js",
+    "load-schedules": "node config/load-schedule-data.js",
     "create-admin": "node config/create-admin.js",
     "test": "node --test test/*.test.js",
     "test:postgres": "cross-env TEST_DATABASE_ADAPTER=postgres node --test test/*.test.js"

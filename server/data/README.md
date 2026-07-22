@@ -1,4 +1,4 @@
-# CSAI 2B Data Notes
+# Timetable Data Notes
 
 The `csai2b-2026.json` dataset was transcribed from the files supplied on 2026-07-21:
 
@@ -14,4 +14,11 @@ The `csai2b-2026.json` dataset was transcribed from the files supplied on 2026-0
 - Tuesday is blank in the source image and is represented as a day with no timetable entries.
 - The dataset contains 58 students, 24 teaching sessions, and five weekday lunch breaks.
 
-Run `npm run load-csai2b` from `server` to idempotently add/update this roster and replace only the CSAI 2B timetable for academic session 2026-27.
+The legacy `npm run load-csai2b` command now delegates to the shared schedule loader so production cannot load one class without the other.
+
+## CSAI 2G
+
+- `csai2g-2026.json` transcribes the supplied CSAI 2G timetable image for academic session 2026-27.
+- Monday is blank and has no lunch entry. Tuesday through Friday each contain six teaching sessions and one lunch break.
+- Student access credentials are not stored in this repository. Production reads them from `STUDENT_ACCESS_RECORDS_JSON` and stores only a keyed phone hash plus the final four digits.
+- Run `npm run load-schedules` to idempotently load both shared class timetables and apply configured student-to-class mappings.

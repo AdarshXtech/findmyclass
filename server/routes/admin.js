@@ -19,6 +19,7 @@ const {
   isValidYear,
 } = require('../utils/validation');
 const { CLASSROOM_ERROR, parseClassroomLocation } = require('../utils/classroom-location');
+const { normalizeStudentName } = require('../utils/student-identity');
 
 // ════════════════════════════════════════════════════════════
 //  AUTH
@@ -108,7 +109,9 @@ router.get('/students', authenticateToken, async (req, res) => {
   try {
     const { search, section } = req.query;
 
-    let query = 'SELECT * FROM students WHERE 1=1';
+    let query = `SELECT student_id, name, university_roll_number, class_roll_number,
+                        course, branch, year, section, created_at
+                 FROM students WHERE 1=1`;
     const params = [];
 
     if (search) {
@@ -134,7 +137,8 @@ router.get('/students', authenticateToken, async (req, res) => {
 router.post('/students', authenticateToken, async (req, res) => {
   try {
     const { name, university_roll_number, class_roll_number, course, branch, year, section } = req.body;
-    const cleanedName = String(name || '').trim();
+    const cleanedName = String(name || '').trim().replace(/\s+/g, ' ');
+    const normalizedName = normalizeStudentName(cleanedName);
     const cleanedUniversityRoll = university_roll_number
       ? normalizeUniversityRollNumber(university_roll_number)
       : null;
@@ -170,9 +174,9 @@ router.post('/students', authenticateToken, async (req, res) => {
 
     const result = await execute(
       `INSERT INTO students (
-         name, university_roll_number, class_roll_number, course, branch, year, section
-       ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [cleanedName, cleanedUniversityRoll, parsedClassRoll, cleanedCourse, cleanedBranch, parsedYear, cleanedSection]
+         name, normalized_name, university_roll_number, class_roll_number, course, branch, year, section
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [cleanedName, normalizedName, cleanedUniversityRoll, parsedClassRoll, cleanedCourse, cleanedBranch, parsedYear, cleanedSection]
     );
 
     res.status(201).json({
@@ -247,7 +251,7 @@ router.put('/students/:id', authenticateToken, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Class roll number must be between 1 and 999.' });
     }
 
-    const finalName = name !== undefined ? String(name).trim() : existing.name;
+    const finalName = name !== undefined ? String(name).trim().replace(/\s+/g, ' ') : existing.name;
     const finalCourse = course !== undefined ? String(course).trim() : existing.course;
     const finalBranch = branch !== undefined ? String(branch).trim() : existing.branch;
     if (!finalName || !finalCourse || !finalBranch) {
@@ -256,10 +260,11 @@ router.put('/students/:id', authenticateToken, async (req, res) => {
 
     await execute(
       `UPDATE students
-       SET name=?, university_roll_number=?, class_roll_number=?, course=?, branch=?, year=?, section=?
+       SET name=?, normalized_name=?, university_roll_number=?, class_roll_number=?, course=?, branch=?, year=?, section=?
        WHERE student_id=?`,
       [
         finalName,
+        normalizeStudentName(finalName),
         finalUniversityRoll,
         finalClassRoll,
         finalCourse,
@@ -685,7 +690,7 @@ router.post('/import/students', authenticateToken, uploadStudentFile, async (req
 
     for (let i = 0; i < data.length; i++) {
       const row = data[i];
-      const name = String(row.name || '').trim();
+      const name = String(row.name || '').trim().replace(/\s+/g, ' ');
       const universityRoll = row.university_roll_number
         ? normalizeUniversityRollNumber(row.university_roll_number)
         : null;
@@ -735,7 +740,7 @@ router.post('/import/students', authenticateToken, uploadStudentFile, async (req
       candidates.push({
         rowNumber: row.rowNumber,
         universityRoll,
-        values: [name, universityRoll, classRoll, course, branch, year, section],
+        values: [name, normalizeStudentName(name), universityRoll, classRoll, course, branch, year, section],
       });
     }
 
@@ -764,7 +769,7 @@ router.post('/import/students', authenticateToken, uploadStudentFile, async (req
 
       const result = await transaction.insertMany(
         'students',
-        ['name', 'university_roll_number', 'class_roll_number', 'course', 'branch', 'year', 'section'],
+        ['name', 'normalized_name', 'university_roll_number', 'class_roll_number', 'course', 'branch', 'year', 'section'],
         pending.map((candidate) => candidate.values),
         { suffix: 'ON CONFLICT (university_roll_number) DO NOTHING', chunkSize: 200 }
       );

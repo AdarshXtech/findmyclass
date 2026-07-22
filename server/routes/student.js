@@ -1,61 +1,87 @@
 const express = require('express');
 const router = express.Router();
 const { queryAll } = require('../config/db');
-const { normalizeUniversityRollNumber, isValidUniversityRollNumber } = require('../utils/validation');
 const { parseClassroomLocation } = require('../utils/classroom-location');
+const {
+  normalizeStudentName,
+  normalizePhoneNumber,
+  hashPhoneNumber,
+} = require('../utils/student-identity');
 
-/**
- * POST /api/student/lookup
- * Lookup a student by university roll number and return their schedule.
- */
+const LOOKUP_ERROR = 'Student details not found. Please check your name and phone number.';
+const ATTEMPT_WINDOW_MS = 15 * 60 * 1000;
+const MAX_FAILED_ATTEMPTS = 5;
+const failedAttempts = new Map();
+
+function attemptKey(req) {
+  return req.ip || req.socket?.remoteAddress || 'unknown';
+}
+
+function currentAttempt(key) {
+  const attempt = failedAttempts.get(key);
+  if (attempt && attempt.resetAt > Date.now()) return attempt;
+  failedAttempts.delete(key);
+  return null;
+}
+
+function recordFailedAttempt(key) {
+  const current = currentAttempt(key);
+  failedAttempts.set(key, {
+    count: (current?.count || 0) + 1,
+    resetAt: current?.resetAt || Date.now() + ATTEMPT_WINDOW_MS,
+  });
+}
+
+/** POST /api/student/lookup - verify a student and return their class schedule. */
 router.post('/lookup', async (req, res) => {
+  const key = attemptKey(req);
+  const attempt = currentAttempt(key);
+  if (attempt?.count >= MAX_FAILED_ATTEMPTS) {
+    return res.status(429).json({
+      success: false,
+      message: 'Too many unsuccessful attempts. Please wait 15 minutes and try again.',
+    });
+  }
+
   try {
-    const suppliedRollNumber = req.body.university_roll_number ?? req.body.identifier;
+    const normalizedName = normalizeStudentName(req.body.name);
+    const phoneNumber = normalizePhoneNumber(req.body.phone_number ?? req.body.phoneNumber);
 
-    if (!suppliedRollNumber) {
+    if (!normalizedName || !String(req.body.phone_number ?? req.body.phoneNumber ?? '').trim()) {
       return res.status(400).json({
         success: false,
-        message: 'University roll number is required.'
+        message: 'Student name and phone number are required.',
+      });
+    }
+    if (!phoneNumber) {
+      return res.status(400).json({
+        success: false,
+        message: 'Enter a valid 10-digit phone number.',
       });
     }
 
-    const universityRollNumber = normalizeUniversityRollNumber(suppliedRollNumber);
-    if (!isValidUniversityRollNumber(universityRollNumber)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please enter a valid university roll number.'
-      });
-    }
+    const phoneHash = hashPhoneNumber(phoneNumber);
+    if (!phoneHash) throw new Error('PHONE_LOOKUP_SECRET is not configured.');
 
     const matches = await queryAll(
-      `SELECT student_id, name, university_roll_number, class_roll_number,
-              course, branch, year, section
+      `SELECT student_id, name, phone_last_four, course, branch, year, section
        FROM students
-       WHERE university_roll_number = ?`,
-      [universityRollNumber]
+       WHERE normalized_name = ? AND phone_lookup_hash = ?`,
+      [normalizedName, phoneHash]
     );
 
-    if (matches.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'No student found for that university roll number.'
-      });
-    }
-    if (matches.length > 1) {
-      return res.status(409).json({
-        success: false,
-        message: 'That university roll number matches more than one student. Please contact an administrator.'
-      });
+    if (matches.length !== 1) {
+      recordFailedAttempt(key);
+      return res.status(404).json({ success: false, message: LOOKUP_ERROR });
     }
 
     const student = matches[0];
+    failedAttempts.delete(key);
 
-    // Get all classroom assignments for the student's section
     const classrooms = await queryAll(
       'SELECT classroom_id, section, subject, floor, wing, room FROM classrooms WHERE section = ? ORDER BY subject',
       [student.section]
     );
-
     const timetable = await queryAll(
       `SELECT timetable_entry_id, day_of_week, start_time, end_time,
               subject_code, subject_name, session_type, faculty_code,
@@ -65,6 +91,13 @@ router.post('/lookup', async (req, res) => {
        ORDER BY day_of_week, start_time`,
       [student.section]
     );
+
+    if (timetable.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'No timetable is currently available for your assigned class.',
+      });
+    }
 
     const classroomBySubject = new Map(
       classrooms.map((classroom) => [String(classroom.subject).trim().toLowerCase(), classroom])
@@ -76,19 +109,18 @@ router.post('/lookup', async (req, res) => {
         student: {
           id: student.student_id,
           name: student.name,
-          universityRollNumber: student.university_roll_number,
-          classRollNumber: student.class_roll_number,
+          maskedPhone: student.phone_last_four ? `******${student.phone_last_four}` : null,
           course: student.course,
           branch: student.branch,
           year: student.year,
-          section: student.section
+          section: student.section,
         },
-        classrooms: classrooms.map(c => ({
-          id: c.classroom_id,
-          subject: c.subject,
-          floor: c.floor,
-          wing: c.wing,
-          room: c.room
+        classrooms: classrooms.map((classroom) => ({
+          id: classroom.classroom_id,
+          subject: classroom.subject,
+          floor: classroom.floor,
+          wing: classroom.wing,
+          room: classroom.room,
         })),
         timetable: timetable.map((entry) => {
           const classroom = classroomBySubject.get(String(entry.subject_name || '').trim().toLowerCase());
@@ -116,16 +148,16 @@ router.post('/lookup', async (req, res) => {
             shortLocationDisplay: location.shortDisplay,
             locationError: location.error,
             academicSession: entry.academic_session,
-            semester: entry.semester
+            semester: entry.semester,
           };
-        })
-      }
+        }),
+      },
     });
   } catch (error) {
-    console.error('Student lookup error:', error);
+    console.error('Student lookup error:', error.message);
     res.status(500).json({
       success: false,
-      message: 'Something went wrong. Please try again later.'
+      message: 'Something went wrong. Please try again later.',
     });
   }
 });

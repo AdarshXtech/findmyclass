@@ -2,11 +2,11 @@ const { loadEnvironment } = require('./env');
 
 loadEnvironment();
 
-const { loadCsai2b } = require('./load-csai2b');
+const { loadScheduleData } = require('./load-schedule-data');
 const { startServer } = require('../server');
 
 async function startProduction() {
-  await loadCsai2b();
+  await loadScheduleData();
   await startServer();
 }
 

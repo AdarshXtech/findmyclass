@@ -17,7 +17,8 @@ function App() {
       <Routes>
         {/* Student Routes */}
         <Route path="/" element={<LandingPage />} />
-        <Route path="/result/:universityRollNumber" element={<ResultPage />} />
+        <Route path="/result" element={<ResultPage />} />
+        <Route path="/result/:legacyIdentifier" element={<Navigate to="/" replace />} />
 
         {/* Admin Auth Route */}
         <Route path="/admin/login" element={<AdminLoginPage />} />

@@ -53,7 +53,7 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <div className="relative min-h-screen flex items-center justify-center px-6 bg-navy-900">
+    <div className="admin-theme relative min-h-screen flex items-center justify-center px-6 bg-navy-900">
       <div className="absolute inset-0 bg-grid opacity-30" />
       <div className="relative z-10 w-full max-w-md glass-card rounded-2xl p-8 animate-slide-up">
         <div className="mb-6">

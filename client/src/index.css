@@ -103,6 +103,197 @@ a:focus-visible {
   background-size: 48px 48px;
 }
 
+/* Keep the admin tools visually aligned with the public timetable. */
+.admin-theme {
+  --admin-canvas: #f3efe5;
+  --admin-surface: #fffdf7;
+  --admin-soft: #eee8dc;
+  --admin-ink: #20211e;
+  --admin-muted: #6b6f65;
+  --admin-accent: #a33a2b;
+  --admin-accent-dark: #842d22;
+  --admin-highlight: #e6b845;
+  --admin-success: #17726a;
+  background: var(--admin-canvas);
+  color: var(--admin-ink);
+  font-family: "Geist Variable", system-ui, sans-serif;
+}
+
+.admin-theme h1,
+.admin-theme h2,
+.admin-theme h3 {
+  font-family: "Space Grotesk Variable", "Geist Variable", sans-serif;
+  letter-spacing: 0;
+}
+
+.admin-theme.bg-navy-900,
+.admin-theme [class~="bg-navy-900"] {
+  background: var(--admin-canvas);
+}
+
+.admin-theme [class~="bg-navy-800/80"] {
+  background: var(--admin-surface);
+}
+
+.admin-theme .bg-grid {
+  background-color: var(--admin-canvas);
+  background-image: linear-gradient(rgba(32, 33, 30, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(32, 33, 30, 0.07) 1px, transparent 1px);
+}
+
+.admin-theme .glass,
+.admin-theme .glass-card,
+.admin-theme .glass-light {
+  background: var(--admin-surface);
+  border-color: rgba(32, 33, 30, 0.24);
+  box-shadow: 6px 6px 0 rgba(163, 58, 43, 0.14);
+}
+
+.admin-theme .input-field {
+  background: var(--admin-surface);
+  border-color: #868a80;
+  color: var(--admin-ink);
+}
+
+.admin-theme .input-field::placeholder {
+  color: #73776d;
+}
+
+.admin-theme .input-field:focus {
+  border-color: var(--admin-accent);
+  box-shadow: 0 0 0 3px rgba(163, 58, 43, 0.16);
+}
+
+.admin-theme .btn-primary {
+  background: var(--admin-accent);
+  color: #fffdf7;
+}
+
+.admin-theme .btn-primary:hover {
+  background: var(--admin-accent-dark);
+}
+
+.admin-theme [class~="text-white"],
+.admin-theme [class~="text-slate-200"] {
+  color: var(--admin-ink);
+}
+
+.admin-theme [class~="text-slate-300"] {
+  color: #55594f;
+}
+
+.admin-theme [class~="text-slate-400"],
+.admin-theme [class~="text-slate-500"] {
+  color: var(--admin-muted);
+}
+
+.admin-theme [class~="text-indigo-300"],
+.admin-theme [class~="text-indigo-400"] {
+  color: var(--admin-accent);
+}
+
+.admin-theme [class~="text-red-300"] {
+  color: var(--admin-accent-dark);
+}
+
+.admin-theme [class~="text-emerald-200"],
+.admin-theme [class~="text-emerald-300"] {
+  color: var(--admin-success);
+}
+
+.admin-theme [class~="text-amber-200"],
+.admin-theme [class~="text-amber-300"] {
+  color: #6b5b32;
+}
+
+.admin-theme [class~="bg-indigo-500/20"] {
+  background: rgba(163, 58, 43, 0.12);
+}
+
+.admin-theme [class~="bg-indigo-600"] {
+  background: var(--admin-accent);
+  color: #fffdf7;
+}
+
+.admin-theme [class~="hover:bg-indigo-500"]:hover {
+  background: var(--admin-accent-dark);
+}
+
+.admin-theme [class~="bg-orange-700"] {
+  background: var(--admin-ink);
+  color: #fffdf7;
+}
+
+.admin-theme [class~="bg-orange-600"] {
+  background: var(--admin-highlight);
+}
+
+.admin-theme [class~="bg-slate-800"] {
+  background: #e6e0d4;
+}
+
+.admin-theme [class~="bg-white/5"] {
+  background: var(--admin-soft);
+}
+
+.admin-theme [class~="bg-red-500/10"] {
+  background: rgba(163, 58, 43, 0.09);
+}
+
+.admin-theme [class~="bg-emerald-500/10"] {
+  background: rgba(23, 114, 106, 0.1);
+}
+
+.admin-theme [class~="bg-amber-500/10"] {
+  background: #f3dfaa;
+}
+
+.admin-theme [class~="border-indigo-500/20"],
+.admin-theme [class~="border-indigo-500/30"],
+.admin-theme [class~="border-red-500/20"],
+.admin-theme [class~="border-red-500/30"] {
+  border-color: rgba(163, 58, 43, 0.34);
+}
+
+.admin-theme [class~="border-emerald-500/20"] {
+  border-color: rgba(23, 114, 106, 0.3);
+}
+
+.admin-theme [class~="border-amber-500/20"] {
+  border-color: rgba(107, 91, 50, 0.3);
+}
+
+.admin-theme [class~="border-slate-600"],
+.admin-theme [class~="border-slate-700"],
+.admin-theme [class~="border-slate-800"] {
+  border-color: rgba(32, 33, 30, 0.28);
+}
+
+.admin-theme [class~="hover:border-indigo-400"]:hover {
+  border-color: var(--admin-accent);
+}
+
+.admin-theme [class~="hover:border-slate-400"]:hover {
+  border-color: var(--admin-ink);
+}
+
+.admin-theme [class~="hover:bg-white/5"]:hover {
+  background: var(--admin-soft);
+}
+
+.admin-theme [class~="hover:text-white"]:hover {
+  color: var(--admin-ink);
+}
+
+.admin-theme input::file-selector-button {
+  background: var(--admin-accent);
+  color: #fffdf7;
+}
+
+.admin-theme input:hover::file-selector-button {
+  background: var(--admin-accent-dark);
+}
+
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }

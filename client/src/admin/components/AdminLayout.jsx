@@ -20,7 +20,7 @@ export default function AdminLayout() {
   }
 
   return (
-    <div className="min-h-screen bg-navy-900 text-slate-200">
+    <div className="admin-theme min-h-screen bg-navy-900 text-slate-200">
       <header className="border-b border-indigo-500/20 bg-navy-800/80 backdrop-blur">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-4">
           <Link to="/admin" className="inline-flex items-center gap-2 text-white font-semibold">

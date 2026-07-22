@@ -269,7 +269,7 @@ export default function ResultPage() {
             className={`absolute right-5 top-[calc(100%+1px)] w-[min(280px,calc(100vw-40px))] border border-t-0 border-[#20211e] bg-[#fffdf7] shadow-[8px_8px_0_#a33a2b] transition duration-200 sm:right-8 ${menuOpen ? 'translate-y-0 opacity-100' : 'pointer-events-none -translate-y-2 opacity-0'}`}
           >
             {[
-              ['daily', 'Daily Classes'],
+              ['daily', 'Today Classes'],
               ['weekly', 'Weekly Classes'],
             ].map(([view, label]) => (
               <button
@@ -323,7 +323,7 @@ export default function ResultPage() {
               <div>
                 <div className="flex items-center gap-3">
                   <HiOutlineCalendar className="text-2xl text-[#a33a2b]" />
-                  <h2 className="font-display text-3xl font-bold">Daily classes</h2>
+                  <h2 className="font-display text-3xl font-bold">Today classes</h2>
                 </div>
                 <p className="mt-2 font-mono text-sm font-bold text-[#6b6f65]">{formattedDate}</p>
               </div>

@@ -212,7 +212,8 @@ export default function ResultPage() {
   const todayEntries = timetableByDay.get(currentDay) || []
   const todayClasses = todayEntries.filter((entry) => entry.sessionType !== 'Break')
   const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
-  const locationEntry = todayClasses.find((entry) => entry.endTime > currentTime)
+  const activeEntry = todayEntries.find((entry) => entry.startTime <= currentTime && entry.endTime > currentTime)
+  const locationEntry = activeEntry?.sessionType === 'Break' ? null : activeEntry
   const locationValues = {
     floor: locationEntry?.floor || 'Not listed',
     wing: locationEntry?.wing || 'Not listed',
@@ -234,6 +235,11 @@ export default function ResultPage() {
     ['Floor', locationValues.floor],
     ['Wing', locationValues.wing],
     ['Classroom number', locationValues.classroom],
+  ]
+  const currentClassDetails = [
+    ['Current subject', activeEntry?.sessionType === 'Break' ? 'Lunch break' : activeEntry?.subjectName || 'No class in progress'],
+    ['Type of class', activeEntry?.sessionType || 'Not scheduled'],
+    ['Teacher', activeEntry?.sessionType === 'Break' ? 'Not applicable' : activeEntry?.facultyName || 'Not scheduled'],
   ]
 
   return (
@@ -292,14 +298,24 @@ export default function ResultPage() {
               <h1 className="font-display text-4xl font-bold leading-tight sm:text-5xl">{displayName}</h1>
               <p className="mt-2 text-[#62665d]">University roll <span className="font-mono">{student.universityRollNumber}</span></p>
             </div>
-            <dl className="grid grid-cols-2 border border-[#20211e]/30 bg-[#fffdf7] sm:grid-cols-3">
-              {studentDetails.map(([label, value], index) => (
-                <div key={label} className={`min-w-0 px-3 py-3 ${index % 3 !== 2 ? 'sm:border-r sm:border-[#20211e]/20' : ''} ${index < 3 ? 'sm:border-b sm:border-[#20211e]/20' : ''} ${index < 4 ? 'max-sm:border-b max-sm:border-[#20211e]/20' : ''} ${index % 2 === 0 ? 'max-sm:border-r max-sm:border-[#20211e]/20' : ''}`}>
-                  <dt className="text-[9px] font-bold uppercase text-[#73776d]">{label}</dt>
-                  <dd className="mt-1 truncate text-sm font-bold" title={String(value)}>{value}</dd>
-                </div>
-              ))}
-            </dl>
+            <div>
+              <dl className="grid grid-cols-2 border border-[#20211e]/30 bg-[#fffdf7] sm:grid-cols-3">
+                {studentDetails.map(([label, value], index) => (
+                  <div key={label} className={`min-w-0 px-3 py-3 ${index % 3 !== 2 ? 'sm:border-r sm:border-[#20211e]/20' : ''} ${index < 3 ? 'sm:border-b sm:border-[#20211e]/20' : ''} ${index < 4 ? 'max-sm:border-b max-sm:border-[#20211e]/20' : ''} ${index % 2 === 0 ? 'max-sm:border-r max-sm:border-[#20211e]/20' : ''}`}>
+                    <dt className="text-[9px] font-bold uppercase text-[#73776d]">{label}</dt>
+                    <dd className="mt-1 truncate text-sm font-bold" title={String(value)}>{value}</dd>
+                  </div>
+                ))}
+              </dl>
+              <dl className="grid border-x border-b border-[#20211e]/30 bg-[#eee8dc] sm:grid-cols-3">
+                {currentClassDetails.map(([label, value], index) => (
+                  <div key={label} className={`min-w-0 px-3 py-3 ${index < currentClassDetails.length - 1 ? 'max-sm:border-b max-sm:border-[#20211e]/20 sm:border-r sm:border-[#20211e]/20' : ''}`}>
+                    <dt className="text-[9px] font-bold uppercase text-[#73776d]">{label}</dt>
+                    <dd className="mt-1 text-sm font-bold sm:truncate" title={String(value)}>{value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
           </div>
         </section>
 

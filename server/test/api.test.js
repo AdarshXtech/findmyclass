@@ -283,23 +283,50 @@ test('health, lookup, authentication, CRUD, and import workflows', async (t) => 
     const created = await apiRequest('/api/admin/students', {
       method: 'POST',
       token,
-      body: { name: 'Second Student', university_roll_number: '1250439001', course: 'B.Tech', branch: 'CSE', year: 2, section: 'cse-b' },
+      body: {
+        name: 'Second Student',
+        phone_number: '7000000099',
+        university_roll_number: '1250439001',
+        course: 'B.Tech',
+        branch: 'CSE',
+        year: 2,
+        section: 'cse-b',
+      },
     });
     assert.equal(created.status, 201);
+    assert.equal(created.body.data.masked_phone_number, '******0099');
     const studentId = created.body.data.student_id;
 
     const updated = await apiRequest(`/api/admin/students/${studentId}`, {
       method: 'PUT',
       token,
-      body: { year: 3 },
+      body: { year: 3, phone_number: '+91 7000000098' },
     });
     assert.equal(updated.status, 200);
     assert.equal(updated.body.data.year, 3);
+    assert.equal(updated.body.data.masked_phone_number, '******0098');
+    assert.equal(updated.body.data.phone_number, undefined);
+    assert.equal(updated.body.data.phone_lookup_hash, undefined);
 
     const filtered = await apiRequest('/api/admin/students?section=cse-b', { token });
     assert.equal(filtered.status, 200);
     assert.equal(filtered.body.data.length, 1);
     assert.equal(filtered.body.data[0].year, 3);
+    assert.equal(filtered.body.data[0].masked_phone_number, '******0098');
+
+    const invalidPhone = await apiRequest(`/api/admin/students/${studentId}`, {
+      method: 'PUT',
+      token,
+      body: { phone_number: '12345' },
+    });
+    assert.equal(invalidPhone.status, 400);
+
+    const duplicatePhone = await apiRequest(`/api/admin/students/${studentId}`, {
+      method: 'PUT',
+      token,
+      body: { phone_number: '7000000001' },
+    });
+    assert.equal(duplicatePhone.status, 409);
 
     const removed = await apiRequest(`/api/admin/students/${studentId}`, {
       method: 'DELETE',

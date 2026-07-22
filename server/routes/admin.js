@@ -19,7 +19,20 @@ const {
   isValidYear,
 } = require('../utils/validation');
 const { CLASSROOM_ERROR, parseClassroomLocation } = require('../utils/classroom-location');
-const { normalizeStudentName } = require('../utils/student-identity');
+const {
+  normalizeStudentName,
+  normalizePhoneNumber,
+  hashPhoneNumber,
+  maskPhoneNumber,
+} = require('../utils/student-identity');
+
+function formatStudentForAdmin(student) {
+  const { phone_last_four: phoneLastFour, phone_lookup_hash: _phoneHash, ...safeStudent } = student;
+  return {
+    ...safeStudent,
+    masked_phone_number: phoneLastFour ? maskPhoneNumber(phoneLastFour) : null,
+  };
+}
 
 // ════════════════════════════════════════════════════════════
 //  AUTH
@@ -109,7 +122,7 @@ router.get('/students', authenticateToken, async (req, res) => {
   try {
     const { search, section } = req.query;
 
-    let query = `SELECT student_id, name, university_roll_number, class_roll_number,
+    let query = `SELECT student_id, name, phone_last_four, university_roll_number, class_roll_number,
                         course, branch, year, section, created_at
                  FROM students WHERE 1=1`;
     const params = [];
@@ -126,7 +139,7 @@ router.get('/students', authenticateToken, async (req, res) => {
 
     query += ' ORDER BY name';
     const students = await queryAll(query, params);
-    res.json({ success: true, data: students });
+    res.json({ success: true, data: students.map(formatStudentForAdmin) });
   } catch (error) {
     console.error('Get students error:', error);
     res.status(500).json({ success: false, message: 'Something went wrong.' });
@@ -136,7 +149,7 @@ router.get('/students', authenticateToken, async (req, res) => {
 /** POST /api/admin/students */
 router.post('/students', authenticateToken, async (req, res) => {
   try {
-    const { name, university_roll_number, class_roll_number, course, branch, year, section } = req.body;
+    const { name, phone_number, university_roll_number, class_roll_number, course, branch, year, section } = req.body;
     const cleanedName = String(name || '').trim().replace(/\s+/g, ' ');
     const normalizedName = normalizeStudentName(cleanedName);
     const cleanedUniversityRoll = university_roll_number
@@ -147,6 +160,8 @@ router.post('/students', authenticateToken, async (req, res) => {
     const cleanedBranch = String(branch || '').trim();
     const cleanedSection = normalizeSection(section);
     const parsedYear = normalizeYear(year);
+    const hasPhoneNumber = String(phone_number || '').trim().length > 0;
+    const cleanedPhoneNumber = hasPhoneNumber ? normalizePhoneNumber(phone_number) : null;
 
     if (!cleanedName || !cleanedUniversityRoll || !cleanedCourse || !cleanedBranch || !parsedYear || !cleanedSection) {
       return res.status(400).json({ success: false, message: 'All fields are required.' });
@@ -163,6 +178,14 @@ router.post('/students', authenticateToken, async (req, res) => {
     if (!isValidSection(cleanedSection)) {
       return res.status(400).json({ success: false, message: 'Please enter a valid section.' });
     }
+    if (hasPhoneNumber && !cleanedPhoneNumber) {
+      return res.status(400).json({ success: false, message: 'Enter a valid 10-digit phone number.' });
+    }
+
+    const phoneHash = cleanedPhoneNumber ? hashPhoneNumber(cleanedPhoneNumber) : null;
+    if (cleanedPhoneNumber && !phoneHash) {
+      throw new Error('PHONE_LOOKUP_SECRET is not configured.');
+    }
 
     const existingUniversityRoll = await queryOne(
       'SELECT student_id FROM students WHERE university_roll_number = ?',
@@ -171,26 +194,45 @@ router.post('/students', authenticateToken, async (req, res) => {
     if (existingUniversityRoll) {
       return res.status(409).json({ success: false, message: 'University roll number already registered.' });
     }
+    if (phoneHash) {
+      const existingPhone = await queryOne('SELECT student_id FROM students WHERE phone_lookup_hash = ?', [phoneHash]);
+      if (existingPhone) {
+        return res.status(409).json({ success: false, message: 'Phone number already registered.' });
+      }
+    }
 
     const result = await execute(
       `INSERT INTO students (
-         name, normalized_name, university_roll_number, class_roll_number, course, branch, year, section
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [cleanedName, normalizedName, cleanedUniversityRoll, parsedClassRoll, cleanedCourse, cleanedBranch, parsedYear, cleanedSection]
+         name, normalized_name, phone_lookup_hash, phone_last_four,
+         university_roll_number, class_roll_number, course, branch, year, section
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        cleanedName,
+        normalizedName,
+        phoneHash,
+        cleanedPhoneNumber ? cleanedPhoneNumber.slice(-4) : null,
+        cleanedUniversityRoll,
+        parsedClassRoll,
+        cleanedCourse,
+        cleanedBranch,
+        parsedYear,
+        cleanedSection,
+      ]
     );
 
     res.status(201).json({
       success: true,
-      data: {
+      data: formatStudentForAdmin({
         student_id: result.lastInsertRowid,
         name: cleanedName,
+        phone_last_four: cleanedPhoneNumber ? cleanedPhoneNumber.slice(-4) : null,
         university_roll_number: cleanedUniversityRoll,
         class_roll_number: parsedClassRoll,
         course: cleanedCourse,
         branch: cleanedBranch,
         year: parsedYear,
         section: cleanedSection
-      }
+      })
     });
   } catch (error) {
     console.error('Add student error:', error);
@@ -202,7 +244,7 @@ router.post('/students', authenticateToken, async (req, res) => {
 router.put('/students/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, university_roll_number, class_roll_number, course, branch, year, section } = req.body;
+    const { name, phone_number, university_roll_number, class_roll_number, course, branch, year, section } = req.body;
 
     const existing = await queryOne('SELECT * FROM students WHERE student_id = ?', [Number(id)]);
     if (!existing) {
@@ -258,13 +300,37 @@ router.put('/students/:id', authenticateToken, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Name, course, and branch cannot be empty.' });
     }
 
+    let finalPhoneHash = existing.phone_lookup_hash;
+    let finalPhoneLastFour = existing.phone_last_four;
+    if (phone_number !== undefined && String(phone_number).trim()) {
+      const cleanedPhoneNumber = normalizePhoneNumber(phone_number);
+      if (!cleanedPhoneNumber) {
+        return res.status(400).json({ success: false, message: 'Enter a valid 10-digit phone number.' });
+      }
+      finalPhoneHash = hashPhoneNumber(cleanedPhoneNumber);
+      if (!finalPhoneHash) {
+        throw new Error('PHONE_LOOKUP_SECRET is not configured.');
+      }
+      const phoneTaken = await queryOne(
+        'SELECT student_id FROM students WHERE phone_lookup_hash = ? AND student_id != ?',
+        [finalPhoneHash, Number(id)]
+      );
+      if (phoneTaken) {
+        return res.status(409).json({ success: false, message: 'Phone number already registered.' });
+      }
+      finalPhoneLastFour = cleanedPhoneNumber.slice(-4);
+    }
+
     await execute(
       `UPDATE students
-       SET name=?, normalized_name=?, university_roll_number=?, class_roll_number=?, course=?, branch=?, year=?, section=?
+       SET name=?, normalized_name=?, phone_lookup_hash=?, phone_last_four=?,
+           university_roll_number=?, class_roll_number=?, course=?, branch=?, year=?, section=?
        WHERE student_id=?`,
       [
         finalName,
         normalizeStudentName(finalName),
+        finalPhoneHash,
+        finalPhoneLastFour,
         finalUniversityRoll,
         finalClassRoll,
         finalCourse,
@@ -278,16 +344,17 @@ router.put('/students/:id', authenticateToken, async (req, res) => {
     res.json({
       success: true,
       message: 'Student updated successfully.',
-      data: {
+      data: formatStudentForAdmin({
         student_id: Number(id),
         name: finalName,
+        phone_last_four: finalPhoneLastFour,
         university_roll_number: finalUniversityRoll,
         class_roll_number: finalClassRoll,
         course: finalCourse,
         branch: finalBranch,
         year: finalYear,
         section: finalSection,
-      }
+      })
     });
   } catch (error) {
     console.error('Update student error:', error);

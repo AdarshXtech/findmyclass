@@ -3,9 +3,12 @@ import { HiOutlinePencil, HiOutlinePlus, HiOutlineSearch, HiOutlineTrash } from 
 import { useNavigate } from 'react-router-dom'
 import adminApi from '../admin/api'
 import { clearAdminSession } from '../admin/auth'
+import { normalizePhoneNumber } from '../utils/studentIdentity'
 
 const initialForm = {
   name: '',
+  phone_number: '',
+  masked_phone_number: '',
   university_roll_number: '',
   class_roll_number: '',
   course: '',
@@ -78,6 +81,8 @@ export default function AdminStudentsPage() {
     setError('')
     setSuccess('')
 
+    const enteredPhoneNumber = form.phone_number.trim()
+    const normalizedPhoneNumber = enteredPhoneNumber ? normalizePhoneNumber(enteredPhoneNumber) : null
     const payload = {
       name: form.name.trim(),
       university_roll_number: form.university_roll_number.trim().replace(/\s+/g, '').toUpperCase() || null,
@@ -86,6 +91,10 @@ export default function AdminStudentsPage() {
       branch: form.branch.trim(),
       year: Number(form.year),
       section: form.section.trim().toUpperCase(),
+    }
+
+    if (enteredPhoneNumber) {
+      payload.phone_number = normalizedPhoneNumber
     }
 
     if (!payload.name || !payload.course || !payload.branch || !payload.year || !payload.section) {
@@ -98,6 +107,10 @@ export default function AdminStudentsPage() {
     }
     if (payload.university_roll_number && !/^[A-Z0-9-]{4,30}$/.test(payload.university_roll_number)) {
       setError('Please enter a valid university roll number.')
+      return
+    }
+    if (enteredPhoneNumber && !normalizedPhoneNumber) {
+      setError('Enter a valid 10-digit phone number.')
       return
     }
     if (payload.class_roll_number !== null && (!Number.isInteger(payload.class_roll_number) || payload.class_roll_number < 1 || payload.class_roll_number > 999)) {
@@ -115,7 +128,13 @@ export default function AdminStudentsPage() {
     const submittedForm = form
     const submittedEditingId = editingId
     const optimisticId = editingId || `optimistic-${Date.now()}`
-    const optimisticStudent = { student_id: optimisticId, ...payload }
+    const optimisticStudent = {
+      student_id: optimisticId,
+      ...payload,
+      masked_phone_number: normalizedPhoneNumber
+        ? `******${normalizedPhoneNumber.slice(-4)}`
+        : form.masked_phone_number || null,
+    }
     const matchesCurrentView = (student) => {
       const normalizedSearch = search.trim().toLowerCase()
       return (!sectionFilter || student.section === sectionFilter)
@@ -174,6 +193,8 @@ export default function AdminStudentsPage() {
     setEditingId(student.student_id)
     setForm({
       name: student.name || '',
+      phone_number: '',
+      masked_phone_number: student.masked_phone_number || '',
       university_roll_number: student.university_roll_number || '',
       class_roll_number: student.class_roll_number || '',
       course: student.course || '',
@@ -235,6 +256,18 @@ export default function AdminStudentsPage() {
         <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <input className="input-field" aria-label="Full name" placeholder="Full Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
           <input className="input-field" aria-label="University roll number" placeholder="University Roll Number" value={form.university_roll_number} onChange={(e) => setForm({ ...form, university_roll_number: e.target.value.toUpperCase() })} required />
+          <input
+            className="input-field"
+            aria-label="Phone number"
+            type="tel"
+            inputMode="numeric"
+            autoComplete="tel"
+            placeholder={editingId && form.masked_phone_number
+              ? `New Phone Number (current ${form.masked_phone_number})`
+              : 'Phone Number'}
+            value={form.phone_number}
+            onChange={(e) => setForm({ ...form, phone_number: e.target.value })}
+          />
           <input className="input-field" aria-label="Class roll number" type="number" min={1} max={999} placeholder="Class Roll Number" value={form.class_roll_number} onChange={(e) => setForm({ ...form, class_roll_number: e.target.value })} />
           <input className="input-field" aria-label="Course" placeholder="Course (e.g. B.Tech)" value={form.course} onChange={(e) => setForm({ ...form, course: e.target.value })} required />
           <input className="input-field" aria-label="Branch" placeholder="Branch (e.g. CSE)" value={form.branch} onChange={(e) => setForm({ ...form, branch: e.target.value })} required />
@@ -304,6 +337,7 @@ export default function AdminStudentsPage() {
                 <tr className="text-left text-slate-400 border-b border-slate-700">
                   <th className="py-3 pr-3">Name</th>
                   <th className="py-3 pr-3">University Roll</th>
+                  <th className="py-3 pr-3">Phone</th>
                   <th className="py-3 pr-3">Class Roll</th>
                   <th className="py-3 pr-3">Course</th>
                   <th className="py-3 pr-3">Branch</th>
@@ -317,6 +351,7 @@ export default function AdminStudentsPage() {
                   <tr key={student.student_id} className="border-b border-slate-800">
                     <td className="py-3 pr-3 text-white">{student.name}</td>
                     <td className="py-3 pr-3 whitespace-nowrap">{student.university_roll_number || '-'}</td>
+                    <td className="py-3 pr-3 whitespace-nowrap font-mono">{student.masked_phone_number || 'Not set'}</td>
                     <td className="py-3 pr-3">{student.class_roll_number || '-'}</td>
                     <td className="py-3 pr-3">{student.course}</td>
                     <td className="py-3 pr-3">{student.branch}</td>

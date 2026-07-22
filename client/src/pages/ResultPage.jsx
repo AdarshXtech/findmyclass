@@ -212,7 +212,7 @@ export default function ResultPage() {
   const todayEntries = timetableByDay.get(currentDay) || []
   const todayClasses = todayEntries.filter((entry) => entry.sessionType !== 'Break')
   const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
-  const locationEntry = todayClasses.find((entry) => entry.endTime > currentTime) || todayClasses.at(-1)
+  const locationEntry = todayClasses.find((entry) => entry.endTime > currentTime)
   const locationValues = {
     floor: locationEntry?.floor || 'Not listed',
     wing: locationEntry?.wing || 'Not listed',
@@ -360,6 +360,7 @@ export default function ResultPage() {
                       </button>
                       <div
                         id={`day-${day.id}`}
+                        aria-hidden={!isExpanded}
                         className="grid transition-[grid-template-rows] duration-300"
                         style={{ gridTemplateRows: isExpanded ? '1fr' : '0fr' }}
                       >

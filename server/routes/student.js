@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { queryAll } = require('../config/db');
 const { normalizeUniversityRollNumber, isValidUniversityRollNumber } = require('../utils/validation');
+const { parseClassroomLocation } = require('../utils/classroom-location');
 
 /**
  * POST /api/student/lookup
@@ -91,6 +92,8 @@ router.post('/lookup', async (req, res) => {
         })),
         timetable: timetable.map((entry) => {
           const classroom = classroomBySubject.get(String(entry.subject_name || '').trim().toLowerCase());
+          const room = entry.room || classroom?.room || null;
+          const location = parseClassroomLocation(room);
           return {
             id: entry.timetable_entry_id,
             dayOfWeek: entry.day_of_week,
@@ -101,10 +104,17 @@ router.post('/lookup', async (req, res) => {
             sessionType: entry.session_type,
             facultyCode: entry.faculty_code,
             facultyName: entry.faculty_name,
-            floor: classroom?.floor || null,
-            wing: classroom?.wing || null,
-            classroomNumber: entry.room || classroom?.room || null,
-            room: entry.room || classroom?.room || null,
+            floor: location.floor,
+            floorCode: location.floorCode,
+            shortFloor: location.shortFloor,
+            wing: location.wing,
+            classroomNumber: location.classroomNumber,
+            classroomPosition: location.roomPosition,
+            originalClassroom: location.originalClassroom || null,
+            room,
+            locationDisplay: location.fullDisplay,
+            shortLocationDisplay: location.shortDisplay,
+            locationError: location.error,
             academicSession: entry.academic_session,
             semester: entry.semester
           };

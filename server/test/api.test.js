@@ -154,8 +154,10 @@ test('health, lookup, authentication, CRUD, and import workflows', async (t) => 
     assert.equal(found.body.data.timetable[0].subjectCode, 'NBS4301');
     assert.equal(found.body.data.timetable[0].room, '305');
     assert.equal(found.body.data.timetable[0].classroomNumber, '305');
-    assert.equal(found.body.data.timetable[0].floor, '3rd Floor');
-    assert.equal(found.body.data.timetable[0].wing, 'B');
+    assert.equal(found.body.data.timetable[0].classroomPosition, '05');
+    assert.equal(found.body.data.timetable[0].floor, 'Floor 3');
+    assert.equal(found.body.data.timetable[0].wing, 'A');
+    assert.equal(found.body.data.timetable[0].locationDisplay, 'Floor 3 \u00b7 Wing A \u00b7 Classroom 305');
   });
 
   await t.test('rejects invalid credentials and protects admin endpoints', async () => {
@@ -251,10 +253,23 @@ test('health, lookup, authentication, CRUD, and import workflows', async (t) => 
     const classroom = await apiRequest('/api/admin/classrooms', {
       method: 'POST',
       token,
-      body: { section: 'cse-a', subject: 'Physics', floor: '2nd Floor', wing: 'a', room: '210' },
+      body: { section: 'cse-a', subject: 'Physics', room: '210' },
     });
     assert.equal(classroom.status, 201);
+    assert.equal(classroom.body.data.floor, 'Floor 2');
+    assert.equal(classroom.body.data.wing, 'B');
     const classroomId = classroom.body.data.classroom_id;
+
+    const invalidClassroom = await apiRequest('/api/admin/classrooms', {
+      method: 'POST',
+      token,
+      body: { section: 'cse-a', subject: 'Invalid Room', room: '901' },
+    });
+    assert.equal(invalidClassroom.status, 400);
+    assert.equal(
+      invalidClassroom.body.message,
+      'Invalid classroom number. Use UGF, LGF, or floors 1 to 8, with a room position between 01 and 21.'
+    );
 
     const filtered = await apiRequest('/api/admin/classrooms?section=cse-a', { token });
     assert.equal(filtered.status, 200);

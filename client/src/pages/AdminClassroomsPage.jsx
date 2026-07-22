@@ -7,8 +7,6 @@ import { clearAdminSession } from '../admin/auth'
 const initialForm = {
   section: '',
   subject: '',
-  floor: '',
-  wing: '',
   room: '',
 }
 
@@ -77,17 +75,11 @@ export default function AdminClassroomsPage() {
     const payload = {
       section: form.section.trim().toUpperCase(),
       subject: form.subject.trim(),
-      floor: form.floor.trim(),
-      wing: form.wing.trim().toUpperCase(),
       room: form.room.trim(),
     }
 
-    if (!payload.section || !payload.subject || !payload.floor || !payload.wing || !payload.room) {
-      setError('All fields are required.')
-      return
-    }
-    if (!['A', 'B', 'C'].includes(payload.wing)) {
-      setError('Wing must be A, B, or C.')
+    if (!payload.section || !payload.subject || !payload.room) {
+      setError('Section, subject, and classroom number are required.')
       return
     }
 
@@ -96,7 +88,13 @@ export default function AdminClassroomsPage() {
     const submittedForm = form
     const submittedEditingId = editingId
     const optimisticId = editingId || `optimistic-${Date.now()}`
-    const optimisticClassroom = { classroom_id: optimisticId, ...payload }
+    const existingClassroom = classrooms.find((classroom) => classroom.classroom_id === editingId)
+    const optimisticClassroom = {
+      classroom_id: optimisticId,
+      floor: existingClassroom?.floor || '',
+      wing: existingClassroom?.wing || '',
+      ...payload,
+    }
     const matchesCurrentView = (classroom) => !sectionFilter || classroom.section === sectionFilter
     setClassrooms((current) => {
       const withoutCurrent = current.filter((classroom) => classroom.classroom_id !== editingId)
@@ -145,8 +143,6 @@ export default function AdminClassroomsPage() {
     setForm({
       section: classroom.section || '',
       subject: classroom.subject || '',
-      floor: classroom.floor || '',
-      wing: classroom.wing || '',
       room: classroom.room || '',
     })
     setError('')
@@ -225,29 +221,9 @@ export default function AdminClassroomsPage() {
           </datalist>
 
           <input
-            className="input-field"
-            aria-label="Floor"
-            placeholder="Floor (e.g. 3rd Floor)"
-            value={form.floor}
-            onChange={(e) => setForm({ ...form, floor: e.target.value })}
-            required
-          />
-          <select
-            className="input-field"
-            aria-label="Wing"
-            value={form.wing}
-            onChange={(e) => setForm({ ...form, wing: e.target.value })}
-            required
-          >
-            <option value="">Select Wing</option>
-            <option value="A">A</option>
-            <option value="B">B</option>
-            <option value="C">C</option>
-          </select>
-          <input
             className="input-field md:col-span-2"
-            aria-label="Room"
-            placeholder="Room (e.g. 305 or Lab-501)"
+            aria-label="Classroom number"
+            placeholder="Classroom (e.g. 407, UGF07, or LGF-15)"
             value={form.room}
             onChange={(e) => setForm({ ...form, room: e.target.value })}
             required

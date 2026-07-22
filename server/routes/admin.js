@@ -15,11 +15,10 @@ const {
   isValidClassRollNumber,
   normalizeSection,
   isValidSection,
-  normalizeWing,
-  isValidWing,
   normalizeYear,
   isValidYear,
 } = require('../utils/validation');
+const { CLASSROOM_ERROR, parseClassroomLocation } = require('../utils/classroom-location');
 
 // ════════════════════════════════════════════════════════════
 //  AUTH
@@ -413,7 +412,15 @@ router.get('/classrooms', authenticateToken, async (req, res) => {
 
     query += ' ORDER BY section, subject';
     const classrooms = await queryAll(query, params);
-    res.json({ success: true, data: classrooms });
+    res.json({
+      success: true,
+      data: classrooms.map((classroom) => {
+        const location = parseClassroomLocation(classroom.room);
+        return location.valid
+          ? { ...classroom, floor: location.floor, wing: location.wing, room: location.classroomNumber }
+          : { ...classroom, locationError: location.error };
+      })
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Something went wrong.' });
   }
@@ -424,19 +431,19 @@ router.post('/classrooms', authenticateToken, async (req, res) => {
   try {
     const section = normalizeSection(req.body.section);
     const subject = String(req.body.subject || '').trim();
-    const floor = String(req.body.floor || '').trim();
-    const wing = normalizeWing(req.body.wing);
-    const room = String(req.body.room || '').trim();
+    const location = parseClassroomLocation(req.body.room);
 
-    if (!section || !subject || !floor || !wing || !room) {
-      return res.status(400).json({ success: false, message: 'All fields are required.' });
+    if (!section || !subject || location.isMissing) {
+      return res.status(400).json({ success: false, message: 'Section, subject, and classroom number are required.' });
     }
     if (!isValidSection(section)) {
       return res.status(400).json({ success: false, message: 'Please enter a valid section.' });
     }
-    if (!isValidWing(wing)) {
-      return res.status(400).json({ success: false, message: 'Wing must be A, B, or C.' });
+    if (!location.valid) {
+      return res.status(400).json({ success: false, message: CLASSROOM_ERROR });
     }
+
+    const { floor, wing, classroomNumber: room } = location;
 
     const existing = await queryOne(
       'SELECT classroom_id FROM classrooms WHERE section = ? AND subject = ?',
@@ -464,7 +471,7 @@ router.post('/classrooms', authenticateToken, async (req, res) => {
 router.put('/classrooms/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
-    const { section, subject, floor, wing, room } = req.body;
+    const { section, subject, room } = req.body;
 
     const existing = await queryOne('SELECT * FROM classrooms WHERE classroom_id = ?', [Number(id)]);
     if (!existing) {
@@ -473,19 +480,21 @@ router.put('/classrooms/:id', authenticateToken, async (req, res) => {
 
     const finalSection = section !== undefined ? normalizeSection(section) : existing.section;
     const finalSubject = subject !== undefined ? String(subject).trim() : existing.subject;
-    const finalFloor = floor !== undefined ? String(floor).trim() : existing.floor;
-    const finalWing = wing !== undefined ? normalizeWing(wing) : existing.wing;
-    const finalRoom = room !== undefined ? String(room).trim() : existing.room;
+    const location = parseClassroomLocation(room !== undefined ? room : existing.room);
 
-    if (!finalSection || !finalSubject || !finalFloor || !finalWing || !finalRoom) {
-      return res.status(400).json({ success: false, message: 'All fields are required.' });
+    if (!finalSection || !finalSubject || location.isMissing) {
+      return res.status(400).json({ success: false, message: 'Section, subject, and classroom number are required.' });
     }
     if (!isValidSection(finalSection)) {
       return res.status(400).json({ success: false, message: 'Please enter a valid section.' });
     }
-    if (!isValidWing(finalWing)) {
-      return res.status(400).json({ success: false, message: 'Wing must be A, B, or C.' });
+    if (!location.valid) {
+      return res.status(400).json({ success: false, message: CLASSROOM_ERROR });
     }
+
+    const finalFloor = location.floor;
+    const finalWing = location.wing;
+    const finalRoom = location.classroomNumber;
 
     const duplicate = await queryOne(
       'SELECT classroom_id FROM classrooms WHERE section = ? AND subject = ? AND classroom_id != ?',

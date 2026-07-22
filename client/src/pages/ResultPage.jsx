@@ -49,12 +49,6 @@ function ClassEntry({ entry }) {
     )
   }
 
-  const locations = [
-    ['Floor', entry.floor || 'Not listed'],
-    ['Wing', entry.wing || 'Not listed'],
-    ['Classroom', entry.classroomNumber || entry.room || 'Not listed'],
-  ]
-
   return (
     <article className="grid gap-4 px-4 py-5 sm:px-6 lg:grid-cols-[180px_minmax(0,1fr)_280px] lg:items-center">
       <div className="flex items-center gap-2 whitespace-nowrap font-mono text-sm font-bold">
@@ -69,14 +63,18 @@ function ClassEntry({ entry }) {
         <h3 className="font-bold leading-5">{entry.subjectName}</h3>
         <p className="mt-1 text-sm text-[#6b6f65]">{entry.facultyName || 'Teacher not listed'}</p>
       </div>
-      <dl className="grid grid-cols-3 border border-[#20211e]/20 bg-[#f3efe5]">
-        {locations.map(([label, value], index) => (
-          <div key={label} className={`min-w-0 px-3 py-2 ${index < locations.length - 1 ? 'border-r border-[#20211e]/20' : ''}`}>
-            <dt className="text-[9px] font-bold uppercase text-[#73776d]">{label}</dt>
-            <dd className="mt-1 truncate text-sm font-bold" title={value}>{value}</dd>
-          </div>
-        ))}
-      </dl>
+      <div className="border border-[#20211e]/20 bg-[#f3efe5] px-3 py-3 text-sm font-bold">
+        {entry.locationError ? (
+          <p role="alert" className="text-[#842d22]">{entry.locationError}</p>
+        ) : entry.locationDisplay ? (
+          <>
+            <p className="hidden lg:block">{entry.locationDisplay}</p>
+            <p className="lg:hidden">{entry.shortLocationDisplay}</p>
+          </>
+        ) : (
+          <p className="text-[#6b6f65]">Room not listed</p>
+        )}
+      </div>
     </article>
   )
 }

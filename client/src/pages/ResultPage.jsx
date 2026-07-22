@@ -160,7 +160,10 @@ export default function ResultPage() {
   }).format(now)
 
   const selectView = (view) => {
-    setSearchParams(view === 'weekly' ? { view: 'weekly' } : {}, { replace: true })
+    setSearchParams(
+      view === 'weekly' ? { view: 'weekly' } : {},
+      { replace: true, state: location.state }
+    )
     setMenuOpen(false)
   }
 

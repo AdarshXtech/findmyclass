@@ -153,6 +153,9 @@ test('health, lookup, authentication, CRUD, and import workflows', async (t) => 
     assert.equal(found.body.data.student.classRollNumber, 1);
     assert.equal(found.body.data.timetable[0].subjectCode, 'NBS4301');
     assert.equal(found.body.data.timetable[0].room, '305');
+    assert.equal(found.body.data.timetable[0].classroomNumber, '305');
+    assert.equal(found.body.data.timetable[0].floor, '3rd Floor');
+    assert.equal(found.body.data.timetable[0].wing, 'B');
   });
 
   await t.test('rejects invalid credentials and protects admin endpoints', async () => {

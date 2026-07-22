@@ -65,6 +65,10 @@ router.post('/lookup', async (req, res) => {
       [student.section]
     );
 
+    const classroomBySubject = new Map(
+      classrooms.map((classroom) => [String(classroom.subject).trim().toLowerCase(), classroom])
+    );
+
     res.json({
       success: true,
       data: {
@@ -85,20 +89,26 @@ router.post('/lookup', async (req, res) => {
           wing: c.wing,
           room: c.room
         })),
-        timetable: timetable.map((entry) => ({
-          id: entry.timetable_entry_id,
-          dayOfWeek: entry.day_of_week,
-          startTime: entry.start_time,
-          endTime: entry.end_time,
-          subjectCode: entry.subject_code,
-          subjectName: entry.subject_name,
-          sessionType: entry.session_type,
-          facultyCode: entry.faculty_code,
-          facultyName: entry.faculty_name,
-          room: entry.room,
-          academicSession: entry.academic_session,
-          semester: entry.semester
-        }))
+        timetable: timetable.map((entry) => {
+          const classroom = classroomBySubject.get(String(entry.subject_name || '').trim().toLowerCase());
+          return {
+            id: entry.timetable_entry_id,
+            dayOfWeek: entry.day_of_week,
+            startTime: entry.start_time,
+            endTime: entry.end_time,
+            subjectCode: entry.subject_code,
+            subjectName: entry.subject_name,
+            sessionType: entry.session_type,
+            facultyCode: entry.faculty_code,
+            facultyName: entry.faculty_name,
+            floor: classroom?.floor || null,
+            wing: classroom?.wing || null,
+            classroomNumber: entry.room || classroom?.room || null,
+            room: entry.room || classroom?.room || null,
+            academicSession: entry.academic_session,
+            semester: entry.semester
+          };
+        })
       }
     });
   } catch (error) {

@@ -8,6 +8,7 @@ import {
   HiOutlineMenuAlt3,
   HiOutlineX,
 } from 'react-icons/hi'
+import ClassLocationHeader from '../components/ClassLocationHeader'
 
 const weekdays = [
   { id: 1, name: 'Monday', shortName: 'MON' },
@@ -33,7 +34,7 @@ function sortByStartTime(entries) {
   return [...entries].sort((left, right) => String(left.startTime).localeCompare(String(right.startTime)))
 }
 
-function ClassEntry({ entry }) {
+function ClassEntry({ entry, classContext, status = 'upcoming', priorityLabel = 'Next class', compact = false }) {
   if (entry.sessionType === 'Break') {
     return (
       <article className="grid gap-3 bg-[#f3dfaa] px-4 py-4 sm:grid-cols-[190px_minmax(0,1fr)_160px] sm:items-center sm:px-6">
@@ -47,31 +48,40 @@ function ClassEntry({ entry }) {
     )
   }
 
+  const highlighted = status === 'priority'
+  const completed = status === 'completed'
+
   return (
-    <article className="grid gap-4 px-4 py-5 sm:px-6 lg:grid-cols-[180px_minmax(0,1fr)_280px] lg:items-center">
-      <div className="flex items-center gap-2 whitespace-nowrap font-mono text-sm font-bold">
-        <HiOutlineClock className="text-lg text-[#a33a2b]" />
-        <time>{formatTime(entry.startTime)} &ndash; {formatTime(entry.endTime)}</time>
-      </div>
-      <div className="min-w-0">
-        <div className="mb-1 flex flex-wrap items-center gap-2 text-xs">
-          {entry.subjectCode ? <span className="font-mono font-black text-[#17726a]">{entry.subjectCode}</span> : null}
-          <span className="text-[#73776d]">{entry.sessionType}</span>
+    <article className={`bg-[#fffdf7] transition-opacity ${completed ? 'opacity-60' : ''}`} aria-label={`${entry.subjectName}, ${entry.classroomNumber ? `room ${entry.classroomNumber}` : 'room not listed'}`}>
+      <ClassLocationHeader entry={entry} compact={compact} highlighted={highlighted} />
+
+      <dl className="grid grid-cols-2 border-b border-[#20211e]/20 bg-[#eee8dc] sm:grid-cols-3">
+        {[
+          ['Course', classContext.course],
+          ['Year', classContext.year],
+          ['Class', classContext.section],
+        ].map(([label, value], index) => (
+          <div key={label} className={`min-w-0 px-4 py-3 ${index < 2 ? 'sm:border-r sm:border-[#20211e]/20' : ''} ${index === 0 ? 'max-sm:border-r max-sm:border-[#20211e]/20' : ''} ${index === 2 ? 'max-sm:col-span-2 max-sm:border-t max-sm:border-[#20211e]/20' : ''}`}>
+            <dt className="text-[9px] font-bold uppercase text-[#73776d]">{label}</dt>
+            <dd className="mt-1 text-sm font-bold">{value}</dd>
+          </div>
+        ))}
+      </dl>
+
+      <div className={`grid gap-4 px-4 py-4 sm:px-5 ${compact ? 'lg:grid-cols-[minmax(0,1fr)_220px]' : 'lg:grid-cols-[minmax(0,1fr)_240px]'} lg:items-end`}>
+        <div className="min-w-0">
+          <div className="mb-1 flex flex-wrap items-center gap-2 text-xs">
+            {entry.subjectCode ? <span className="font-mono font-black text-[#17726a]">{entry.subjectCode}</span> : null}
+            <span className="text-[#73776d]">{entry.sessionType}</span>
+            {highlighted ? <span className="bg-[#a33a2b] px-2 py-0.5 font-bold uppercase text-white">{priorityLabel}</span> : null}
+          </div>
+          <h3 className="font-bold leading-5">{entry.subjectName}</h3>
+          <p className="mt-1 text-sm text-[#55594f]">{entry.facultyName || 'Teacher not listed'}</p>
         </div>
-        <h3 className="font-bold leading-5">{entry.subjectName}</h3>
-        <p className="mt-1 text-sm text-[#6b6f65]">{entry.facultyName || 'Teacher not listed'}</p>
-      </div>
-      <div className="border border-[#20211e]/20 bg-[#f3efe5] px-3 py-3 text-sm font-bold">
-        {entry.locationError ? (
-          <p role="alert" className="text-[#842d22]">{entry.locationError}</p>
-        ) : entry.locationDisplay ? (
-          <>
-            <p className="hidden lg:block">{entry.locationDisplay}</p>
-            <p className="lg:hidden">{entry.shortLocationDisplay}</p>
-          </>
-        ) : (
-          <p className="text-[#6b6f65]">Room not listed</p>
-        )}
+        <div className="flex items-center gap-2 whitespace-nowrap font-mono text-sm font-bold lg:justify-end">
+          <HiOutlineClock aria-hidden="true" className="text-lg text-[#a33a2b]" />
+          <time>{formatTime(entry.startTime)} &ndash; {formatTime(entry.endTime)}</time>
+        </div>
       </div>
     </article>
   )
@@ -150,6 +160,9 @@ export default function ResultPage() {
   const todayClasses = todayEntries.filter((entry) => entry.sessionType !== 'Break')
   const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
   const activeEntry = todayEntries.find((entry) => entry.startTime <= currentTime && entry.endTime > currentTime)
+  const priorityEntry = activeEntry?.sessionType !== 'Break'
+    ? activeEntry
+    : todayClasses.find((entry) => entry.startTime >= currentTime)
   const locationEntry = activeEntry?.sessionType === 'Break' ? null : activeEntry
   const locationValues = {
     floor: locationEntry?.floor || 'Not listed',
@@ -169,13 +182,18 @@ export default function ResultPage() {
   }
 
   const studentDetails = [
+    ['Floor', locationValues.floor],
+    ['Wing', locationValues.wing],
+    ['Room number', locationValues.classroom],
     ['Course', `${student.course} ${student.branch}`],
     ['Year', `Year ${student.year}`],
     ['Class', displaySection],
-    ['Floor', locationValues.floor],
-    ['Wing', locationValues.wing],
-    ['Classroom number', locationValues.classroom],
   ]
+  const classContext = {
+    course: `${student.course} ${student.branch}`,
+    year: `Year ${student.year}`,
+    section: displaySection,
+  }
   const currentClassDetails = [
     ['Current subject', activeEntry?.sessionType === 'Break' ? 'Lunch break' : activeEntry?.subjectName || 'No class in progress'],
     ['Type of class', activeEntry?.sessionType || 'Not scheduled'],
@@ -293,7 +311,15 @@ export default function ResultPage() {
               <div className="overflow-hidden">
                 {todayClasses.length ? (
                   <div className="divide-y divide-[#20211e]/20 border-t border-[#20211e]/20 bg-[#fffdf7]">
-                    {todayEntries.map((entry) => <ClassEntry key={entry.id} entry={entry} />)}
+                    {todayEntries.map((entry) => (
+                      <ClassEntry
+                        key={entry.id}
+                        entry={entry}
+                        classContext={classContext}
+                        status={entry.id === priorityEntry?.id ? 'priority' : entry.sessionType !== 'Break' && entry.endTime <= currentTime ? 'completed' : 'upcoming'}
+                        priorityLabel={entry.id === activeEntry?.id ? 'Current class' : 'Next class'}
+                      />
+                    ))}
                   </div>
                 ) : (
                   <EmptySchedule message="No classes scheduled for today." detail="Your weekly timetable is still available from the menu." />
@@ -344,7 +370,9 @@ export default function ResultPage() {
                         <div className="overflow-hidden">
                           {classCount ? (
                             <div className="divide-y divide-[#20211e]/20 bg-[#fffdf7]">
-                              {entries.map((entry) => <ClassEntry key={entry.id} entry={entry} />)}
+                              {entries.map((entry) => (
+                                <ClassEntry key={entry.id} entry={entry} classContext={classContext} compact />
+                              ))}
                             </div>
                           ) : (
                             <div className="bg-[#fffdf7] px-6 py-8">

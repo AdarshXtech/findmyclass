@@ -52,7 +52,7 @@ function ClassEntry({ entry, classContext, status = 'upcoming', priorityLabel = 
   const completed = status === 'completed'
 
   return (
-    <article className={`bg-[#fffdf7] transition-opacity ${completed ? 'opacity-60' : ''}`} aria-label={`${entry.subjectName}, ${entry.classroomNumber ? `room ${entry.classroomNumber}` : 'room not listed'}`}>
+    <article className={`bg-[#fffdf7] transition-opacity ${completed ? 'opacity-80' : ''}`} aria-label={`${entry.subjectName}, ${entry.classroomNumber ? `room ${entry.classroomNumber}` : 'room not listed'}`}>
       <ClassLocationHeader entry={entry} compact={compact} highlighted={highlighted} />
 
       <dl className="grid grid-cols-2 border-b border-[#20211e]/20 bg-[#eee8dc] sm:grid-cols-3">

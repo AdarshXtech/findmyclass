@@ -33,7 +33,7 @@ function sortByStartTime(entries) {
   return [...entries].sort((left, right) => String(left.startTime).localeCompare(String(right.startTime)))
 }
 
-function ClassEntry({ entry, classContext, status = 'upcoming', priorityLabel = 'Next class', compact = false }) {
+function ClassEntry({ entry, status = 'upcoming', priorityLabel = 'Next class', compact = false }) {
   if (entry.sessionType === 'Break') {
     return (
       <article className="grid gap-3 bg-[#f3dfaa] px-4 py-4 sm:grid-cols-[190px_minmax(0,1fr)_160px] sm:items-center sm:px-6">
@@ -50,24 +50,31 @@ function ClassEntry({ entry, classContext, status = 'upcoming', priorityLabel = 
   const highlighted = status === 'priority'
   const completed = status === 'completed'
 
+  if (compact) {
+    return (
+      <article className="grid gap-3 bg-[#fffdf7] px-4 py-4 md:grid-cols-[150px_minmax(0,1fr)_230px] md:items-center md:px-6" aria-label={`${entry.subjectName}, ${entry.classroomNumber ? `room ${entry.classroomNumber}` : 'room not listed'}`}>
+        <div className="flex items-center gap-2 whitespace-nowrap font-mono text-sm font-bold">
+          <HiOutlineClock aria-hidden="true" className="text-lg text-[#a33a2b]" />
+          <time>{formatTime(entry.startTime)} &ndash; {formatTime(entry.endTime)}</time>
+        </div>
+        <div className="min-w-0">
+          <div className="mb-1 flex flex-wrap items-center gap-2 text-xs">
+            {entry.subjectCode ? <span className="font-mono font-black text-[#17726a]">{entry.subjectCode}</span> : null}
+            <span className="text-[#73776d]">{entry.sessionType}</span>
+          </div>
+          <h3 className="font-bold leading-5">{entry.subjectName}</h3>
+          <p className="mt-1 text-sm text-[#55594f]">{entry.facultyName || 'Teacher not listed'}</p>
+        </div>
+        <ClassLocationHeader entry={entry} compact inline />
+      </article>
+    )
+  }
+
   return (
     <article className={`bg-[#fffdf7] transition-opacity ${completed ? 'opacity-80' : ''}`} aria-label={`${entry.subjectName}, ${entry.classroomNumber ? `room ${entry.classroomNumber}` : 'room not listed'}`}>
       <ClassLocationHeader entry={entry} compact={compact} highlighted={highlighted} />
 
-      <dl className="grid grid-cols-2 border-b border-[#20211e]/20 bg-[#eee8dc] sm:grid-cols-3">
-        {[
-          ['Course', classContext.course],
-          ['Year', classContext.year],
-          ['Class', classContext.section],
-        ].map(([label, value], index) => (
-          <div key={label} className={`min-w-0 px-4 py-3 ${index < 2 ? 'sm:border-r sm:border-[#20211e]/20' : ''} ${index === 0 ? 'max-sm:border-r max-sm:border-[#20211e]/20' : ''} ${index === 2 ? 'max-sm:col-span-2 max-sm:border-t max-sm:border-[#20211e]/20' : ''}`}>
-            <dt className="text-[9px] font-bold uppercase text-[#73776d]">{label}</dt>
-            <dd className="mt-1 text-sm font-bold">{value}</dd>
-          </div>
-        ))}
-      </dl>
-
-      <div className={`grid gap-4 px-4 py-4 sm:px-5 ${compact ? 'lg:grid-cols-[minmax(0,1fr)_220px]' : 'lg:grid-cols-[minmax(0,1fr)_240px]'} lg:items-end`}>
+      <div className="grid gap-4 px-4 py-4 sm:px-5 lg:grid-cols-[minmax(0,1fr)_240px] lg:items-end">
         <div className="min-w-0">
           <div className="mb-1 flex flex-wrap items-center gap-2 text-xs">
             {entry.subjectCode ? <span className="font-mono font-black text-[#17726a]">{entry.subjectCode}</span> : null}
@@ -189,16 +196,6 @@ export default function ResultPage() {
     setMenuOpen(false)
   }
 
-  const studentDetails = [
-    ['Course', `${student.course} ${student.branch}`],
-    ['Year', `Year ${student.year}`],
-    ['Class', displaySection],
-  ]
-  const classContext = {
-    course: `${student.course} ${student.branch}`,
-    year: `Year ${student.year}`,
-    section: displaySection,
-  }
   const selectedClassDetails = [
     ['Subject', locationEntry?.subjectName || 'Not scheduled'],
     ['Type of class', locationEntry?.sessionType || 'Not scheduled'],
@@ -259,6 +256,9 @@ export default function ResultPage() {
           <div className="mt-4 grid gap-7 lg:grid-cols-[minmax(0,1fr)_minmax(520px,auto)] lg:items-end">
             <div>
               <h1 className="font-display text-4xl font-bold leading-tight sm:text-5xl">{displayName}</h1>
+              <p className="mt-3 text-sm font-semibold text-[#55594f] sm:text-base">
+                {student.course} {student.branch} <span aria-hidden="true">&middot;</span> Year {student.year} <span aria-hidden="true">&middot;</span> {displaySection}
+              </p>
             </div>
             <div>
               {locationEntry ? (
@@ -284,14 +284,6 @@ export default function ResultPage() {
                 </section>
               )}
 
-              <dl className="grid grid-cols-2 border-x border-b border-[#20211e]/30 bg-[#fffdf7] sm:grid-cols-3">
-                {studentDetails.map(([label, value], index) => (
-                  <div key={label} className={`min-w-0 px-3 py-3 ${index < 2 ? 'sm:border-r sm:border-[#20211e]/20' : ''} ${index === 0 ? 'max-sm:border-r max-sm:border-[#20211e]/20' : ''} ${index === 2 ? 'max-sm:col-span-2 max-sm:border-t max-sm:border-[#20211e]/20' : ''}`}>
-                    <dt className="text-[9px] font-bold uppercase text-[#73776d]">{label}</dt>
-                    <dd className="mt-1 truncate text-sm font-bold" title={String(value)}>{value}</dd>
-                  </div>
-                ))}
-              </dl>
               {locationEntry ? (
                 <dl className="grid border-x border-b border-[#20211e]/30 bg-[#eee8dc] sm:grid-cols-3">
                   {selectedClassDetails.map(([label, value], index) => (
@@ -345,7 +337,6 @@ export default function ResultPage() {
                       <ClassEntry
                         key={entry.id}
                         entry={entry}
-                        classContext={classContext}
                         status={entry.id === priorityEntry?.id ? 'priority' : entry.sessionType !== 'Break' && entry.endTime <= currentTime ? 'completed' : 'upcoming'}
                         priorityLabel={entry.id === activeClass?.id ? 'Current class' : 'Next class'}
                       />
@@ -401,7 +392,7 @@ export default function ResultPage() {
                           {classCount ? (
                             <div className="divide-y divide-[#20211e]/20 bg-[#fffdf7]">
                               {entries.map((entry) => (
-                                <ClassEntry key={entry.id} entry={entry} classContext={classContext} compact />
+                                <ClassEntry key={entry.id} entry={entry} compact />
                               ))}
                             </div>
                           ) : (

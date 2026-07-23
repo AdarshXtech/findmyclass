@@ -4,7 +4,7 @@ function displayFloor(entry) {
   return entry.shortFloor || entry.floor || 'Not listed'
 }
 
-export default function ClassLocationHeader({ entry, compact = false, highlighted = false }) {
+export default function ClassLocationHeader({ entry, compact = false, highlighted = false, inline = false }) {
   if (entry.locationError) {
     return (
       <div className="border-b border-[#20211e]/25 bg-[#f3dfaa] px-4 py-4 sm:px-5">
@@ -17,6 +17,18 @@ export default function ClassLocationHeader({ entry, compact = false, highlighte
   const wing = entry.wing ? `Wing ${entry.wing}` : 'Not listed'
   const room = entry.classroomNumber || entry.room || 'Not listed'
   const locationLabel = `Room ${room}, ${floor}, ${wing}`
+
+  if (inline) {
+    return (
+      <div
+        aria-label={locationLabel}
+        className="border-l-2 border-[#e6b845] pl-3 md:text-right"
+      >
+        <p className="font-display text-xl font-bold leading-none">Room {room}</p>
+        <p className="mt-1 font-mono text-[11px] font-bold uppercase text-[#55594f]">{floor} &middot; {wing}</p>
+      </div>
+    )
+  }
 
   return (
     <header

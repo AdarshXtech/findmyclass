@@ -158,16 +158,25 @@ export default function ResultPage() {
   const todayEntries = timetableByDay.get(currentDay) || []
   const todayClasses = todayEntries.filter((entry) => entry.sessionType !== 'Break')
   const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
-  const activeEntry = todayEntries.find((entry) => entry.startTime <= currentTime && entry.endTime > currentTime)
-  const priorityEntry = activeEntry?.sessionType !== 'Break'
-    ? activeEntry
-    : todayClasses.find((entry) => entry.startTime >= currentTime)
-  const locationEntry = activeEntry?.sessionType === 'Break' ? null : activeEntry
-  const locationValues = {
-    floor: locationEntry?.floor || 'Not listed',
-    wing: locationEntry?.wing || 'Not listed',
-    classroom: locationEntry?.classroomNumber || locationEntry?.room || 'Not listed',
-  }
+  const activeClass = todayClasses.find((entry) => entry.startTime <= currentTime && entry.endTime > currentTime)
+  const nextUpcomingClass = todayClasses.find((entry) => entry.startTime > currentTime)
+  const firstScheduledClass = todayClasses[0] || null
+  const firstClassFallback = !activeClass
+    && !nextUpcomingClass
+    && firstScheduledClass
+    && currentTime < firstScheduledClass.startTime
+      ? firstScheduledClass
+      : null
+  const locationEntry = activeClass ?? nextUpcomingClass ?? firstClassFallback
+  const priorityEntry = locationEntry
+  const locationStatus = activeClass
+    ? 'Current class'
+    : nextUpcomingClass
+      ? 'Next class'
+      : firstClassFallback
+        ? "Today's first class"
+        : null
+  const finishedForToday = todayClasses.length > 0 && !locationEntry
   const formattedDate = new Intl.DateTimeFormat('en-IN', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   }).format(now)
@@ -181,9 +190,6 @@ export default function ResultPage() {
   }
 
   const studentDetails = [
-    ['Floor', locationValues.floor],
-    ['Wing', locationValues.wing],
-    ['Room number', locationValues.classroom],
     ['Course', `${student.course} ${student.branch}`],
     ['Year', `Year ${student.year}`],
     ['Class', displaySection],
@@ -193,10 +199,10 @@ export default function ResultPage() {
     year: `Year ${student.year}`,
     section: displaySection,
   }
-  const currentClassDetails = [
-    ['Current subject', activeEntry?.sessionType === 'Break' ? 'Lunch break' : activeEntry?.subjectName || 'No class in progress'],
-    ['Type of class', activeEntry?.sessionType || 'Not scheduled'],
-    ['Teacher', activeEntry?.sessionType === 'Break' ? 'Not applicable' : activeEntry?.facultyName || 'Not scheduled'],
+  const selectedClassDetails = [
+    ['Subject', locationEntry?.subjectName || 'Not scheduled'],
+    ['Type of class', locationEntry?.sessionType || 'Not scheduled'],
+    ['Teacher', locationEntry?.facultyName || 'Not scheduled'],
   ]
 
   return (
@@ -255,22 +261,47 @@ export default function ResultPage() {
               <h1 className="font-display text-4xl font-bold leading-tight sm:text-5xl">{displayName}</h1>
             </div>
             <div>
-              <dl className="grid grid-cols-2 border border-[#20211e]/30 bg-[#fffdf7] sm:grid-cols-3">
+              {locationEntry ? (
+                <section className="border border-[#20211e]/30 bg-[#fffdf7]" aria-label={`${locationStatus} location`}>
+                  <div className="flex flex-wrap items-end justify-between gap-3 border-b border-[#20211e]/25 bg-[#e6b845] px-4 py-3">
+                    <div>
+                      <p className="font-mono text-[10px] font-black uppercase text-[#842d22]">{locationStatus}</p>
+                      <p className="mt-1 font-bold">{locationEntry.subjectName}</p>
+                    </div>
+                    <p className="font-mono text-xs font-bold">
+                      Starts at <time>{formatTime(locationEntry.startTime)}</time>
+                    </p>
+                  </div>
+                  <ClassLocationHeader entry={locationEntry} />
+                </section>
+              ) : (
+                <section className="border border-[#20211e]/30 bg-[#fffdf7] px-4 py-5" aria-live="polite">
+                  <p className="font-mono text-[10px] font-black uppercase text-[#a33a2b]">Today&apos;s schedule</p>
+                  <p className="mt-2 font-display text-xl font-bold">
+                    {finishedForToday ? 'No more classes today' : 'No classes scheduled today'}
+                  </p>
+                  <p className="mt-1 text-sm text-[#6b6f65]">Open Weekly Classes to check another day.</p>
+                </section>
+              )}
+
+              <dl className="grid grid-cols-2 border-x border-b border-[#20211e]/30 bg-[#fffdf7] sm:grid-cols-3">
                 {studentDetails.map(([label, value], index) => (
-                  <div key={label} className={`min-w-0 px-3 py-3 ${index % 3 !== 2 ? 'sm:border-r sm:border-[#20211e]/20' : ''} ${index < 3 ? 'sm:border-b sm:border-[#20211e]/20' : ''} ${index < 4 ? 'max-sm:border-b max-sm:border-[#20211e]/20' : ''} ${index % 2 === 0 ? 'max-sm:border-r max-sm:border-[#20211e]/20' : ''}`}>
+                  <div key={label} className={`min-w-0 px-3 py-3 ${index < 2 ? 'sm:border-r sm:border-[#20211e]/20' : ''} ${index === 0 ? 'max-sm:border-r max-sm:border-[#20211e]/20' : ''} ${index === 2 ? 'max-sm:col-span-2 max-sm:border-t max-sm:border-[#20211e]/20' : ''}`}>
                     <dt className="text-[9px] font-bold uppercase text-[#73776d]">{label}</dt>
                     <dd className="mt-1 truncate text-sm font-bold" title={String(value)}>{value}</dd>
                   </div>
                 ))}
               </dl>
-              <dl className="grid border-x border-b border-[#20211e]/30 bg-[#eee8dc] sm:grid-cols-3">
-                {currentClassDetails.map(([label, value], index) => (
-                  <div key={label} className={`min-w-0 px-3 py-3 ${index < currentClassDetails.length - 1 ? 'max-sm:border-b max-sm:border-[#20211e]/20 sm:border-r sm:border-[#20211e]/20' : ''}`}>
-                    <dt className="text-[9px] font-bold uppercase text-[#73776d]">{label}</dt>
-                    <dd className="mt-1 text-sm font-bold sm:truncate" title={String(value)}>{value}</dd>
-                  </div>
-                ))}
-              </dl>
+              {locationEntry ? (
+                <dl className="grid border-x border-b border-[#20211e]/30 bg-[#eee8dc] sm:grid-cols-3">
+                  {selectedClassDetails.map(([label, value], index) => (
+                    <div key={label} className={`min-w-0 px-3 py-3 ${index < selectedClassDetails.length - 1 ? 'max-sm:border-b max-sm:border-[#20211e]/20 sm:border-r sm:border-[#20211e]/20' : ''}`}>
+                      <dt className="text-[9px] font-bold uppercase text-[#73776d]">{label}</dt>
+                      <dd className="mt-1 text-sm font-bold sm:truncate" title={String(value)}>{value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              ) : null}
             </div>
           </div>
         </section>
@@ -316,7 +347,7 @@ export default function ResultPage() {
                         entry={entry}
                         classContext={classContext}
                         status={entry.id === priorityEntry?.id ? 'priority' : entry.sessionType !== 'Break' && entry.endTime <= currentTime ? 'completed' : 'upcoming'}
-                        priorityLabel={entry.id === activeEntry?.id ? 'Current class' : 'Next class'}
+                        priorityLabel={entry.id === activeClass?.id ? 'Current class' : 'Next class'}
                       />
                     ))}
                   </div>

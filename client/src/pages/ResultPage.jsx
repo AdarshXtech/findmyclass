@@ -71,7 +71,7 @@ function ClassEntry({ entry, status = 'upcoming', priorityLabel = 'Next class', 
   }
 
   return (
-    <article className={`bg-[#fffdf7] transition-opacity ${completed ? 'opacity-80' : ''}`} aria-label={`${entry.subjectName}, ${entry.classroomNumber ? `room ${entry.classroomNumber}` : 'room not listed'}`}>
+    <article className="bg-[#fffdf7]" aria-label={`${entry.subjectName}, ${entry.classroomNumber ? `room ${entry.classroomNumber}` : 'room not listed'}${completed ? ', completed' : ''}`}>
       <ClassLocationHeader entry={entry} compact={compact} highlighted={highlighted} />
 
       <div className="grid gap-4 px-4 py-4 sm:px-5 lg:grid-cols-[minmax(0,1fr)_240px] lg:items-end">
@@ -80,12 +80,13 @@ function ClassEntry({ entry, status = 'upcoming', priorityLabel = 'Next class', 
             {entry.subjectCode ? <span className="font-mono font-black text-[#17726a]">{entry.subjectCode}</span> : null}
             <span className="text-[#73776d]">{entry.sessionType}</span>
             {highlighted ? <span className="bg-[#a33a2b] px-2 py-0.5 font-bold uppercase text-white">{priorityLabel}</span> : null}
+            {completed ? <span className="border border-[#73776d] px-2 py-0.5 font-bold uppercase text-[#55594f]">Completed</span> : null}
           </div>
-          <h3 className="font-bold leading-5">{entry.subjectName}</h3>
-          <p className="mt-1 text-sm text-[#55594f]">{entry.facultyName || 'Teacher not listed'}</p>
+          <h3 className={`font-bold leading-5 ${completed ? 'text-[#55594f]' : ''}`}>{entry.subjectName}</h3>
+          <p className={`mt-1 text-sm ${completed ? 'text-[#73776d]' : 'text-[#55594f]'}`}>{entry.facultyName || 'Teacher not listed'}</p>
         </div>
-        <div className="flex items-center gap-2 whitespace-nowrap font-mono text-sm font-bold lg:justify-end">
-          <HiOutlineClock aria-hidden="true" className="text-lg text-[#a33a2b]" />
+        <div className={`flex items-center gap-2 whitespace-nowrap font-mono text-sm font-bold lg:justify-end ${completed ? 'text-[#73776d]' : ''}`}>
+          <HiOutlineClock aria-hidden="true" className={`text-lg ${completed ? 'text-[#73776d]' : 'text-[#a33a2b]'}`} />
           <time>{formatTime(entry.startTime)} &ndash; {formatTime(entry.endTime)}</time>
         </div>
       </div>

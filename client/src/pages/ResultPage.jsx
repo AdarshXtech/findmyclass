@@ -92,6 +92,7 @@ export default function ResultPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const data = location.state?.lookupData || null
   const [menuOpen, setMenuOpen] = useState(false)
+  const [todayExpanded, setTodayExpanded] = useState(false)
   const [now, setNow] = useState(() => new Date())
   const currentDay = now.getDay()
   const [expandedDay, setExpandedDay] = useState(() => currentDay >= 1 && currentDay <= 6 ? currentDay : 1)
@@ -258,25 +259,47 @@ export default function ResultPage() {
         </section>
 
         {activeView === 'daily' ? (
-          <section>
-            <div className="mb-7 mt-10 flex flex-wrap items-end justify-between gap-4">
-              <div>
-                <div className="flex items-center gap-3">
-                  <HiOutlineCalendar className="text-2xl text-[#a33a2b]" />
-                  <h2 className="font-display text-3xl font-bold">Today classes</h2>
-                </div>
-                <p className="mt-2 font-mono text-sm font-bold text-[#6b6f65]">{formattedDate}</p>
-              </div>
-              {todayClasses.length ? <p className="text-sm text-[#6b6f65]">{todayClasses.length} {todayClasses.length === 1 ? 'class' : 'classes'}</p> : null}
-            </div>
+          <section className="mt-10 border-y-2 border-[#20211e]">
+            <button
+              type="button"
+              onClick={() => setTodayExpanded((expanded) => !expanded)}
+              className={`grid w-full text-left transition-colors sm:grid-cols-[minmax(0,1fr)_180px] ${todayExpanded ? 'bg-[#e6b845]' : 'bg-[#fffdf7] hover:bg-[#eee8dc]'}`}
+              aria-expanded={todayExpanded}
+              aria-controls="today-schedule"
+            >
+              <span className="flex items-center gap-3 px-4 py-5 sm:px-6">
+                <HiOutlineCalendar className="shrink-0 text-2xl text-[#a33a2b]" />
+                <span className="min-w-0">
+                  <span className="block font-display text-2xl font-bold">Today classes</span>
+                  <span className="mt-1 block font-mono text-xs font-bold text-[#55594f]">{formattedDate}</span>
+                </span>
+              </span>
+              <span className="flex items-center justify-between gap-4 border-t border-[#20211e]/20 px-4 py-4 sm:border-l sm:border-t-0 sm:px-6">
+                <span className="text-sm font-medium text-[#55594f]">
+                  {todayClasses.length
+                    ? `${todayClasses.length} ${todayClasses.length === 1 ? 'class' : 'classes'}`
+                    : 'No classes'}
+                </span>
+                <HiOutlineChevronDown className={`shrink-0 text-xl transition-transform duration-200 ${todayExpanded ? 'rotate-180' : ''}`} />
+              </span>
+            </button>
 
-            {todayClasses.length ? (
-              <div className="divide-y divide-[#20211e]/20 border-y-2 border-[#20211e] bg-[#fffdf7]">
-                {todayEntries.map((entry) => <ClassEntry key={entry.id} entry={entry} />)}
+            <div
+              id="today-schedule"
+              aria-hidden={!todayExpanded}
+              className="grid transition-[grid-template-rows] duration-300"
+              style={{ gridTemplateRows: todayExpanded ? '1fr' : '0fr' }}
+            >
+              <div className="overflow-hidden">
+                {todayClasses.length ? (
+                  <div className="divide-y divide-[#20211e]/20 border-t border-[#20211e]/20 bg-[#fffdf7]">
+                    {todayEntries.map((entry) => <ClassEntry key={entry.id} entry={entry} />)}
+                  </div>
+                ) : (
+                  <EmptySchedule message="No classes scheduled for today." detail="Your weekly timetable is still available from the menu." />
+                )}
               </div>
-            ) : (
-              <EmptySchedule message="No classes scheduled for today." detail="Your weekly timetable is still available from the menu." />
-            )}
+            </div>
           </section>
         ) : (
           <section>

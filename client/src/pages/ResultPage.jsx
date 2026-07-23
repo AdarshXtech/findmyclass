@@ -16,7 +16,6 @@ const weekdays = [
   { id: 3, name: 'Wednesday', shortName: 'WED' },
   { id: 4, name: 'Thursday', shortName: 'THU' },
   { id: 5, name: 'Friday', shortName: 'FRI' },
-  { id: 6, name: 'Saturday', shortName: 'SAT' },
 ]
 
 function formatName(name) {
@@ -105,7 +104,7 @@ export default function ResultPage() {
   const [todayExpanded, setTodayExpanded] = useState(false)
   const [now, setNow] = useState(() => new Date())
   const currentDay = now.getDay()
-  const [expandedDay, setExpandedDay] = useState(() => currentDay >= 1 && currentDay <= 6 ? currentDay : 1)
+  const [expandedDay, setExpandedDay] = useState(() => currentDay >= 1 && currentDay <= 5 ? currentDay : 1)
   const activeView = searchParams.get('view') === 'weekly' ? 'weekly' : 'daily'
 
   useEffect(() => {

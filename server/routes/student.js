@@ -7,41 +7,18 @@ const {
   normalizePhoneNumber,
   hashPhoneNumber,
 } = require('../utils/student-identity');
+const { createFailedAttemptLimiter } = require('../middleware/rate-limit');
 
 const LOOKUP_ERROR = 'Student details not found. Please check your name and phone number.';
-const ATTEMPT_WINDOW_MS = 15 * 60 * 1000;
-const MAX_FAILED_ATTEMPTS = 5;
-const failedAttempts = new Map();
-
-function attemptKey(req) {
-  return req.ip || req.socket?.remoteAddress || 'unknown';
-}
-
-function currentAttempt(key) {
-  const attempt = failedAttempts.get(key);
-  if (attempt && attempt.resetAt > Date.now()) return attempt;
-  failedAttempts.delete(key);
-  return null;
-}
-
-function recordFailedAttempt(key) {
-  const current = currentAttempt(key);
-  failedAttempts.set(key, {
-    count: (current?.count || 0) + 1,
-    resetAt: current?.resetAt || Date.now() + ATTEMPT_WINDOW_MS,
-  });
-}
+const lookupLimiter = createFailedAttemptLimiter({
+  windowMs: 15 * 60 * 1000,
+  maxAttempts: 5,
+  message: 'Too many unsuccessful attempts. Please wait 15 minutes and try again.',
+});
 
 /** POST /api/student/lookup - verify a student and return their class schedule. */
 router.post('/lookup', async (req, res) => {
-  const key = attemptKey(req);
-  const attempt = currentAttempt(key);
-  if (attempt?.count >= MAX_FAILED_ATTEMPTS) {
-    return res.status(429).json({
-      success: false,
-      message: 'Too many unsuccessful attempts. Please wait 15 minutes and try again.',
-    });
-  }
+  if (lookupLimiter.check(req, res)) return;
 
   try {
     const normalizedName = normalizeStudentName(req.body.name);
@@ -71,12 +48,12 @@ router.post('/lookup', async (req, res) => {
     );
 
     if (matches.length !== 1) {
-      recordFailedAttempt(key);
+      lookupLimiter.recordFailure(req);
       return res.status(404).json({ success: false, message: LOOKUP_ERROR });
     }
 
     const student = matches[0];
-    failedAttempts.delete(key);
+    lookupLimiter.clear(req);
 
     const classrooms = await queryAll(
       'SELECT classroom_id, section, subject, floor, wing, room FROM classrooms WHERE section = ? ORDER BY subject',

@@ -14,6 +14,11 @@ const adminRoutes = require('./routes/admin');
 const app = express();
 const PORT = process.env.PORT || 5000;
 const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || '';
+const TRUST_PROXY = String(process.env.TRUST_PROXY || '').trim();
+
+if (TRUST_PROXY) {
+  app.set('trust proxy', /^\d+$/.test(TRUST_PROXY) ? Number(TRUST_PROXY) : TRUST_PROXY === 'true');
+}
 
 function buildCorsOptions() {
   if (!CLIENT_ORIGIN) {

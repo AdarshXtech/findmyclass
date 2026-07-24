@@ -527,4 +527,20 @@ test('health, lookup, authentication, CRUD, and import workflows', async (t) => 
     });
     assert.equal(blocked.status, 429);
   });
+
+  await t.test('temporarily rate limits repeated failed admin logins', async () => {
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const response = await apiRequest('/api/admin/login', {
+        method: 'POST',
+        body: { username: 'admin', password: `wrong-password-${attempt}` },
+      });
+      assert.equal(response.status, 401);
+    }
+
+    const blocked = await apiRequest('/api/admin/login', {
+      method: 'POST',
+      body: { username: 'admin', password: 'correct-horse-battery-staple' },
+    });
+    assert.equal(blocked.status, 429);
+  });
 });

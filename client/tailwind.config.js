@@ -68,6 +68,7 @@ export default {
       boxShadow: {
         brand: '8px 8px 0 var(--accent-primary)',
         'brand-lg': '10px 10px 0 var(--accent-primary)',
+        admin: 'var(--shadow-admin)',
       },
       animation: {
         'fade-in': 'fadeIn 0.6s ease-out forwards',

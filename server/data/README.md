@@ -10,7 +10,7 @@ The `csai2b-2026.json` dataset was transcribed from the files supplied on 2026-0
 - The PDF contains 58 rows labelled `CSAI2B`; all 58 are included.
 - PDF row 59, Pratik Singh (`1250439494`), is labelled `CSAI2D` and is excluded.
 - The timetable image prints `CSAI1-2B`. The canonical section is `CSAI2B`, based on the roster and the user's explicit statement that the class is CSAI 2B. The original image label remains in `sourceSectionLabels`.
-- University roll number is the sole public lookup identifier.
+- University roll numbers identify roster rows internally. Public lookup requires an exact normalized student name and matching keyed phone hash.
 - Tuesday is blank in the source image and is represented as a day with no timetable entries.
 - The dataset contains 58 students, 24 teaching sessions, and five weekday lunch breaks.
 

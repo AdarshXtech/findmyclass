@@ -25,6 +25,13 @@ const {
   hashPhoneNumber,
   maskPhoneNumber,
 } = require('../utils/student-identity');
+const { createFailedAttemptLimiter } = require('../middleware/rate-limit');
+
+const adminLoginLimiter = createFailedAttemptLimiter({
+  windowMs: 15 * 60 * 1000,
+  maxAttempts: 5,
+  message: 'Too many unsuccessful login attempts. Please wait 15 minutes and try again.',
+});
 
 function formatStudentForAdmin(student) {
   const { phone_last_four: phoneLastFour, phone_lookup_hash: _phoneHash, ...safeStudent } = student;
@@ -40,6 +47,8 @@ function formatStudentForAdmin(student) {
 
 /** POST /api/admin/login */
 router.post('/login', async (req, res) => {
+  if (adminLoginLimiter.check(req, res)) return;
+
   try {
     const username = String(req.body.username || '').trim();
     const password = String(req.body.password || '');
@@ -54,14 +63,17 @@ router.post('/login', async (req, res) => {
     const admin = await queryOne('SELECT * FROM admins WHERE username = ?', [username]);
 
     if (!admin) {
+      adminLoginLimiter.recordFailure(req);
       return res.status(401).json({ success: false, message: 'Invalid credentials.' });
     }
 
     const isValid = await bcrypt.compare(password, admin.password);
     if (!isValid) {
+      adminLoginLimiter.recordFailure(req);
       return res.status(401).json({ success: false, message: 'Invalid credentials.' });
     }
 
+    adminLoginLimiter.clear(req);
     const token = jwt.sign(
       { id: admin.admin_id, username: admin.username },
       JWT_SECRET,

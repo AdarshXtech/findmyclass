@@ -7,8 +7,8 @@ function displayFloor(entry) {
 export default function ClassLocationHeader({ entry, compact = false, highlighted = false, inline = false }) {
   if (entry.locationError) {
     return (
-      <div className="border-b border-[#20211e]/25 bg-[#f3dfaa] px-4 py-4 sm:px-5">
-        <p role="alert" className="font-bold text-[#842d22]">{entry.locationError}</p>
+      <div className="border-b border-border-default bg-surface-highlight px-4 py-4 sm:px-5">
+        <p role="alert" className="font-bold text-status-danger">{entry.locationError}</p>
       </div>
     )
   }
@@ -22,10 +22,10 @@ export default function ClassLocationHeader({ entry, compact = false, highlighte
     return (
       <div
         aria-label={locationLabel}
-        className="min-w-0 md:border-l-2 md:border-[#e6b845] md:pl-6 md:text-right"
+        className="min-w-0 md:border-l-2 md:border-accent-highlight md:pl-6 md:text-right"
       >
         <p className="font-display text-xl font-bold leading-tight [overflow-wrap:anywhere]">Room {room}</p>
-        <p className="mt-1 font-mono text-xs font-bold uppercase tracking-wide text-[#55594f] [overflow-wrap:anywhere]">{floor} &middot; {wing}</p>
+        <p className="mt-1 font-mono text-xs font-bold uppercase tracking-wide text-text-secondary [overflow-wrap:anywhere]">{floor} &middot; {wing}</p>
       </div>
     )
   }
@@ -33,26 +33,26 @@ export default function ClassLocationHeader({ entry, compact = false, highlighte
   return (
     <header
       aria-label={locationLabel}
-      className={`grid min-w-0 gap-3 border-b border-[#20211e]/30 px-4 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end sm:px-5 ${
-        highlighted ? 'bg-[#e6b845]' : 'bg-[#20211e] text-[#fffdf7]'
+      className={`grid min-w-0 gap-3 border-b border-border-default px-4 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end sm:px-5 ${
+        highlighted ? 'bg-accent-highlight' : 'bg-surface-inverse text-text-on-dark'
       } ${compact ? 'lg:py-3' : ''}`}
     >
       <div className="order-2 flex flex-wrap gap-2 sm:order-1">
         <span className={`border px-2.5 py-1 font-mono text-xs font-black uppercase ${
-          highlighted ? 'border-[#20211e]/45 bg-[#fffdf7]/55' : 'border-[#fffdf7]/35 bg-[#fffdf7]/10'
+          highlighted ? 'border-border-strong bg-surface-primary-soft' : 'border-border-inverse bg-surface-primary-subtle'
         }`}>
           {floor}
         </span>
         <span className={`border px-2.5 py-1 font-mono text-xs font-black uppercase ${
-          highlighted ? 'border-[#20211e]/45 bg-[#fffdf7]/55' : 'border-[#fffdf7]/35 bg-[#fffdf7]/10'
+          highlighted ? 'border-border-strong bg-surface-primary-soft' : 'border-border-inverse bg-surface-primary-subtle'
         }`}>
           {wing}
         </span>
       </div>
       <div className="order-1 flex min-w-0 items-center gap-2 sm:order-2 sm:justify-end">
-        <HiOutlineLocationMarker aria-hidden="true" className={`shrink-0 ${compact ? 'text-2xl' : 'text-3xl'} ${highlighted ? 'text-[#842d22]' : 'text-[#e6b845]'}`} />
+        <HiOutlineLocationMarker aria-hidden="true" className={`shrink-0 ${compact ? 'text-2xl' : 'text-3xl'} ${highlighted ? 'text-accent-strong' : 'text-accent-highlight'}`} />
         <div className="min-w-0">
-          <span className={`block font-mono text-xs font-black uppercase tracking-wide ${highlighted ? 'text-[#6b321f]' : 'text-[#e6b845]'}`}>
+          <span className={`block font-mono text-xs font-black uppercase tracking-wide ${highlighted ? 'text-accent-strong' : 'text-accent-highlight'}`}>
             Room
           </span>
           <span className={`block font-display font-bold leading-none [overflow-wrap:anywhere] ${compact ? 'text-2xl' : 'text-3xl sm:text-4xl'}`}>

@@ -12,6 +12,46 @@ export default {
         mono: ['Geist Mono Variable', 'ui-monospace', 'monospace'],
       },
       colors: {
+        surface: {
+          primary: 'var(--surface-primary)',
+          secondary: 'var(--surface-secondary)',
+          muted: 'var(--surface-muted)',
+          highlight: 'var(--surface-highlight)',
+          inverse: 'var(--surface-inverse)',
+          'primary-soft': 'var(--surface-primary-soft)',
+          'primary-subtle': 'var(--surface-primary-subtle)',
+        },
+        text: {
+          primary: 'var(--text-primary)',
+          secondary: 'var(--text-secondary)',
+          'on-dark': 'var(--text-on-dark)',
+          'on-accent': 'var(--text-on-accent)',
+          'muted-inverse': 'var(--text-muted-inverse)',
+        },
+        border: {
+          DEFAULT: 'var(--border-default)',
+          default: 'var(--border-default)',
+          strong: 'var(--border-strong)',
+          input: 'var(--border-input)',
+          inverse: 'var(--border-inverse)',
+        },
+        accent: {
+          primary: 'var(--accent-primary)',
+          strong: 'var(--accent-strong)',
+          highlight: 'var(--accent-highlight)',
+        },
+        status: {
+          danger: 'var(--danger)',
+          success: 'var(--success)',
+          warning: 'var(--warning-text)',
+        },
+        overlay: {
+          dialog: 'var(--overlay-dialog)',
+        },
+        focus: {
+          DEFAULT: 'var(--focus-ring)',
+          soft: 'var(--focus-ring-soft)',
+        },
         navy: {
           50:  '#eef2ff',
           100: '#e0e7ff',
@@ -24,6 +64,10 @@ export default {
           800: '#0f172a',
           900: '#020617',
         }
+      },
+      boxShadow: {
+        brand: '8px 8px 0 var(--accent-primary)',
+        'brand-lg': '10px 10px 0 var(--accent-primary)',
       },
       animation: {
         'fade-in': 'fadeIn 0.6s ease-out forwards',

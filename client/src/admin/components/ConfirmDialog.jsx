@@ -59,7 +59,7 @@ export default function ConfirmDialog({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[#20211e]/60 px-5 py-8"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-overlay-dialog px-5 py-8"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget && !busy) onCancel()
       }}
@@ -72,17 +72,17 @@ export default function ConfirmDialog({
         aria-labelledby={titleId}
         aria-describedby={descriptionId}
         onKeyDown={handleKeyDown}
-        className="w-full max-w-md border border-[#20211e] bg-[#fffdf7] p-6 text-[#20211e] shadow-[8px_8px_0_#a33a2b]"
+        className="w-full max-w-md border border-border-strong bg-surface-primary p-6 text-text-primary shadow-brand"
       >
         <h2 id={titleId} className="font-display text-2xl font-bold">{title}</h2>
-        <p id={descriptionId} className="mt-3 leading-6 text-[var(--text-muted)]">{description}</p>
+        <p id={descriptionId} className="mt-3 leading-6 text-text-secondary">{description}</p>
         <div className="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
           <button
             ref={cancelRef}
             type="button"
             onClick={onCancel}
             disabled={busy}
-            className="min-h-11 border border-[#20211e] px-5 py-2.5 font-bold transition hover:bg-[#eee8dc] disabled:opacity-60"
+            className="min-h-11 border border-border-strong px-5 py-2.5 font-bold transition hover:bg-surface-muted disabled:opacity-60"
           >
             Cancel
           </button>
@@ -92,7 +92,7 @@ export default function ConfirmDialog({
               if (!busy) onConfirm()
             }}
             disabled={busy}
-            className="min-h-11 bg-[#a33a2b] px-5 py-2.5 font-bold text-white transition hover:bg-[#842d22] disabled:opacity-60"
+            className="min-h-11 bg-status-danger px-5 py-2.5 font-bold text-text-on-accent transition hover:bg-accent-strong disabled:opacity-60"
           >
             {busy ? 'Deleting...' : confirmLabel}
           </button>

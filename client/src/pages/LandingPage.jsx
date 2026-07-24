@@ -64,7 +64,7 @@ export default function LandingPage() {
             </span>
             <div>
               <p className="font-display text-lg font-bold leading-none">Find My Class</p>
-              <p className="mt-1 font-mono text-[11px] uppercase text-[#5d6259]">BBD University</p>
+              <p className="mt-1 font-mono text-xs uppercase tracking-wide text-[#5d6259]">BBD University</p>
             </div>
           </div>
           <p className="hidden font-mono text-sm text-[#5d6259] sm:block">Odd semester / 2026-27</p>
@@ -86,13 +86,13 @@ export default function LandingPage() {
               <div>
                 <label htmlFor="student-name-input" className="mb-2 block text-sm font-bold">Student name</label>
                 <div className="relative">
-                  <HiOutlineUser className="absolute left-4 top-1/2 -translate-y-1/2 text-xl text-[#6b6f65]" />
+                  <HiOutlineUser className="absolute left-4 top-1/2 -translate-y-1/2 text-xl text-[var(--text-muted)]" />
                   <input
                     id="student-name-input"
                     type="text"
                     value={name}
                     onChange={(event) => { setName(event.target.value); clearError() }}
-                    placeholder="Full name"
+                    placeholder="For example, Rudransh Kumar Singh"
                     autoComplete="name"
                     autoFocus
                     required
@@ -103,7 +103,7 @@ export default function LandingPage() {
               <div>
                 <label htmlFor="student-phone-input" className="mb-2 block text-sm font-bold">Phone number</label>
                 <div className="relative">
-                  <HiOutlinePhone className="absolute left-4 top-1/2 -translate-y-1/2 text-xl text-[#6b6f65]" />
+                  <HiOutlinePhone className="absolute left-4 top-1/2 -translate-y-1/2 text-xl text-[var(--text-muted)]" />
                   <input
                     id="student-phone-input"
                     type="tel"
@@ -124,7 +124,7 @@ export default function LandingPage() {
                 {error ? (
                   <p role="alert" className="border-l-4 border-[#a33a2b] pl-3 text-sm font-medium text-[#842d22]">{error}</p>
                 ) : (
-                  <p className="text-sm text-[#6b6f65]">Both details must match the same student record.</p>
+                  <p className="text-sm text-[var(--text-muted)]">Both details must match the same student record.</p>
                 )}
               </div>
               <button

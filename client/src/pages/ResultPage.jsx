@@ -60,7 +60,7 @@ function ClassEntry({ entry, status = 'upcoming', priorityLabel = 'Next class', 
         <div className="min-w-0">
           <div className="mb-1 flex flex-wrap items-center gap-2 text-xs">
             {entry.subjectCode ? <span className="font-mono font-black text-[#17726a]">{entry.subjectCode}</span> : null}
-            <span className="text-[#73776d]">{entry.sessionType}</span>
+            <span className="text-[var(--text-muted)]">{entry.sessionType}</span>
           </div>
           <h3 className="font-bold leading-5 [overflow-wrap:anywhere]">{entry.subjectName}</h3>
           <p className="mt-1 text-sm text-[#55594f] [overflow-wrap:anywhere]">{entry.facultyName || 'Teacher not listed'}</p>
@@ -78,15 +78,15 @@ function ClassEntry({ entry, status = 'upcoming', priorityLabel = 'Next class', 
         <div className="min-w-0">
           <div className="mb-1 flex flex-wrap items-center gap-2 text-xs">
             {entry.subjectCode ? <span className="font-mono font-black text-[#17726a]">{entry.subjectCode}</span> : null}
-            <span className="text-[#73776d]">{entry.sessionType}</span>
-            {highlighted ? <span className="bg-[#a33a2b] px-2 py-0.5 font-bold uppercase text-white">{priorityLabel}</span> : null}
-            {completed ? <span className="border border-[#73776d] px-2 py-0.5 font-bold uppercase text-[#55594f]">Completed</span> : null}
+            <span className="text-[var(--text-muted)]">{entry.sessionType}</span>
+            {highlighted ? <span className="bg-[#a33a2b] px-2 py-0.5 font-bold uppercase tracking-wide text-white">{priorityLabel}</span> : null}
+            {completed ? <span className="border border-[var(--text-muted)] px-2 py-0.5 font-bold uppercase tracking-wide text-[#55594f]">Completed</span> : null}
           </div>
           <h3 className={`font-bold leading-5 [overflow-wrap:anywhere] ${completed ? 'text-[#55594f]' : ''}`}>{entry.subjectName}</h3>
-          <p className={`mt-1 text-sm [overflow-wrap:anywhere] ${completed ? 'text-[#73776d]' : 'text-[#55594f]'}`}>{entry.facultyName || 'Teacher not listed'}</p>
+          <p className={`mt-1 text-sm [overflow-wrap:anywhere] ${completed ? 'text-[var(--text-muted)]' : 'text-[#55594f]'}`}>{entry.facultyName || 'Teacher not listed'}</p>
         </div>
-        <div className={`flex items-center gap-2 whitespace-nowrap font-mono text-sm font-bold lg:justify-end ${completed ? 'text-[#73776d]' : ''}`}>
-          <HiOutlineClock aria-hidden="true" className={`text-lg ${completed ? 'text-[#73776d]' : 'text-[#a33a2b]'}`} />
+        <div className={`flex items-center gap-2 whitespace-nowrap font-mono text-sm font-bold lg:justify-end ${completed ? 'text-[var(--text-muted)]' : ''}`}>
+          <HiOutlineClock aria-hidden="true" className={`text-lg ${completed ? 'text-[var(--text-muted)]' : 'text-[#a33a2b]'}`} />
           <time>{formatTime(entry.startTime)} &ndash; {formatTime(entry.endTime)}</time>
         </div>
       </div>
@@ -98,7 +98,7 @@ function EmptySchedule({ message, detail }) {
   return (
     <section className="border-y border-[#20211e] bg-[#fffdf7] px-5 py-9">
       <p className="font-display text-xl font-bold">{message}</p>
-      {detail ? <p className="mt-1 text-sm text-[#6b6f65]">{detail}</p> : null}
+      {detail ? <p className="mt-1 text-sm text-[var(--text-muted)]">{detail}</p> : null}
     </section>
   )
 }
@@ -207,7 +207,7 @@ export default function ResultPage() {
     <div className="min-h-screen bg-[#f3efe5] text-[#20211e]">
       <header className="relative z-30 border-b border-[#20211e]/20 bg-[#fffdf7]">
         <div className="relative mx-auto flex max-w-6xl items-center justify-between px-5 py-4 sm:px-8">
-          <button onClick={() => navigate('/')} className="flex h-10 w-10 items-center justify-center border border-[#20211e] transition hover:bg-[#20211e] hover:text-white" aria-label="Search again" title="Search again">
+          <button onClick={() => navigate('/')} className="flex h-11 w-11 items-center justify-center border border-[#20211e] transition hover:bg-[#20211e] hover:text-white" aria-label="Search again" title="Search again">
             <HiOutlineArrowLeft className="text-xl" />
           </button>
           <p className="font-display text-lg font-bold">Find My Class</p>
@@ -216,7 +216,7 @@ export default function ResultPage() {
             <button
               type="button"
               onClick={() => setMenuOpen((open) => !open)}
-              className="flex h-10 w-10 items-center justify-center border border-[#20211e] transition hover:bg-[#20211e] hover:text-white"
+              className="flex h-11 w-11 items-center justify-center border border-[#20211e] transition hover:bg-[#20211e] hover:text-white"
               aria-label={menuOpen ? 'Close schedule menu' : 'Open schedule menu'}
               aria-expanded={menuOpen}
               aria-controls="schedule-menu"
@@ -268,7 +268,7 @@ export default function ResultPage() {
                 <section className="border border-[#20211e]/30 bg-[#fffdf7]" aria-label={`${locationStatus} location`}>
                   <div className="flex flex-wrap items-end justify-between gap-3 border-b border-[#20211e]/25 bg-[#e6b845] px-4 py-3">
                     <div>
-                      <p className="font-mono text-[10px] font-black uppercase text-[#842d22]">{locationStatus}</p>
+                      <p className="font-mono text-xs font-black uppercase tracking-wide text-[#842d22]">{locationStatus}</p>
                       <p className="mt-1 min-w-0 font-bold leading-snug [overflow-wrap:anywhere]">{locationEntry.subjectName}</p>
                     </div>
                     <p className="font-mono text-xs font-bold">
@@ -279,11 +279,11 @@ export default function ResultPage() {
                 </section>
               ) : (
                 <section className="border border-[#20211e]/30 bg-[#fffdf7] px-4 py-5" aria-live="polite">
-                  <p className="font-mono text-[10px] font-black uppercase text-[#a33a2b]">Today&apos;s schedule</p>
+                  <p className="font-mono text-xs font-black uppercase tracking-wide text-[#a33a2b]">Today&apos;s schedule</p>
                   <p className="mt-2 font-display text-xl font-bold">
                     {finishedForToday ? 'No more classes today' : 'No classes scheduled today'}
                   </p>
-                  <p className="mt-1 text-sm text-[#6b6f65]">Open Weekly Classes to check another day.</p>
+                  <p className="mt-1 text-sm text-[var(--text-muted)]">Open Weekly Classes to check another day.</p>
                 </section>
               )}
 
@@ -291,7 +291,7 @@ export default function ResultPage() {
                 <dl className="grid border-x border-b border-[#20211e]/30 bg-[#eee8dc] sm:grid-cols-3">
                   {selectedClassDetails.map(([label, value], index) => (
                     <div key={label} className={`min-w-0 px-3 py-3 ${index < selectedClassDetails.length - 1 ? 'max-sm:border-b max-sm:border-[#20211e]/20 sm:border-r sm:border-[#20211e]/20' : ''}`}>
-                      <dt className="text-[9px] font-bold uppercase text-[#73776d]">{label}</dt>
+                      <dt className="text-xs font-bold uppercase tracking-wide text-[var(--text-muted)]">{label}</dt>
                       <dd className="mt-1 text-sm font-bold [overflow-wrap:anywhere]" title={String(value)}>{value}</dd>
                     </div>
                   ))}
@@ -358,7 +358,7 @@ export default function ResultPage() {
                 <HiOutlineCalendar className="text-2xl text-[#a33a2b]" />
                 <h2 className="font-display text-3xl font-bold">Weekly classes</h2>
               </div>
-              {timetable.length ? <p className="text-sm text-[#6b6f65]">{subjectCount} subjects / {teachingEntries.length} sessions</p> : null}
+              {timetable.length ? <p className="text-sm text-[var(--text-muted)]">{subjectCount} subjects / {teachingEntries.length} sessions</p> : null}
             </div>
 
             {timetable.length ? (
@@ -424,7 +424,7 @@ export default function ResultPage() {
           </section>
         )}
 
-        <footer className="mt-10 flex flex-wrap items-center justify-between gap-2 border-t border-[#20211e]/20 pt-5 text-xs text-[#73776d]">
+        <footer className="mt-10 flex flex-wrap items-center justify-between gap-2 border-t border-[#20211e]/20 pt-5 text-xs text-[var(--text-muted)]">
           <span>Academic session {timetable[0]?.academicSession || '2026-27'}</span>
           <span>Room assignments may be revised by the department.</span>
         </footer>

@@ -3,6 +3,7 @@ import { HiOutlinePencil, HiOutlinePlus, HiOutlineSearch, HiOutlineTrash } from 
 import { useNavigate } from 'react-router-dom'
 import adminApi from '../admin/api'
 import { clearAdminSession } from '../admin/auth'
+import ConfirmDialog from '../admin/components/ConfirmDialog'
 import { normalizePhoneNumber } from '../utils/studentIdentity'
 
 const initialForm = {
@@ -31,6 +32,7 @@ export default function AdminStudentsPage() {
   const [search, setSearch] = useState('')
   const [sectionFilter, setSectionFilter] = useState('')
   const [editingId, setEditingId] = useState(null)
+  const [pendingDelete, setPendingDelete] = useState(null)
   const [form, setForm] = useState(initialForm)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -207,11 +209,6 @@ export default function AdminStudentsPage() {
   }
 
   const handleDelete = async (student) => {
-    const confirmed = window.confirm(`Delete student "${student.name}"?`)
-    if (!confirmed) {
-      return
-    }
-
     setDeletingId(student.student_id)
     setError('')
     setSuccess('')
@@ -234,6 +231,7 @@ export default function AdminStudentsPage() {
       setSuccess('')
     } finally {
       setDeletingId(null)
+      setPendingDelete(null)
     }
   }
 
@@ -254,25 +252,49 @@ export default function AdminStudentsPage() {
           {editingId ? 'Edit Student' : 'Add Student'}
         </h2>
         <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <input className="input-field" aria-label="Full name" placeholder="Full Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
-          <input className="input-field" aria-label="University roll number" placeholder="University Roll Number" value={form.university_roll_number} onChange={(e) => setForm({ ...form, university_roll_number: e.target.value.toUpperCase() })} required />
-          <input
-            className="input-field"
-            aria-label="Phone number"
-            type="tel"
-            inputMode="numeric"
-            autoComplete="tel"
-            placeholder={editingId && form.masked_phone_number
-              ? `New Phone Number (current ${form.masked_phone_number})`
-              : 'Phone Number'}
-            value={form.phone_number}
-            onChange={(e) => setForm({ ...form, phone_number: e.target.value })}
-          />
-          <input className="input-field" aria-label="Class roll number" type="number" min={1} max={999} placeholder="Class Roll Number" value={form.class_roll_number} onChange={(e) => setForm({ ...form, class_roll_number: e.target.value })} />
-          <input className="input-field" aria-label="Course" placeholder="Course (e.g. B.Tech)" value={form.course} onChange={(e) => setForm({ ...form, course: e.target.value })} required />
-          <input className="input-field" aria-label="Branch" placeholder="Branch (e.g. CSE)" value={form.branch} onChange={(e) => setForm({ ...form, branch: e.target.value })} required />
-          <input className="input-field" aria-label="Year" type="number" min={1} max={8} placeholder="Year" value={form.year} onChange={(e) => setForm({ ...form, year: e.target.value })} required />
-          <input className="input-field" aria-label="Section" placeholder="Section (e.g. CSE-A)" value={form.section} onChange={(e) => setForm({ ...form, section: e.target.value.toUpperCase() })} required />
+          <div>
+            <label htmlFor="student-full-name" className="mb-2 block text-sm font-bold text-slate-300">Full name</label>
+            <input id="student-full-name" className="input-field" placeholder="For example, Rudransh Kumar Singh" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+          </div>
+          <div>
+            <label htmlFor="student-university-roll" className="mb-2 block text-sm font-bold text-slate-300">University roll number</label>
+            <input id="student-university-roll" className="input-field" placeholder="For example, 1220103062" value={form.university_roll_number} onChange={(e) => setForm({ ...form, university_roll_number: e.target.value.toUpperCase() })} required />
+          </div>
+          <div>
+            <label htmlFor="student-phone" className="mb-2 block text-sm font-bold text-slate-300">Phone number</label>
+            <input
+              id="student-phone"
+              className="input-field"
+              type="tel"
+              inputMode="numeric"
+              autoComplete="tel"
+              placeholder={editingId && form.masked_phone_number
+                ? `New number; current ${form.masked_phone_number}`
+                : '10-digit number'}
+              value={form.phone_number}
+              onChange={(e) => setForm({ ...form, phone_number: e.target.value })}
+            />
+          </div>
+          <div>
+            <label htmlFor="student-class-roll" className="mb-2 block text-sm font-bold text-slate-300">Class roll number</label>
+            <input id="student-class-roll" className="input-field" type="number" min={1} max={999} placeholder="For example, 27" value={form.class_roll_number} onChange={(e) => setForm({ ...form, class_roll_number: e.target.value })} />
+          </div>
+          <div>
+            <label htmlFor="student-course" className="mb-2 block text-sm font-bold text-slate-300">Course</label>
+            <input id="student-course" className="input-field" placeholder="For example, B.Tech" value={form.course} onChange={(e) => setForm({ ...form, course: e.target.value })} required />
+          </div>
+          <div>
+            <label htmlFor="student-branch" className="mb-2 block text-sm font-bold text-slate-300">Branch</label>
+            <input id="student-branch" className="input-field" placeholder="For example, CSAI" value={form.branch} onChange={(e) => setForm({ ...form, branch: e.target.value })} required />
+          </div>
+          <div>
+            <label htmlFor="student-year" className="mb-2 block text-sm font-bold text-slate-300">Year</label>
+            <input id="student-year" className="input-field" type="number" min={1} max={8} placeholder="For example, 2" value={form.year} onChange={(e) => setForm({ ...form, year: e.target.value })} required />
+          </div>
+          <div>
+            <label htmlFor="student-section" className="mb-2 block text-sm font-bold text-slate-300">Section</label>
+            <input id="student-section" className="input-field" placeholder="For example, CSAI2B" value={form.section} onChange={(e) => setForm({ ...form, section: e.target.value.toUpperCase() })} required />
+          </div>
 
           <div className="md:col-span-2 flex flex-wrap gap-3">
             <button type="submit" disabled={saving} className="btn-primary inline-flex items-center gap-2">
@@ -297,33 +319,39 @@ export default function AdminStudentsPage() {
 
       <section className="glass-card rounded-2xl p-6">
         <div className="flex flex-col md:flex-row gap-3 md:items-center md:justify-between mb-4">
-          <form onSubmit={onSearchSubmit} className="flex gap-3 flex-1">
-            <div className="relative flex-1">
-              <HiOutlineSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                className="input-field pl-11"
-                aria-label="Search students"
-                placeholder="Search by name or university roll number"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
+          <form onSubmit={onSearchSubmit} className="flex flex-1 flex-col gap-3 sm:flex-row">
+            <div className="flex-1">
+              <label htmlFor="student-search" className="mb-2 block text-sm font-bold text-slate-300">Search students</label>
+              <div className="relative">
+                <HiOutlineSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  id="student-search"
+                  className="input-field pl-11"
+                  placeholder="Name or university roll number"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
             </div>
-            <button type="submit" className="px-5 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 transition text-white">
+            <button type="submit" className="min-h-11 px-5 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 transition text-white sm:mt-7">
               Search
             </button>
           </form>
 
-          <select
-            className="input-field md:w-56 py-3"
-            aria-label="Filter students by section"
-            value={sectionFilter}
-            onChange={(e) => setSectionFilter(e.target.value)}
-          >
-            <option value="">All Sections</option>
-            {sections.map((section) => (
-              <option key={section} value={section}>{section}</option>
-            ))}
-          </select>
+          <div className="md:w-56">
+            <label htmlFor="student-section-filter" className="mb-2 block text-sm font-bold text-slate-300">Filter by section</label>
+            <select
+              id="student-section-filter"
+              className="input-field py-3"
+              value={sectionFilter}
+              onChange={(e) => setSectionFilter(e.target.value)}
+            >
+              <option value="">All Sections</option>
+              {sections.map((section) => (
+                <option key={section} value={section}>{section}</option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {loading ? (
@@ -367,9 +395,9 @@ export default function AdminStudentsPage() {
                           Edit
                         </button>
                         <button
-                          onClick={() => handleDelete(student)}
+                          onClick={(event) => setPendingDelete({ student, trigger: event.currentTarget })}
                           disabled={deletingId === student.student_id}
-                          className="px-3 py-2 rounded-lg border border-red-500/30 text-red-300 hover:bg-red-500/10 transition inline-flex items-center gap-1 disabled:opacity-60"
+                          className="min-h-11 px-3 py-2 rounded-lg border border-red-500/30 text-red-300 hover:bg-red-500/10 transition inline-flex items-center gap-1 disabled:opacity-60"
                         >
                           <HiOutlineTrash />
                           {deletingId === student.student_id ? 'Deleting...' : 'Delete'}
@@ -383,6 +411,18 @@ export default function AdminStudentsPage() {
           </div>
         )}
       </section>
+
+      {pendingDelete ? (
+        <ConfirmDialog
+          title="Delete student?"
+          description={`This will remove ${pendingDelete.student.name} from ${pendingDelete.student.section}.`}
+          confirmLabel="Delete student"
+          busy={deletingId === pendingDelete.student.student_id}
+          returnFocusTo={pendingDelete.trigger}
+          onCancel={() => setPendingDelete(null)}
+          onConfirm={() => handleDelete(pendingDelete.student)}
+        />
+      ) : null}
     </div>
   )
 }

@@ -2,6 +2,10 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --text-muted: #666a61;
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -34,6 +38,25 @@ select:focus-visible,
 a:focus-visible {
   outline: 3px solid rgba(163, 58, 43, 0.35);
   outline-offset: 2px;
+}
+
+@media (pointer: coarse) {
+  button,
+  a,
+  [role="button"] {
+    min-height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 ::-webkit-scrollbar {
@@ -109,7 +132,7 @@ a:focus-visible {
   --admin-surface: #fffdf7;
   --admin-soft: #eee8dc;
   --admin-ink: #20211e;
-  --admin-muted: #6b6f65;
+  --admin-muted: var(--text-muted);
   --admin-accent: #a33a2b;
   --admin-accent-dark: #842d22;
   --admin-highlight: #e6b845;
@@ -156,7 +179,7 @@ a:focus-visible {
 }
 
 .admin-theme .input-field::placeholder {
-  color: #73776d;
+  color: var(--text-muted);
 }
 
 .admin-theme .input-field:focus {

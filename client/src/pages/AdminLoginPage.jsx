@@ -67,33 +67,37 @@ export default function AdminLoginPage() {
         <p className="text-slate-400 mb-6">Sign in to manage students, subjects, and classrooms.</p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="relative">
-            <label htmlFor="admin-username" className="sr-only">Username</label>
-            <HiOutlineUser className="absolute left-4 top-1/2 -translate-y-1/2 text-indigo-400" />
-            <input
-              id="admin-username"
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="Username"
-              className="input-field pl-11"
-              autoComplete="username"
-              required
-            />
+          <div>
+            <label htmlFor="admin-username" className="mb-2 block text-sm font-bold text-slate-300">Username</label>
+            <div className="relative">
+              <HiOutlineUser className="absolute left-4 top-1/2 -translate-y-1/2 text-indigo-400" />
+              <input
+                id="admin-username"
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="Enter your username"
+                className="input-field pl-11"
+                autoComplete="username"
+                required
+              />
+            </div>
           </div>
-          <div className="relative">
-            <label htmlFor="admin-password" className="sr-only">Password</label>
-            <HiOutlineLockClosed className="absolute left-4 top-1/2 -translate-y-1/2 text-indigo-400" />
-            <input
-              id="admin-password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Password"
-              className="input-field pl-11"
-              autoComplete="current-password"
-              required
-            />
+          <div>
+            <label htmlFor="admin-password" className="mb-2 block text-sm font-bold text-slate-300">Password</label>
+            <div className="relative">
+              <HiOutlineLockClosed className="absolute left-4 top-1/2 -translate-y-1/2 text-indigo-400" />
+              <input
+                id="admin-password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter your password"
+                className="input-field pl-11"
+                autoComplete="current-password"
+                required
+              />
+            </div>
           </div>
 
           {error && (

@@ -25,7 +25,7 @@ export default function ClassLocationHeader({ entry, compact = false, highlighte
         className="min-w-0 md:border-l-2 md:border-[#e6b845] md:pl-6 md:text-right"
       >
         <p className="font-display text-xl font-bold leading-tight [overflow-wrap:anywhere]">Room {room}</p>
-        <p className="mt-1 font-mono text-[11px] font-bold uppercase text-[#55594f] [overflow-wrap:anywhere]">{floor} &middot; {wing}</p>
+        <p className="mt-1 font-mono text-xs font-bold uppercase tracking-wide text-[#55594f] [overflow-wrap:anywhere]">{floor} &middot; {wing}</p>
       </div>
     )
   }
@@ -52,7 +52,7 @@ export default function ClassLocationHeader({ entry, compact = false, highlighte
       <div className="order-1 flex min-w-0 items-center gap-2 sm:order-2 sm:justify-end">
         <HiOutlineLocationMarker aria-hidden="true" className={`shrink-0 ${compact ? 'text-2xl' : 'text-3xl'} ${highlighted ? 'text-[#842d22]' : 'text-[#e6b845]'}`} />
         <div className="min-w-0">
-          <span className={`block font-mono text-[10px] font-black uppercase ${highlighted ? 'text-[#6b321f]' : 'text-[#e6b845]'}`}>
+          <span className={`block font-mono text-xs font-black uppercase tracking-wide ${highlighted ? 'text-[#6b321f]' : 'text-[#e6b845]'}`}>
             Room
           </span>
           <span className={`block font-display font-bold leading-none [overflow-wrap:anywhere] ${compact ? 'text-2xl' : 'text-3xl sm:text-4xl'}`}>

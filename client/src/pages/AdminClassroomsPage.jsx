@@ -3,6 +3,7 @@ import { HiOutlinePencil, HiOutlinePlus, HiOutlineTrash } from 'react-icons/hi'
 import { useNavigate } from 'react-router-dom'
 import adminApi from '../admin/api'
 import { clearAdminSession } from '../admin/auth'
+import ConfirmDialog from '../admin/components/ConfirmDialog'
 
 const initialForm = {
   section: '',
@@ -24,6 +25,7 @@ export default function AdminClassroomsPage() {
   const [sectionFilter, setSectionFilter] = useState('')
   const [form, setForm] = useState(initialForm)
   const [editingId, setEditingId] = useState(null)
+  const [pendingDelete, setPendingDelete] = useState(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [deletingId, setDeletingId] = useState(null)
@@ -150,11 +152,6 @@ export default function AdminClassroomsPage() {
   }
 
   const handleDelete = async (classroom) => {
-    const confirmed = window.confirm(`Delete "${classroom.subject}" for section "${classroom.section}"?`)
-    if (!confirmed) {
-      return
-    }
-
     setDeletingId(classroom.classroom_id)
     setError('')
     setSuccess('')
@@ -177,6 +174,7 @@ export default function AdminClassroomsPage() {
       setSuccess('')
     } finally {
       setDeletingId(null)
+      setPendingDelete(null)
     }
   }
 
@@ -190,44 +188,53 @@ export default function AdminClassroomsPage() {
       <section className="glass-card rounded-2xl p-6">
         <h2 className="text-lg font-semibold text-white mb-4">{editingId ? 'Edit Assignment' : 'Add Assignment'}</h2>
         <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <input
-            className="input-field"
-            aria-label="Section"
-            placeholder="Section (e.g. CSE-A)"
-            value={form.section}
-            onChange={(e) => setForm({ ...form, section: e.target.value.toUpperCase() })}
-            list="sections-list"
-            required
-          />
+          <div>
+            <label htmlFor="classroom-section" className="mb-2 block text-sm font-bold text-slate-300">Section</label>
+            <input
+              id="classroom-section"
+              className="input-field"
+              placeholder="For example, CSAI2B"
+              value={form.section}
+              onChange={(e) => setForm({ ...form, section: e.target.value.toUpperCase() })}
+              list="sections-list"
+              required
+            />
+          </div>
           <datalist id="sections-list">
             {sections.map((section) => (
               <option key={section} value={section} />
             ))}
           </datalist>
 
-          <input
-            className="input-field"
-            aria-label="Subject"
-            placeholder="Subject"
-            value={form.subject}
-            onChange={(e) => setForm({ ...form, subject: e.target.value })}
-            list="subjects-list"
-            required
-          />
+          <div>
+            <label htmlFor="classroom-subject" className="mb-2 block text-sm font-bold text-slate-300">Subject</label>
+            <input
+              id="classroom-subject"
+              className="input-field"
+              placeholder="For example, Digital Logic Design"
+              value={form.subject}
+              onChange={(e) => setForm({ ...form, subject: e.target.value })}
+              list="subjects-list"
+              required
+            />
+          </div>
           <datalist id="subjects-list">
             {subjects.map((subject) => (
               <option key={subject.subject_id} value={subject.subject_name} />
             ))}
           </datalist>
 
-          <input
-            className="input-field md:col-span-2"
-            aria-label="Classroom number"
-            placeholder="Classroom (e.g. 407, UGF07, or LGF-15)"
-            value={form.room}
-            onChange={(e) => setForm({ ...form, room: e.target.value })}
-            required
-          />
+          <div className="md:col-span-2">
+            <label htmlFor="classroom-number" className="mb-2 block text-sm font-bold text-slate-300">Classroom number</label>
+            <input
+              id="classroom-number"
+              className="input-field"
+              placeholder="For example, 407, UGF07, or LGF-15"
+              value={form.room}
+              onChange={(e) => setForm({ ...form, room: e.target.value })}
+              required
+            />
+          </div>
 
           <div className="md:col-span-2 flex flex-wrap gap-3">
             <button type="submit" disabled={saving} className="btn-primary inline-flex items-center gap-2">
@@ -252,9 +259,10 @@ export default function AdminClassroomsPage() {
 
       <section className="glass-card rounded-2xl p-6">
         <div className="mb-4">
+          <label htmlFor="classroom-section-filter" className="mb-2 block text-sm font-bold text-slate-300">Filter by section</label>
           <select
+            id="classroom-section-filter"
             className="input-field md:w-56 py-3"
-            aria-label="Filter classrooms by section"
             value={sectionFilter}
             onChange={(e) => setSectionFilter(e.target.value)}
           >
@@ -300,9 +308,9 @@ export default function AdminClassroomsPage() {
                           Edit
                         </button>
                         <button
-                          onClick={() => handleDelete(classroom)}
+                          onClick={(event) => setPendingDelete({ classroom, trigger: event.currentTarget })}
                           disabled={deletingId === classroom.classroom_id}
-                          className="px-3 py-2 rounded-lg border border-red-500/30 text-red-300 hover:bg-red-500/10 transition inline-flex items-center gap-1 disabled:opacity-60"
+                          className="min-h-11 px-3 py-2 rounded-lg border border-red-500/30 text-red-300 hover:bg-red-500/10 transition inline-flex items-center gap-1 disabled:opacity-60"
                         >
                           <HiOutlineTrash />
                           {deletingId === classroom.classroom_id ? 'Deleting...' : 'Delete'}
@@ -316,6 +324,18 @@ export default function AdminClassroomsPage() {
           </div>
         )}
       </section>
+
+      {pendingDelete ? (
+        <ConfirmDialog
+          title="Delete classroom assignment?"
+          description={`This will remove ${pendingDelete.classroom.subject} from ${pendingDelete.classroom.section}.`}
+          confirmLabel="Delete assignment"
+          busy={deletingId === pendingDelete.classroom.classroom_id}
+          returnFocusTo={pendingDelete.trigger}
+          onCancel={() => setPendingDelete(null)}
+          onConfirm={() => handleDelete(pendingDelete.classroom)}
+        />
+      ) : null}
     </div>
   )
 }

@@ -3,6 +3,7 @@ import { HiOutlinePencil, HiOutlinePlus, HiOutlineTrash } from 'react-icons/hi'
 import { useNavigate } from 'react-router-dom'
 import adminApi from '../admin/api'
 import { clearAdminSession } from '../admin/auth'
+import ConfirmDialog from '../admin/components/ConfirmDialog'
 
 export default function AdminSubjectsPage() {
   const navigate = useNavigate()
@@ -11,6 +12,7 @@ export default function AdminSubjectsPage() {
   const [saving, setSaving] = useState(false)
   const [deletingId, setDeletingId] = useState(null)
   const [editingId, setEditingId] = useState(null)
+  const [pendingDelete, setPendingDelete] = useState(null)
   const [subjectName, setSubjectName] = useState('')
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -109,11 +111,6 @@ export default function AdminSubjectsPage() {
   }
 
   const handleDelete = async (subject) => {
-    const confirmed = window.confirm(`Delete subject "${subject.subject_name}"?`)
-    if (!confirmed) {
-      return
-    }
-
     setDeletingId(subject.subject_id)
     setError('')
     setSuccess('')
@@ -136,6 +133,7 @@ export default function AdminSubjectsPage() {
       setSuccess('')
     } finally {
       setDeletingId(null)
+      setPendingDelete(null)
     }
   }
 
@@ -148,15 +146,18 @@ export default function AdminSubjectsPage() {
 
       <section className="glass-card rounded-2xl p-6">
         <h2 className="text-lg font-semibold text-white mb-4">{editingId ? 'Edit Subject' : 'Add Subject'}</h2>
-        <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-3">
-          <input
-            className="input-field"
-            aria-label="Subject name"
-            placeholder="Subject Name"
-            value={subjectName}
-            onChange={(e) => setSubjectName(e.target.value)}
-            required
-          />
+        <form onSubmit={handleSubmit} className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-end">
+          <div className="flex-1">
+            <label htmlFor="subject-name" className="mb-2 block text-sm font-bold text-slate-300">Subject name</label>
+            <input
+              id="subject-name"
+              className="input-field"
+              placeholder="For example, Digital Logic Design"
+              value={subjectName}
+              onChange={(e) => setSubjectName(e.target.value)}
+              required
+            />
+          </div>
           <button type="submit" disabled={saving} className="btn-primary inline-flex items-center justify-center gap-2 sm:w-auto">
             <HiOutlinePlus />
             {saving ? 'Saving...' : editingId ? 'Update Subject' : 'Add Subject'}
@@ -204,9 +205,9 @@ export default function AdminSubjectsPage() {
                           Edit
                         </button>
                         <button
-                          onClick={() => handleDelete(subject)}
+                          onClick={(event) => setPendingDelete({ subject, trigger: event.currentTarget })}
                           disabled={deletingId === subject.subject_id}
-                          className="px-3 py-2 rounded-lg border border-red-500/30 text-red-300 hover:bg-red-500/10 transition inline-flex items-center gap-1 disabled:opacity-60"
+                          className="min-h-11 px-3 py-2 rounded-lg border border-red-500/30 text-red-300 hover:bg-red-500/10 transition inline-flex items-center gap-1 disabled:opacity-60"
                         >
                           <HiOutlineTrash />
                           {deletingId === subject.subject_id ? 'Deleting...' : 'Delete'}
@@ -220,6 +221,18 @@ export default function AdminSubjectsPage() {
           </div>
         )}
       </section>
+
+      {pendingDelete ? (
+        <ConfirmDialog
+          title="Delete subject?"
+          description={`This will remove ${pendingDelete.subject.subject_name} from the subject list.`}
+          confirmLabel="Delete subject"
+          busy={deletingId === pendingDelete.subject.subject_id}
+          returnFocusTo={pendingDelete.trigger}
+          onCancel={() => setPendingDelete(null)}
+          onConfirm={() => handleDelete(pendingDelete.subject)}
+        />
+      ) : null}
     </div>
   )
 }

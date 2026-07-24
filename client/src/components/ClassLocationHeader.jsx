@@ -22,10 +22,10 @@ export default function ClassLocationHeader({ entry, compact = false, highlighte
     return (
       <div
         aria-label={locationLabel}
-        className="border-l-2 border-[#e6b845] pl-3 md:text-right"
+        className="min-w-0 md:border-l-2 md:border-[#e6b845] md:pl-6 md:text-right"
       >
-        <p className="font-display text-xl font-bold leading-none">Room {room}</p>
-        <p className="mt-1 font-mono text-[11px] font-bold uppercase text-[#55594f]">{floor} &middot; {wing}</p>
+        <p className="font-display text-xl font-bold leading-tight [overflow-wrap:anywhere]">Room {room}</p>
+        <p className="mt-1 font-mono text-[11px] font-bold uppercase text-[#55594f] [overflow-wrap:anywhere]">{floor} &middot; {wing}</p>
       </div>
     )
   }
@@ -33,7 +33,7 @@ export default function ClassLocationHeader({ entry, compact = false, highlighte
   return (
     <header
       aria-label={locationLabel}
-      className={`grid gap-3 border-b border-[#20211e]/30 px-4 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end sm:px-5 ${
+      className={`grid min-w-0 gap-3 border-b border-[#20211e]/30 px-4 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end sm:px-5 ${
         highlighted ? 'bg-[#e6b845]' : 'bg-[#20211e] text-[#fffdf7]'
       } ${compact ? 'lg:py-3' : ''}`}
     >
@@ -55,7 +55,7 @@ export default function ClassLocationHeader({ entry, compact = false, highlighte
           <span className={`block font-mono text-[10px] font-black uppercase ${highlighted ? 'text-[#6b321f]' : 'text-[#e6b845]'}`}>
             Room
           </span>
-          <span className={`block break-words font-display font-bold leading-none ${compact ? 'text-2xl' : 'text-3xl sm:text-4xl'}`}>
+          <span className={`block font-display font-bold leading-none [overflow-wrap:anywhere] ${compact ? 'text-2xl' : 'text-3xl sm:text-4xl'}`}>
             {room}
           </span>
         </div>

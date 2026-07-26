@@ -9,6 +9,7 @@ import {
   HiOutlineUpload,
   HiOutlineUsers,
   HiOutlineViewGrid,
+  HiOutlineCalendar,
   HiOutlineX,
 } from 'react-icons/hi'
 import { clearAdminSession, getAdminUser } from '../auth'
@@ -18,6 +19,7 @@ const navItems = [
   { to: '/admin/students', label: 'Students', icon: HiOutlineUsers },
   { to: '/admin/subjects', label: 'Subjects', icon: HiOutlineBookOpen },
   { to: '/admin/classrooms', label: 'Classrooms', icon: HiOutlineOfficeBuilding },
+  { to: '/admin/timetables', label: 'Timetables', icon: HiOutlineCalendar },
   { to: '/admin/import', label: 'Import Students', icon: HiOutlineUpload },
 ]
 

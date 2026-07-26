@@ -12,6 +12,8 @@ export default function WeeklySchedule({
   timetable,
   timetableByDay,
 }) {
+  const visibleDays = WEEKDAYS.filter((day) => day.id !== 6 || (timetableByDay.get(day.id) || []).length)
+
   return (
     <section>
       <div className="mb-7 mt-10 flex flex-wrap items-baseline justify-between gap-3">
@@ -28,7 +30,7 @@ export default function WeeklySchedule({
 
       {timetable.length ? (
         <div className="border-t-2 border-border-strong">
-          {WEEKDAYS.map((day) => (
+          {visibleDays.map((day) => (
             <DayAccordion
               key={day.id}
               day={day}

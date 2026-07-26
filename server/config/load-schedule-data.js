@@ -30,7 +30,7 @@ function readAccessRecords() {
   return records;
 }
 
-async function loadScheduleData({ accessRecords = readAccessRecords() } = {}) {
+async function loadScheduleData({ accessRecords = readAccessRecords(), replaceTimetables = false } = {}) {
   await initDatabase();
 
   const roster = csai2b.students;
@@ -80,6 +80,11 @@ async function loadScheduleData({ accessRecords = readAccessRecords() } = {}) {
     );
 
     for (const dataset of datasets) {
+      const existing = await transaction.queryOne(
+        'SELECT COUNT(*) AS count FROM timetable_entries WHERE section = ? AND academic_session = ?',
+        [dataset.section, dataset.academicSession]
+      );
+      if (!replaceTimetables && Number(existing?.count) > 0) continue;
       await transaction.execute(
         'DELETE FROM timetable_entries WHERE section = ? AND academic_session = ?',
         [dataset.section, dataset.academicSession]
@@ -146,7 +151,7 @@ async function loadScheduleData({ accessRecords = readAccessRecords() } = {}) {
 }
 
 if (require.main === module) {
-  loadScheduleData().catch((error) => {
+  loadScheduleData({ replaceTimetables: true }).catch((error) => {
     console.error(error);
     process.exit(1);
   });

@@ -4,6 +4,7 @@ export const WEEKDAYS = [
   { id: 3, name: 'Wednesday', shortName: 'WED' },
   { id: 4, name: 'Thursday', shortName: 'THU' },
   { id: 5, name: 'Friday', shortName: 'FRI' },
+  { id: 6, name: 'Saturday', shortName: 'SAT' },
 ]
 
 export function formatTime(value) {

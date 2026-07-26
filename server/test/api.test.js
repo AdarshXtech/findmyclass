@@ -436,6 +436,68 @@ test('health, lookup, authentication, CRUD, and import workflows', async (t) => 
     assert.equal(subjectRemoved.status, 200);
   });
 
+  await t.test('previews, validates, replaces, and merges managed timetables', async () => {
+    const classes = await apiRequest('/api/admin/timetables', { token });
+    assert.equal(classes.status, 200);
+    assert.ok(classes.body.data.classes.some((item) => item.section === 'CSE-A'));
+
+    const beforeImport = (await queryAll('SELECT * FROM timetable_entries WHERE section = ?', ['CSE-A'])).length;
+    const form = new FormData();
+    form.append('text', 'Day | Time | Subject | Teacher | Room\nTuesday | 10:00-11:00 | Physics | Dr. Rao | 414');
+    const imported = await apiRequest('/api/admin/timetables/import', { method: 'POST', token, body: form });
+    assert.equal(imported.status, 200);
+    assert.equal(imported.body.data.saved, false);
+    assert.equal(imported.body.data.rows[0].parsedLocation.locationName, 'Central Instrument Lab');
+    assert.equal((await queryAll('SELECT * FROM timetable_entries WHERE section = ?', ['CSE-A'])).length, beforeImport);
+
+    const conflict = await apiRequest('/api/admin/timetables/validate', {
+      method: 'POST',
+      token,
+      body: {
+        course: 'B.Tech', year: 1, section: 'CSE-A', mode: 'replace',
+        rows: [
+          { day: 'Monday', startTime: '10:00', endTime: '11:00', subject: 'DLD', teacher: 'Sharma', classroom: '407' },
+          { day: 'Monday', startTime: '10:30', endTime: '11:30', subject: 'DS', teacher: 'Jyoti', classroom: '408' },
+        ],
+      },
+    });
+    assert.equal(conflict.status, 422);
+
+    const invalid = await apiRequest('/api/admin/timetables', {
+      method: 'POST',
+      token,
+      body: {
+        course: 'B.Tech', year: 1, section: 'CSE-A', mode: 'replace',
+        rows: [{ day: 'Monday', startTime: '10:00', endTime: '11:00', subject: 'DLD', teacher: 'Sharma', classroom: '999' }],
+      },
+    });
+    assert.equal(invalid.status, 422);
+
+    const replacement = await apiRequest('/api/admin/timetables', {
+      method: 'POST',
+      token,
+      body: {
+        course: 'B.Tech', year: 1, section: 'CSE-A', mode: 'replace',
+        rows: [{ day: 'Tuesday', startTime: '10:00', endTime: '11:00', subject: 'DLD', teacher: 'Sharma', classroom: '407' }],
+      },
+    });
+    assert.equal(replacement.status, 201);
+    assert.equal((await queryAll('SELECT * FROM timetable_entries WHERE section = ?', ['CSE-A'])).length, 1);
+
+    const merged = await apiRequest('/api/admin/timetables', {
+      method: 'POST',
+      token,
+      body: {
+        course: 'B.Tech', year: 1, section: 'CSE-A', mode: 'merge',
+        rows: [{ day: 'Wednesday', startTime: '11:00', endTime: '12:00', subject: 'Lab', teacher: 'Jyoti', classroom: 'UGF014' }],
+      },
+    });
+    assert.equal(merged.status, 201);
+    const saved = await queryAll('SELECT * FROM timetable_entries WHERE section = ? ORDER BY day_of_week', ['CSE-A']);
+    assert.equal(saved.length, 2);
+    assert.deepEqual(saved.map((entry) => entry.room), ['407', 'UGF014']);
+  });
+
   await t.test('imports CSV and reports every skipped row', async () => {
     const csv = [
       'Name,University Roll Number,Class Roll Number,Course,Branch,Year,Section',

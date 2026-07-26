@@ -141,7 +141,7 @@ function createSqliteSchema() {
     CREATE TABLE IF NOT EXISTS timetable_entries (
       timetable_entry_id INTEGER PRIMARY KEY AUTOINCREMENT,
       section TEXT NOT NULL,
-      day_of_week INTEGER NOT NULL CHECK (day_of_week BETWEEN 1 AND 5),
+      day_of_week INTEGER NOT NULL CHECK (day_of_week BETWEEN 1 AND 6),
       start_time TEXT NOT NULL,
       end_time TEXT NOT NULL,
       subject_code TEXT,
@@ -157,6 +157,37 @@ function createSqliteSchema() {
       UNIQUE (section, day_of_week, start_time, academic_session)
     )
   `);
+  const timetableSchema = sqliteQueryOne(
+    "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'timetable_entries'"
+  )?.sql || '';
+  if (/BETWEEN 1 AND 5/i.test(timetableSchema)) {
+    sqlite.run('ALTER TABLE timetable_entries RENAME TO timetable_entries_legacy');
+    sqlite.run(`
+      CREATE TABLE timetable_entries (
+        timetable_entry_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        section TEXT NOT NULL,
+        day_of_week INTEGER NOT NULL CHECK (day_of_week BETWEEN 1 AND 6),
+        start_time TEXT NOT NULL,
+        end_time TEXT NOT NULL,
+        subject_code TEXT,
+        subject_name TEXT NOT NULL,
+        session_type TEXT NOT NULL,
+        faculty_code TEXT,
+        faculty_name TEXT,
+        room TEXT,
+        academic_session TEXT NOT NULL,
+        semester TEXT NOT NULL,
+        source_label TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (section, day_of_week, start_time, academic_session)
+      )
+    `);
+    sqlite.run(`
+      INSERT INTO timetable_entries
+      SELECT * FROM timetable_entries_legacy
+    `);
+    sqlite.run('DROP TABLE timetable_entries_legacy');
+  }
   sqlite.run('CREATE INDEX IF NOT EXISTS idx_students_university_roll ON students(university_roll_number)');
   sqlite.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_students_phone_lookup_hash ON students(phone_lookup_hash) WHERE phone_lookup_hash IS NOT NULL');
   sqlite.run('CREATE INDEX IF NOT EXISTS idx_students_identity ON students(normalized_name, phone_lookup_hash)');
@@ -207,7 +238,7 @@ async function createPostgresSchema() {
     CREATE TABLE IF NOT EXISTS timetable_entries (
       timetable_entry_id SERIAL PRIMARY KEY,
       section TEXT NOT NULL,
-      day_of_week INTEGER NOT NULL CHECK (day_of_week BETWEEN 1 AND 5),
+      day_of_week INTEGER NOT NULL CONSTRAINT timetable_entries_day_of_week_check CHECK (day_of_week BETWEEN 1 AND 6),
       start_time TEXT NOT NULL,
       end_time TEXT NOT NULL,
       subject_code TEXT,
@@ -228,6 +259,11 @@ async function createPostgresSchema() {
     CREATE INDEX IF NOT EXISTS idx_students_section ON students(section);
     CREATE INDEX IF NOT EXISTS idx_classrooms_section ON classrooms(section);
     CREATE INDEX IF NOT EXISTS idx_timetable_section_day ON timetable_entries(section, day_of_week, start_time);
+  `);
+  await pool.query(`
+    ALTER TABLE timetable_entries DROP CONSTRAINT IF EXISTS timetable_entries_day_of_week_check;
+    ALTER TABLE timetable_entries
+      ADD CONSTRAINT timetable_entries_day_of_week_check CHECK (day_of_week BETWEEN 1 AND 6);
   `);
 }
 

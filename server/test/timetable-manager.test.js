@@ -30,6 +30,7 @@ test('validates manual rooms and special classroom mappings', () => {
   assert.equal(underground.parsedLocation.displayLabel, 'Underground Floor · Wing C · Room UGF014');
   assert.equal(invalid.status, 'error');
   assert.equal(validateRows([row({ room: '407', classroom: '414' })])[0].parsedLocation.locationName, 'Central Instrument Lab');
+  assert.equal(validateRows([row({ day: undefined, day_of_week: 5 })])[0].day, 'Friday');
 });
 
 test('blocks overlapping classes and parses table imports into an unsaved preview', () => {

@@ -37,7 +37,7 @@ function normalizeTime(value) {
 }
 
 function formatEntry(row, index = 0) {
-  const dayOfWeek = normalizeDay(row.dayOfWeek ?? row.day);
+  const dayOfWeek = normalizeDay(row.dayOfWeek ?? row.day_of_week ?? row.day);
   const startTime = normalizeTime(row.startTime ?? row.start_time);
   const endTime = normalizeTime(row.endTime ?? row.end_time);
   const subjectName = String(row.subjectName ?? row.subject ?? '').trim().replace(/\s+/g, ' ');

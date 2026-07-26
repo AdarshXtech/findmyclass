@@ -10,7 +10,7 @@ import adminApi from '../admin/api'
 import ConfirmDialog from '../admin/components/ConfirmDialog'
 import SaveTimetableDialog from '../admin/components/SaveTimetableDialog'
 
-const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
 const emptyRow = () => ({
   day: 'Monday',
   startTime: '09:00',

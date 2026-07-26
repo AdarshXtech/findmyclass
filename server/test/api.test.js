@@ -483,6 +483,9 @@ test('health, lookup, authentication, CRUD, and import workflows', async (t) => 
     });
     assert.equal(replacement.status, 201);
     assert.equal((await queryAll('SELECT * FROM timetable_entries WHERE section = ?', ['CSE-A'])).length, 1);
+    const managedSchedule = await apiRequest('/api/admin/timetables/CSE-A', { token });
+    assert.equal(managedSchedule.status, 200);
+    assert.equal(managedSchedule.body.data.rows[0].day, 'Tuesday');
 
     const merged = await apiRequest('/api/admin/timetables', {
       method: 'POST',

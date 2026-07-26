@@ -218,7 +218,8 @@ export default function AdminTimetablePage() {
 
   const grouped = useMemo(() => DAYS.map((day) => ({
     day,
-    rows: schedule.filter((entry) => entry.day === day),
+    rows: schedule.filter((entry) => entry.day === day && entry.sessionType !== 'Break'),
+    breaks: schedule.filter((entry) => entry.day === day && entry.sessionType === 'Break'),
   })), [schedule])
 
   if (loading) return <p className="text-text-secondary">Loading Timetable Manager...</p>
@@ -293,11 +294,11 @@ export default function AdminTimetablePage() {
 
       {mode === 'edit' && (
         <section className="space-y-5">
-          {!section ? <p className="text-text-secondary">Select a class to load its weekly timetable.</p> : schedule.length === 0 ? <p className="text-text-secondary">No timetable entries exist for this class.</p> : grouped.map(({ day, rows: dayRows }) => (
+          {!section ? <p className="text-text-secondary">Select a class to load its weekly timetable.</p> : schedule.length === 0 ? <p className="text-text-secondary">No timetable entries exist for this class.</p> : grouped.map(({ day, rows: dayRows, breaks }) => (
             <details key={day} open={dayRows.length > 0} className="border border-border-default bg-surface-primary">
               <summary className="cursor-pointer px-4 py-4 font-display text-lg font-bold">{day} <span className="text-sm text-text-secondary">({dayRows.length})</span></summary>
               <div className="space-y-4 border-t border-border-default p-4">
-                {dayRows.length === 0 ? <p className="text-sm text-text-secondary">No classes.</p> : dayRows.map((entry, index) => (
+                {dayRows.length === 0 ? <p className="text-sm text-text-secondary">No classes.</p> : dayRows.map((entry) => (
                   <article key={entry.timetableEntryId} className="border border-border-default p-4">
                     <EntryFields row={entry} onChange={(next) => setSchedule((current) => current.map((item) => item.timetableEntryId === entry.timetableEntryId ? next : item))} />
                     <p className="mt-3 text-sm text-text-secondary">{entry.parsedLocation?.displayLabel}</p>
@@ -307,6 +308,12 @@ export default function AdminTimetablePage() {
                       <button type="button" onClick={(event) => setPendingDelete({ entry, trigger: event.currentTarget })} className="min-h-11 border border-border-default px-3 py-2 text-status-danger"><HiOutlineTrash className="mr-1 inline" />Delete</button>
                     </div>
                   </article>
+                ))}
+                {breaks.map((entry) => (
+                  <div key={entry.timetableEntryId} className="flex flex-wrap justify-between gap-2 border-y border-border-default bg-surface-secondary px-4 py-3 text-sm">
+                    <strong>{entry.subjectName || 'Lunch break'}</strong>
+                    <span className="text-text-secondary">{entry.startTime}–{entry.endTime} · Break</span>
+                  </div>
                 ))}
               </div>
             </details>

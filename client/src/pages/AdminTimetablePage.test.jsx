@@ -61,4 +61,27 @@ describe('AdminTimetablePage', () => {
     expect(adminApi.post.mock.calls[0][0]).toBe('/timetables/import')
     await waitFor(() => expect(screen.getByText(/Nothing is saved/)).toBeVisible())
   })
+
+  it('shows lunch as a break without counting it as a class', async () => {
+    const user = userEvent.setup()
+    adminApi.get.mockImplementation((url) => Promise.resolve({
+      data: {
+        data: url === '/timetables'
+          ? { classes: [timetableClass] }
+          : {
+              rows: [
+                { timetableEntryId: 1, day: 'Friday', startTime: '11:00', endTime: '12:00', subjectName: 'DLD', facultyName: 'Teacher', sessionType: 'Lecture', classroom: '407' },
+                { timetableEntryId: 2, day: 'Friday', startTime: '13:00', endTime: '14:00', subjectName: 'Lunch break', facultyName: '', sessionType: 'Break', classroom: '' },
+              ],
+            },
+      },
+    }))
+    render(<AdminTimetablePage />)
+    await user.selectOptions(await screen.findByLabelText('Course, year and class'), 'CSAI2B')
+    await user.click(screen.getByRole('tab', { name: /Edit Existing/i }))
+
+    expect(await screen.findByText('Friday', { selector: 'summary' })).toHaveTextContent('Friday (1)')
+    expect(screen.getByText('Lunch break')).toBeVisible()
+    expect(screen.getAllByRole('button', { name: /Save edit/i })).toHaveLength(1)
+  })
 })

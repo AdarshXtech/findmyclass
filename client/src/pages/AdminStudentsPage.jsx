@@ -242,26 +242,26 @@ export default function AdminStudentsPage() {
 
   return (
     <div className="space-y-6">
-      <section className="glass-card rounded-2xl p-6">
-        <h1 className="text-2xl font-bold text-white mb-1">Students Management</h1>
-        <p className="text-slate-400">Add, update, search, and delete student records.</p>
+      <section className="rounded-2xl border border-border-default bg-surface-primary p-6 shadow-admin">
+        <h1 className="mb-1 text-2xl font-bold text-text-primary">Students Management</h1>
+        <p className="text-text-secondary">Add, update, search, and delete student records.</p>
       </section>
 
-      <section className="glass-card rounded-2xl p-6">
-        <h2 className="text-lg font-semibold text-white mb-4">
+      <section className="rounded-2xl border border-border-default bg-surface-primary p-6 shadow-admin">
+        <h2 className="mb-4 text-lg font-semibold text-text-primary">
           {editingId ? 'Edit Student' : 'Add Student'}
         </h2>
         <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label htmlFor="student-full-name" className="mb-2 block text-sm font-bold text-slate-300">Full name</label>
+            <label htmlFor="student-full-name" className="mb-2 block text-sm font-bold text-text-secondary">Full name</label>
             <input id="student-full-name" className="input-field" placeholder="For example, Rudransh Kumar Singh" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
           </div>
           <div>
-            <label htmlFor="student-university-roll" className="mb-2 block text-sm font-bold text-slate-300">University roll number</label>
+            <label htmlFor="student-university-roll" className="mb-2 block text-sm font-bold text-text-secondary">University roll number</label>
             <input id="student-university-roll" className="input-field" placeholder="For example, 1220103062" value={form.university_roll_number} onChange={(e) => setForm({ ...form, university_roll_number: e.target.value.toUpperCase() })} required />
           </div>
           <div>
-            <label htmlFor="student-phone" className="mb-2 block text-sm font-bold text-slate-300">Phone number</label>
+            <label htmlFor="student-phone" className="mb-2 block text-sm font-bold text-text-secondary">Phone number</label>
             <input
               id="student-phone"
               className="input-field"
@@ -276,23 +276,23 @@ export default function AdminStudentsPage() {
             />
           </div>
           <div>
-            <label htmlFor="student-class-roll" className="mb-2 block text-sm font-bold text-slate-300">Class roll number</label>
+            <label htmlFor="student-class-roll" className="mb-2 block text-sm font-bold text-text-secondary">Class roll number</label>
             <input id="student-class-roll" className="input-field" type="number" min={1} max={999} placeholder="For example, 27" value={form.class_roll_number} onChange={(e) => setForm({ ...form, class_roll_number: e.target.value })} />
           </div>
           <div>
-            <label htmlFor="student-course" className="mb-2 block text-sm font-bold text-slate-300">Course</label>
+            <label htmlFor="student-course" className="mb-2 block text-sm font-bold text-text-secondary">Course</label>
             <input id="student-course" className="input-field" placeholder="For example, B.Tech" value={form.course} onChange={(e) => setForm({ ...form, course: e.target.value })} required />
           </div>
           <div>
-            <label htmlFor="student-branch" className="mb-2 block text-sm font-bold text-slate-300">Branch</label>
+            <label htmlFor="student-branch" className="mb-2 block text-sm font-bold text-text-secondary">Branch</label>
             <input id="student-branch" className="input-field" placeholder="For example, CSAI" value={form.branch} onChange={(e) => setForm({ ...form, branch: e.target.value })} required />
           </div>
           <div>
-            <label htmlFor="student-year" className="mb-2 block text-sm font-bold text-slate-300">Year</label>
+            <label htmlFor="student-year" className="mb-2 block text-sm font-bold text-text-secondary">Year</label>
             <input id="student-year" className="input-field" type="number" min={1} max={8} placeholder="For example, 2" value={form.year} onChange={(e) => setForm({ ...form, year: e.target.value })} required />
           </div>
           <div>
-            <label htmlFor="student-section" className="mb-2 block text-sm font-bold text-slate-300">Section</label>
+            <label htmlFor="student-section" className="mb-2 block text-sm font-bold text-text-secondary">Section</label>
             <input id="student-section" className="input-field" placeholder="For example, CSAI2B" value={form.section} onChange={(e) => setForm({ ...form, section: e.target.value.toUpperCase() })} required />
           </div>
 
@@ -305,7 +305,7 @@ export default function AdminStudentsPage() {
               <button
                 type="button"
                 onClick={resetForm}
-                className="px-5 py-3 rounded-xl border border-slate-600 hover:border-slate-400 transition"
+                className="rounded-xl border border-border-subtle px-5 py-3 transition hover:border-border-strong"
               >
                 Cancel Edit
               </button>
@@ -313,17 +313,17 @@ export default function AdminStudentsPage() {
           </div>
         </form>
 
-        {error ? <p role="alert" className="mt-4 text-sm text-red-300">{error}</p> : null}
-        {success ? <p role="status" className="mt-4 text-sm text-emerald-300">{success}</p> : null}
+        {error ? <p role="alert" className="mt-4 text-sm text-status-danger">{error}</p> : null}
+        {success ? <p role="status" className="mt-4 text-sm text-status-success">{success}</p> : null}
       </section>
 
-      <section className="glass-card rounded-2xl p-6">
+      <section className="rounded-2xl border border-border-default bg-surface-primary p-6 shadow-admin">
         <div className="flex flex-col md:flex-row gap-3 md:items-center md:justify-between mb-4">
           <form onSubmit={onSearchSubmit} className="flex flex-1 flex-col gap-3 sm:flex-row">
             <div className="flex-1">
-              <label htmlFor="student-search" className="mb-2 block text-sm font-bold text-slate-300">Search students</label>
+              <label htmlFor="student-search" className="mb-2 block text-sm font-bold text-text-secondary">Search students</label>
               <div className="relative">
-                <HiOutlineSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                <HiOutlineSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-text-secondary" />
                 <input
                   id="student-search"
                   className="input-field pl-11"
@@ -333,13 +333,13 @@ export default function AdminStudentsPage() {
                 />
               </div>
             </div>
-            <button type="submit" className="min-h-11 px-5 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 transition text-white sm:mt-7">
+            <button type="submit" className="min-h-11 rounded-xl bg-accent-primary px-5 py-3 text-text-on-accent transition hover:bg-accent-strong sm:mt-7">
               Search
             </button>
           </form>
 
           <div className="md:w-56">
-            <label htmlFor="student-section-filter" className="mb-2 block text-sm font-bold text-slate-300">Filter by section</label>
+            <label htmlFor="student-section-filter" className="mb-2 block text-sm font-bold text-text-secondary">Filter by section</label>
             <select
               id="student-section-filter"
               className="input-field py-3"
@@ -355,14 +355,14 @@ export default function AdminStudentsPage() {
         </div>
 
         {loading ? (
-          <p className="text-slate-400">Loading students...</p>
+          <p className="text-text-secondary">Loading students...</p>
         ) : students.length === 0 ? (
-          <p className="text-slate-400">No students found.</p>
+          <p className="text-text-secondary">No students found.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-slate-400 border-b border-slate-700">
+                <tr className="border-b border-border-subtle text-left text-text-secondary">
                   <th className="py-3 pr-3">Name</th>
                   <th className="py-3 pr-3">University Roll</th>
                   <th className="py-3 pr-3">Phone</th>
@@ -376,8 +376,8 @@ export default function AdminStudentsPage() {
               </thead>
               <tbody>
                 {students.map((student) => (
-                  <tr key={student.student_id} className="border-b border-slate-800">
-                    <td className="py-3 pr-3 text-white">{student.name}</td>
+                  <tr key={student.student_id} className="border-b border-border-subtle">
+                    <td className="py-3 pr-3 text-text-primary">{student.name}</td>
                     <td className="py-3 pr-3 whitespace-nowrap">{student.university_roll_number || '-'}</td>
                     <td className="py-3 pr-3 whitespace-nowrap font-mono">{student.masked_phone_number || 'Not set'}</td>
                     <td className="py-3 pr-3">{student.class_roll_number || '-'}</td>
@@ -389,7 +389,7 @@ export default function AdminStudentsPage() {
                       <div className="flex gap-2">
                         <button
                           onClick={() => handleEdit(student)}
-                          className="px-3 py-2 rounded-lg border border-indigo-500/30 text-indigo-300 hover:bg-indigo-500/10 transition inline-flex items-center gap-1"
+                          className="inline-flex items-center gap-1 rounded-lg border border-border-accent px-3 py-2 text-accent-primary transition hover:bg-surface-highlight"
                         >
                           <HiOutlinePencil />
                           Edit
@@ -397,7 +397,7 @@ export default function AdminStudentsPage() {
                         <button
                           onClick={(event) => setPendingDelete({ student, trigger: event.currentTarget })}
                           disabled={deletingId === student.student_id}
-                          className="min-h-11 px-3 py-2 rounded-lg border border-red-500/30 text-red-300 hover:bg-red-500/10 transition inline-flex items-center gap-1 disabled:opacity-60"
+                          className="inline-flex min-h-11 items-center gap-1 rounded-lg border border-border-accent px-3 py-2 text-status-danger transition hover:bg-surface-danger disabled:opacity-60"
                         >
                           <HiOutlineTrash />
                           {deletingId === student.student_id ? 'Deleting...' : 'Delete'}

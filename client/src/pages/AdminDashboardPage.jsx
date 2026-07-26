@@ -48,37 +48,37 @@ export default function AdminDashboardPage() {
 
   return (
     <div className="space-y-6">
-      <section className="glass-card rounded-2xl p-6 sm:p-8">
-        <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">Admin Dashboard</h1>
-        <p className="text-slate-400">Live overview of students, sections, subjects, and room assignments.</p>
+      <section className="rounded-2xl border border-border-default bg-surface-primary p-6 shadow-admin sm:p-8">
+        <h1 className="mb-2 text-2xl font-bold text-text-primary sm:text-3xl">Admin Dashboard</h1>
+        <p className="text-text-secondary">Live overview of students, sections, subjects, and room assignments.</p>
       </section>
 
       {error ? (
-        <section className="glass-card rounded-2xl p-6">
-          <p className="text-red-300 text-sm">{error}</p>
+        <section className="rounded-2xl border border-border-default bg-surface-primary p-6 shadow-admin">
+          <p className="text-sm text-status-danger">{error}</p>
         </section>
       ) : null}
 
       <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         {cards.map((card) => (
-          <article key={card.key} className="glass-card rounded-2xl p-5">
-            <div className="w-10 h-10 rounded-xl bg-indigo-500/20 text-indigo-300 flex items-center justify-center mb-3">
+          <article key={card.key} className="rounded-2xl border border-border-default bg-surface-primary p-5 shadow-admin">
+            <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-surface-highlight text-accent-primary">
               <card.icon className="text-xl" />
             </div>
-            <h2 className="text-sm text-slate-400 mb-1">{card.title}</h2>
-            <p className="text-2xl font-bold text-white">
+            <h2 className="mb-1 text-sm text-text-secondary">{card.title}</h2>
+            <p className="text-2xl font-bold text-text-primary">
               {loading ? '...' : stats?.[card.key] ?? 0}
             </p>
           </article>
         ))}
       </section>
 
-      <section className="glass-card rounded-2xl p-6">
-        <h2 className="text-lg font-semibold text-white mb-4">Students by Section</h2>
+      <section className="rounded-2xl border border-border-default bg-surface-primary p-6 shadow-admin">
+        <h2 className="mb-4 text-lg font-semibold text-text-primary">Students by Section</h2>
         {loading ? (
-          <p className="text-slate-400">Loading section distribution...</p>
+          <p className="text-text-secondary">Loading section distribution...</p>
         ) : !stats?.sectionWise?.length ? (
-          <p className="text-slate-400">No section data available.</p>
+          <p className="text-text-secondary">No section data available.</p>
         ) : (
           <div className="space-y-3">
             {stats.sectionWise.map((item) => {
@@ -87,11 +87,11 @@ export default function AdminDashboardPage() {
               return (
                 <div key={item.section}>
                   <div className="flex items-center justify-between mb-1 text-sm">
-                    <span className="text-slate-200 font-medium">{item.section}</span>
-                    <span className="text-slate-400">{count}</span>
+                    <span className="font-medium text-text-primary">{item.section}</span>
+                    <span className="text-text-secondary">{count}</span>
                   </div>
-                  <div className="h-2 rounded-full bg-slate-800 overflow-hidden">
-                    <div className="h-full bg-orange-600" style={{ width: `${width}%` }} />
+                  <div className="h-2 overflow-hidden rounded-full bg-border-default">
+                    <div className="h-full bg-accent-highlight" style={{ width: `${width}%` }} />
                   </div>
                 </div>
               )

@@ -53,24 +53,24 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <div className="admin-theme relative min-h-screen flex items-center justify-center px-6 bg-navy-900">
+    <div className="admin-theme relative flex min-h-screen items-center justify-center bg-surface-secondary px-6">
       <div className="absolute inset-0 bg-grid opacity-30" />
-      <div className="relative z-10 w-full max-w-md glass-card rounded-2xl p-8 animate-slide-up">
+      <div className="relative z-10 w-full max-w-md animate-slide-up rounded-2xl border border-border-default bg-surface-primary p-8 shadow-admin">
         <div className="mb-6">
-          <Link to="/" className="inline-flex items-center gap-2 text-sm text-slate-400 hover:text-white transition">
+          <Link to="/" className="inline-flex items-center gap-2 text-sm text-text-secondary transition hover:text-text-primary">
             <HiOutlineArrowLeft />
             Back to Student Search
           </Link>
         </div>
 
-        <h1 className="text-2xl font-bold text-white mb-2">Admin Login</h1>
-        <p className="text-slate-400 mb-6">Sign in to manage students, subjects, and classrooms.</p>
+        <h1 className="mb-2 text-2xl font-bold text-text-primary">Admin Login</h1>
+        <p className="mb-6 text-text-secondary">Sign in to manage students, subjects, and classrooms.</p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="admin-username" className="mb-2 block text-sm font-bold text-slate-300">Username</label>
+            <label htmlFor="admin-username" className="mb-2 block text-sm font-bold text-text-secondary">Username</label>
             <div className="relative">
-              <HiOutlineUser className="absolute left-4 top-1/2 -translate-y-1/2 text-indigo-400" />
+              <HiOutlineUser className="absolute left-4 top-1/2 -translate-y-1/2 text-accent-primary" />
               <input
                 id="admin-username"
                 type="text"
@@ -84,9 +84,9 @@ export default function AdminLoginPage() {
             </div>
           </div>
           <div>
-            <label htmlFor="admin-password" className="mb-2 block text-sm font-bold text-slate-300">Password</label>
+            <label htmlFor="admin-password" className="mb-2 block text-sm font-bold text-text-secondary">Password</label>
             <div className="relative">
-              <HiOutlineLockClosed className="absolute left-4 top-1/2 -translate-y-1/2 text-indigo-400" />
+              <HiOutlineLockClosed className="absolute left-4 top-1/2 -translate-y-1/2 text-accent-primary" />
               <input
                 id="admin-password"
                 type="password"
@@ -101,7 +101,7 @@ export default function AdminLoginPage() {
           </div>
 
           {error && (
-            <div role="alert" className="px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-sm text-red-300">
+            <div role="alert" className="rounded-xl border border-border-accent bg-surface-danger px-4 py-3 text-sm text-status-danger">
               {error}
             </div>
           )}

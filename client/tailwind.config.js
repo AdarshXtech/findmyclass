@@ -20,6 +20,8 @@ export default {
           inverse: 'var(--surface-inverse)',
           'primary-soft': 'var(--surface-primary-soft)',
           'primary-subtle': 'var(--surface-primary-subtle)',
+          danger: 'var(--danger-soft)',
+          success: 'var(--success-soft)',
         },
         text: {
           primary: 'var(--text-primary)',
@@ -34,6 +36,10 @@ export default {
           strong: 'var(--border-strong)',
           input: 'var(--border-input)',
           inverse: 'var(--border-inverse)',
+          subtle: 'var(--border-subtle)',
+          accent: 'var(--border-accent)',
+          success: 'var(--border-success)',
+          warning: 'var(--border-warning)',
         },
         accent: {
           primary: 'var(--accent-primary)',

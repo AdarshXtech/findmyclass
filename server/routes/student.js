@@ -102,7 +102,10 @@ router.post('/lookup', async (req, res) => {
         timetable: timetable.map((entry) => {
           const classroom = classroomBySubject.get(String(entry.subject_name || '').trim().toLowerCase());
           const room = entry.room || classroom?.room || null;
-          const location = parseClassroomLocation(room);
+          const location = parseClassroomLocation(room, {
+            subjectName: entry.subject_name,
+            sessionType: entry.session_type,
+          });
           return {
             id: entry.timetable_entry_id,
             dayOfWeek: entry.day_of_week,
@@ -113,16 +116,19 @@ router.post('/lookup', async (req, res) => {
             sessionType: entry.session_type,
             facultyCode: entry.faculty_code,
             facultyName: entry.faculty_name,
-            floor: location.floor,
+            floor: location.floorLabel,
             floorCode: location.floorCode,
+            floorLabel: location.floorLabel,
             shortFloor: location.shortFloor,
             wing: location.wing,
             classroomNumber: location.classroomNumber,
             classroomPosition: location.roomPosition,
             originalClassroom: location.originalClassroom || null,
             room,
-            locationDisplay: location.fullDisplay,
-            shortLocationDisplay: location.shortDisplay,
+            locationName: location.locationName,
+            isSpecialLocation: location.isSpecialLocation,
+            locationDisplay: location.displayLabel,
+            shortLocationDisplay: location.shortLabel,
             locationError: location.error,
             academicSession: entry.academic_session,
             semester: entry.semester,

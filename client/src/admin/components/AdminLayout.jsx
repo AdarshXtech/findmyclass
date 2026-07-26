@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
 import {
   HiOutlineBookOpen,
@@ -25,14 +25,18 @@ export default function AdminLayout() {
   const navigate = useNavigate()
   const admin = getAdminUser()
   const [navigationOpen, setNavigationOpen] = useState(false)
+  const menuButtonRef = useRef(null)
 
   useEffect(() => {
     const closeOnEscape = (event) => {
-      if (event.key === 'Escape') setNavigationOpen(false)
+      if (event.key === 'Escape' && navigationOpen) {
+        setNavigationOpen(false)
+        menuButtonRef.current?.focus()
+      }
     }
     window.addEventListener('keydown', closeOnEscape)
     return () => window.removeEventListener('keydown', closeOnEscape)
-  }, [])
+  }, [navigationOpen])
 
   const handleLogout = () => {
     clearAdminSession()
@@ -64,6 +68,7 @@ export default function AdminLayout() {
               <span className="hidden sm:inline">Logout</span>
             </button>
             <button
+              ref={menuButtonRef}
               type="button"
               onClick={() => setNavigationOpen((open) => !open)}
               className="inline-flex h-11 w-11 items-center justify-center border border-border-strong transition hover:bg-surface-muted lg:hidden"

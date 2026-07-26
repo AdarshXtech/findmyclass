@@ -1,5 +1,5 @@
 export function normalizeStudentName(value) {
-  return String(value || '').trim().replace(/\s+/g, ' ')
+  return String(value || '').trim().replace(/\s+/g, ' ').toUpperCase()
 }
 
 export function normalizePhoneNumber(value) {

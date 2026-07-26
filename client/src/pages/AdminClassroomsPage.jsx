@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { HiOutlinePencil, HiOutlinePlus, HiOutlineTrash } from 'react-icons/hi'
 import { useNavigate } from 'react-router-dom'
 import adminApi from '../admin/api'
@@ -8,6 +8,9 @@ import ConfirmDialog from '../admin/components/ConfirmDialog'
 const initialForm = {
   section: '',
   subject: '',
+  locationType: 'room',
+  floor: '',
+  wing: '',
   room: '',
 }
 
@@ -22,6 +25,7 @@ export default function AdminClassroomsPage() {
   const [classrooms, setClassrooms] = useState([])
   const [subjects, setSubjects] = useState([])
   const [sections, setSections] = useState([])
+  const [locationOptions, setLocationOptions] = useState([])
   const [sectionFilter, setSectionFilter] = useState('')
   const [form, setForm] = useState(initialForm)
   const [editingId, setEditingId] = useState(null)
@@ -31,6 +35,28 @@ export default function AdminClassroomsPage() {
   const [deletingId, setDeletingId] = useState(null)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+
+  const filteredLocationOptions = useMemo(() => locationOptions.filter((option) => (
+    form.locationType === 'special' ? option.isSpecialLocation : !option.isSpecialLocation
+  )), [form.locationType, locationOptions])
+
+  const floorOptions = useMemo(() => {
+    const floors = new Map()
+    for (const option of filteredLocationOptions) floors.set(option.floor, option.floorLabel)
+    return [...floors].map(([value, label]) => ({ value, label }))
+  }, [filteredLocationOptions])
+
+  const wingOptions = useMemo(() => [...new Set(
+    filteredLocationOptions
+      .filter((option) => option.floor === form.floor)
+      .map((option) => option.wing)
+      .filter(Boolean)
+  )], [filteredLocationOptions, form.floor])
+
+  const roomOptions = useMemo(() => filteredLocationOptions.filter((option) => (
+    option.floor === form.floor
+      && (option.wing || '') === form.wing
+  )), [filteredLocationOptions, form.floor, form.wing])
 
   useEffect(() => {
     fetchData()
@@ -45,14 +71,16 @@ export default function AdminClassroomsPage() {
     setLoading(true)
     setError('')
     try {
-      const [classroomsRes, subjectsRes, sectionsRes] = await Promise.all([
+      const [classroomsRes, subjectsRes, sectionsRes, locationsRes] = await Promise.all([
         adminApi.get('/classrooms', { params: { section: sectionFilter || undefined } }),
         adminApi.get('/subjects'),
         adminApi.get('/sections'),
+        adminApi.get('/classroom-options'),
       ])
       setClassrooms(classroomsRes.data.data || [])
       setSubjects(subjectsRes.data.data || [])
       setSections(sectionsRes.data.data || [])
+      setLocationOptions(locationsRes.data.data || [])
     } catch (err) {
       if (err.response?.status === 401 || err.response?.status === 403) {
         handleUnauthorized()
@@ -141,11 +169,15 @@ export default function AdminClassroomsPage() {
   }
 
   const handleEdit = (classroom) => {
+    const isSpecialLocation = Boolean(classroom.isSpecialLocation)
     setEditingId(classroom.classroom_id)
     setForm({
       section: classroom.section || '',
       subject: classroom.subject || '',
-      room: classroom.room || '',
+      locationType: isSpecialLocation ? 'special' : 'room',
+      floor: classroom.floorCode || '',
+      wing: classroom.wing || '',
+      room: classroom.room || classroom.locationName || '',
     })
     setError('')
     setSuccess('')
@@ -178,18 +210,43 @@ export default function AdminClassroomsPage() {
     }
   }
 
+  const handleLocationTypeChange = (locationType) => {
+    setForm((current) => ({
+      ...current,
+      locationType,
+      floor: '',
+      wing: '',
+      room: '',
+    }))
+  }
+
+  const handleFloorChange = (floor) => {
+    const matchingOptions = filteredLocationOptions.filter((option) => option.floor === floor)
+    const wings = [...new Set(matchingOptions.map((option) => option.wing).filter(Boolean))]
+    setForm((current) => ({
+      ...current,
+      floor,
+      wing: wings.length === 1 ? wings[0] : '',
+      room: '',
+    }))
+  }
+
+  const handleWingChange = (wing) => {
+    setForm((current) => ({ ...current, wing, room: '' }))
+  }
+
   return (
     <div className="space-y-6">
-      <section className="glass-card rounded-2xl p-6">
-        <h1 className="text-2xl font-bold text-white mb-1">Classrooms Management</h1>
-        <p className="text-slate-400">Maintain section-wise subject classroom assignments.</p>
+      <section className="rounded-2xl border border-border-default bg-surface-primary p-6 shadow-admin">
+        <h1 className="mb-1 text-2xl font-bold text-text-primary">Classrooms Management</h1>
+        <p className="text-text-secondary">Maintain section-wise subject classroom assignments.</p>
       </section>
 
-      <section className="glass-card rounded-2xl p-6">
-        <h2 className="text-lg font-semibold text-white mb-4">{editingId ? 'Edit Assignment' : 'Add Assignment'}</h2>
+      <section className="rounded-2xl border border-border-default bg-surface-primary p-6 shadow-admin">
+        <h2 className="mb-4 text-lg font-semibold text-text-primary">{editingId ? 'Edit Assignment' : 'Add Assignment'}</h2>
         <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label htmlFor="classroom-section" className="mb-2 block text-sm font-bold text-slate-300">Section</label>
+            <label htmlFor="classroom-section" className="mb-2 block text-sm font-bold text-text-secondary">Section</label>
             <input
               id="classroom-section"
               className="input-field"
@@ -207,7 +264,7 @@ export default function AdminClassroomsPage() {
           </datalist>
 
           <div>
-            <label htmlFor="classroom-subject" className="mb-2 block text-sm font-bold text-slate-300">Subject</label>
+            <label htmlFor="classroom-subject" className="mb-2 block text-sm font-bold text-text-secondary">Subject</label>
             <input
               id="classroom-subject"
               className="input-field"
@@ -224,16 +281,70 @@ export default function AdminClassroomsPage() {
             ))}
           </datalist>
 
-          <div className="md:col-span-2">
-            <label htmlFor="classroom-number" className="mb-2 block text-sm font-bold text-slate-300">Classroom number</label>
-            <input
+          <div>
+            <label htmlFor="classroom-location-type" className="mb-2 block text-sm font-bold text-text-secondary">Location type</label>
+            <select
+              id="classroom-location-type"
+              className="input-field"
+              value={form.locationType}
+              onChange={(event) => handleLocationTypeChange(event.target.value)}
+            >
+              <option value="room">Classroom</option>
+              <option value="special">Special location</option>
+            </select>
+          </div>
+
+          <div>
+            <label htmlFor="classroom-floor" className="mb-2 block text-sm font-bold text-text-secondary">Floor</label>
+            <select
+              id="classroom-floor"
+              className="input-field"
+              value={form.floor}
+              onChange={(event) => handleFloorChange(event.target.value)}
+              required
+            >
+              <option value="">Select floor</option>
+              {floorOptions.map((floor) => (
+                <option key={floor.value} value={floor.value}>{floor.label}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label htmlFor="classroom-wing" className="mb-2 block text-sm font-bold text-text-secondary">Wing</label>
+            <select
+              id="classroom-wing"
+              className="input-field"
+              value={form.wing}
+              onChange={(event) => handleWingChange(event.target.value)}
+              disabled={!form.floor || wingOptions.length <= 1}
+              required={wingOptions.length > 0}
+            >
+              <option value="">{form.floor && wingOptions.length === 0 ? 'No wing' : 'Select wing'}</option>
+              {wingOptions.map((wing) => (
+                <option key={wing} value={wing}>Wing {wing}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label htmlFor="classroom-number" className="mb-2 block text-sm font-bold text-text-secondary">
+              {form.locationType === 'special' ? 'Special location' : 'Room'}
+            </label>
+            <select
               id="classroom-number"
               className="input-field"
-              placeholder="For example, 407, UGF07, or LGF-15"
               value={form.room}
-              onChange={(e) => setForm({ ...form, room: e.target.value })}
+              onChange={(event) => setForm({ ...form, room: event.target.value })}
+              disabled={!form.floor || (wingOptions.length > 1 && !form.wing)}
               required
-            />
+            >
+              <option value="">Select {form.locationType === 'special' ? 'location' : 'room'}</option>
+              {roomOptions.map((option) => {
+                const value = option.room || option.locationName
+                return <option key={value} value={value}>{option.shortLabel}</option>
+              })}
+            </select>
           </div>
 
           <div className="md:col-span-2 flex flex-wrap gap-3">
@@ -245,7 +356,7 @@ export default function AdminClassroomsPage() {
               <button
                 type="button"
                 onClick={resetForm}
-                className="px-5 py-3 rounded-xl border border-slate-600 hover:border-slate-400 transition"
+                className="rounded-xl border border-border-subtle px-5 py-3 transition hover:border-border-strong"
               >
                 Cancel Edit
               </button>
@@ -253,13 +364,13 @@ export default function AdminClassroomsPage() {
           </div>
         </form>
 
-        {error ? <p role="alert" className="mt-4 text-sm text-red-300">{error}</p> : null}
-        {success ? <p role="status" className="mt-4 text-sm text-emerald-300">{success}</p> : null}
+        {error ? <p role="alert" className="mt-4 text-sm text-status-danger">{error}</p> : null}
+        {success ? <p role="status" className="mt-4 text-sm text-status-success">{success}</p> : null}
       </section>
 
-      <section className="glass-card rounded-2xl p-6">
+      <section className="rounded-2xl border border-border-default bg-surface-primary p-6 shadow-admin">
         <div className="mb-4">
-          <label htmlFor="classroom-section-filter" className="mb-2 block text-sm font-bold text-slate-300">Filter by section</label>
+          <label htmlFor="classroom-section-filter" className="mb-2 block text-sm font-bold text-text-secondary">Filter by section</label>
           <select
             id="classroom-section-filter"
             className="input-field md:w-56 py-3"
@@ -274,14 +385,14 @@ export default function AdminClassroomsPage() {
         </div>
 
         {loading ? (
-          <p className="text-slate-400">Loading classroom assignments...</p>
+          <p className="text-text-secondary">Loading classroom assignments...</p>
         ) : classrooms.length === 0 ? (
-          <p className="text-slate-400">No classroom assignments found.</p>
+          <p className="text-text-secondary">No classroom assignments found.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-slate-400 border-b border-slate-700">
+                <tr className="border-b border-border-subtle text-left text-text-secondary">
                   <th className="py-3 pr-3">Section</th>
                   <th className="py-3 pr-3">Subject</th>
                   <th className="py-3 pr-3">Floor</th>
@@ -292,17 +403,17 @@ export default function AdminClassroomsPage() {
               </thead>
               <tbody>
                 {classrooms.map((classroom) => (
-                  <tr key={classroom.classroom_id} className="border-b border-slate-800">
-                    <td className="py-3 pr-3 text-white">{classroom.section}</td>
+                  <tr key={classroom.classroom_id} className="border-b border-border-subtle">
+                    <td className="py-3 pr-3 text-text-primary">{classroom.section}</td>
                     <td className="py-3 pr-3">{classroom.subject}</td>
                     <td className="py-3 pr-3">{classroom.floor}</td>
-                    <td className="py-3 pr-3">{classroom.wing}</td>
-                    <td className="py-3 pr-3">{classroom.room}</td>
+                    <td className="py-3 pr-3">{classroom.wing ? `Wing ${classroom.wing}` : 'No wing'}</td>
+                    <td className="py-3 pr-3">{classroom.locationName || classroom.room}</td>
                     <td className="py-3 pr-3">
                       <div className="flex gap-2">
                         <button
                           onClick={() => handleEdit(classroom)}
-                          className="px-3 py-2 rounded-lg border border-indigo-500/30 text-indigo-300 hover:bg-indigo-500/10 transition inline-flex items-center gap-1"
+                          className="inline-flex items-center gap-1 rounded-lg border border-border-accent px-3 py-2 text-accent-primary transition hover:bg-surface-highlight"
                         >
                           <HiOutlinePencil />
                           Edit
@@ -310,7 +421,7 @@ export default function AdminClassroomsPage() {
                         <button
                           onClick={(event) => setPendingDelete({ classroom, trigger: event.currentTarget })}
                           disabled={deletingId === classroom.classroom_id}
-                          className="min-h-11 px-3 py-2 rounded-lg border border-red-500/30 text-red-300 hover:bg-red-500/10 transition inline-flex items-center gap-1 disabled:opacity-60"
+                          className="inline-flex min-h-11 items-center gap-1 rounded-lg border border-border-accent px-3 py-2 text-status-danger transition hover:bg-surface-danger disabled:opacity-60"
                         >
                           <HiOutlineTrash />
                           {deletingId === classroom.classroom_id ? 'Deleting...' : 'Delete'}

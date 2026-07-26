@@ -18,7 +18,11 @@ const {
   normalizeYear,
   isValidYear,
 } = require('../utils/validation');
-const { CLASSROOM_ERROR, parseClassroomLocation } = require('../utils/classroom-location');
+const {
+  CLASSROOM_ERROR,
+  getClassroomLocationOptions,
+  parseClassroomLocation,
+} = require('../utils/classroom-location');
 const {
   normalizeStudentName,
   normalizePhoneNumber,
@@ -481,6 +485,23 @@ router.delete('/subjects/:id', authenticateToken, async (req, res) => {
 //  CLASSROOMS CRUD
 // ════════════════════════════════════════════════════════════
 
+/** GET /api/admin/classroom-options */
+router.get('/classroom-options', authenticateToken, (req, res) => {
+  res.json({
+    success: true,
+    data: getClassroomLocationOptions().map((location) => ({
+      floor: location.floor,
+      floorLabel: location.floorLabel,
+      wing: location.wing,
+      room: location.room,
+      locationName: location.locationName,
+      displayLabel: location.displayLabel,
+      shortLabel: location.shortLabel,
+      isSpecialLocation: location.isSpecialLocation,
+    })),
+  });
+});
+
 /** GET /api/admin/classrooms */
 router.get('/classrooms', authenticateToken, async (req, res) => {
   try {
@@ -501,7 +522,16 @@ router.get('/classrooms', authenticateToken, async (req, res) => {
       data: classrooms.map((classroom) => {
         const location = parseClassroomLocation(classroom.room);
         return location.valid
-          ? { ...classroom, floor: location.floor, wing: location.wing, room: location.classroomNumber }
+          ? {
+              ...classroom,
+              floor: location.floorLabel,
+              floorCode: location.floor,
+              wing: location.wing,
+              room: location.classroomNumber,
+              locationName: location.locationName,
+              displayLabel: location.displayLabel,
+              isSpecialLocation: location.isSpecialLocation,
+            }
           : { ...classroom, locationError: location.error };
       })
     });
@@ -527,7 +557,9 @@ router.post('/classrooms', authenticateToken, async (req, res) => {
       return res.status(400).json({ success: false, message: CLASSROOM_ERROR });
     }
 
-    const { floor, wing, classroomNumber: room } = location;
+    const floor = location.floorLabel;
+    const wing = location.wing || '';
+    const room = location.classroomNumber || location.locationName;
 
     const existing = await queryOne(
       'SELECT classroom_id FROM classrooms WHERE section = ? AND subject = ?',
@@ -544,7 +576,18 @@ router.post('/classrooms', authenticateToken, async (req, res) => {
 
     res.status(201).json({
       success: true,
-      data: { classroom_id: result.lastInsertRowid, section, subject, floor, wing, room }
+      data: {
+        classroom_id: result.lastInsertRowid,
+        section,
+        subject,
+        floor,
+        floorCode: location.floor,
+        wing: location.wing,
+        room: location.classroomNumber,
+        locationName: location.locationName,
+        displayLabel: location.displayLabel,
+        isSpecialLocation: location.isSpecialLocation,
+      }
     });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Something went wrong.' });
@@ -576,9 +619,9 @@ router.put('/classrooms/:id', authenticateToken, async (req, res) => {
       return res.status(400).json({ success: false, message: CLASSROOM_ERROR });
     }
 
-    const finalFloor = location.floor;
-    const finalWing = location.wing;
-    const finalRoom = location.classroomNumber;
+    const finalFloor = location.floorLabel;
+    const finalWing = location.wing || '';
+    const finalRoom = location.classroomNumber || location.locationName;
 
     const duplicate = await queryOne(
       'SELECT classroom_id FROM classrooms WHERE section = ? AND subject = ? AND classroom_id != ?',
@@ -608,8 +651,12 @@ router.put('/classrooms/:id', authenticateToken, async (req, res) => {
         section: finalSection,
         subject: finalSubject,
         floor: finalFloor,
-        wing: finalWing,
-        room: finalRoom,
+        floorCode: location.floor,
+        wing: location.wing,
+        room: location.classroomNumber,
+        locationName: location.locationName,
+        displayLabel: location.displayLabel,
+        isSpecialLocation: location.isSpecialLocation,
       }
     });
   } catch (error) {

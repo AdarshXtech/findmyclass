@@ -209,7 +209,7 @@ test('health, lookup, authentication, CRUD, and import workflows', async (t) => 
     assert.equal(found.body.data.timetable[0].classroomPosition, '05');
     assert.equal(found.body.data.timetable[0].floor, 'Floor 3');
     assert.equal(found.body.data.timetable[0].wing, 'A');
-    assert.equal(found.body.data.timetable[0].locationDisplay, 'Floor 3 \u00b7 Wing A \u00b7 Classroom 305');
+    assert.equal(found.body.data.timetable[0].locationDisplay, 'Floor 3 \u00b7 Wing A \u00b7 Room 305');
   });
 
   await t.test('maps verified students to their shared class timetable', async () => {
@@ -383,8 +383,33 @@ test('health, lookup, authentication, CRUD, and import workflows', async (t) => 
     assert.equal(invalidClassroom.status, 400);
     assert.equal(
       invalidClassroom.body.message,
-      'Invalid classroom number. Use UGF, LGF, or floors 1 to 8, with a room position between 01 and 21.'
+      'Invalid classroom number. Please enter a valid room from the building map.'
     );
+
+    const locationOptions = await apiRequest('/api/admin/classroom-options', { token });
+    assert.equal(locationOptions.status, 200);
+    assert.ok(locationOptions.body.data.some((location) => (
+      location.room === 'UGF014' && location.wing === 'C'
+    )));
+    assert.ok(locationOptions.body.data.some((location) => (
+      location.locationName === 'Central Library'
+      && location.floor === '6'
+      && location.wing === 'B'
+    )));
+
+    const specialClassroom = await apiRequest('/api/admin/classrooms', {
+      method: 'POST',
+      token,
+      body: { section: 'cse-a', subject: 'Special Lab', room: '414' },
+    });
+    assert.equal(specialClassroom.status, 201);
+    assert.equal(specialClassroom.body.data.floor, 'Floor 4');
+    assert.equal(specialClassroom.body.data.wing, null);
+    assert.equal(specialClassroom.body.data.locationName, 'Central Instrument Lab');
+    await apiRequest(`/api/admin/classrooms/${specialClassroom.body.data.classroom_id}`, {
+      method: 'DELETE',
+      token,
+    });
 
     const filtered = await apiRequest('/api/admin/classrooms?section=cse-a', { token });
     assert.equal(filtered.status, 200);

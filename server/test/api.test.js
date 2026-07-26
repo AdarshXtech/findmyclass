@@ -486,6 +486,8 @@ test('health, lookup, authentication, CRUD, and import workflows', async (t) => 
     const managedSchedule = await apiRequest('/api/admin/timetables/CSE-A', { token });
     assert.equal(managedSchedule.status, 200);
     assert.equal(managedSchedule.body.data.rows[0].day, 'Tuesday');
+    assert.equal(managedSchedule.body.data.rows[0].subjectName, 'DLD');
+    assert.equal(managedSchedule.body.data.rows[0].facultyName, 'Sharma');
 
     const merged = await apiRequest('/api/admin/timetables', {
       method: 'POST',

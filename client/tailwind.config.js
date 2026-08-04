@@ -58,6 +58,19 @@ export default {
           DEFAULT: 'var(--focus-ring)',
           soft: 'var(--focus-ring-soft)',
         },
+        result: {
+          navy: 'var(--result-navy)',
+          blue: 'var(--result-blue-primary)',
+          'blue-secondary': 'var(--result-blue-secondary)',
+          'blue-light': 'var(--result-blue-light)',
+          'blue-pale': 'var(--result-blue-pale)',
+          red: 'var(--result-red-primary)',
+          'red-strong': 'var(--result-red-strong)',
+          'red-soft': 'var(--result-red-soft)',
+          subtle: 'var(--result-text-on-dark-subtle)',
+          'danger-soft': 'var(--result-danger-soft)',
+          'danger-text': 'var(--result-danger-text)',
+        },
         navy: {
           50:  '#eef2ff',
           100: '#e0e7ff',
@@ -75,6 +88,7 @@ export default {
         brand: '8px 8px 0 var(--accent-primary)',
         'brand-lg': '10px 10px 0 var(--accent-primary)',
         admin: 'var(--shadow-admin)',
+        result: 'var(--result-shadow)',
       },
       animation: {
         'fade-in': 'fadeIn 0.6s ease-out forwards',

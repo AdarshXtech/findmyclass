@@ -1,23 +1,20 @@
 import { formatSection, formatStudentName } from '../../utils/identityNormalization'
 
-export default function StudentContext({ student, children }) {
+export default function StudentContext({ student }) {
   const displaySection = formatSection(student.section)
+  const course = [student.course, student.branch].filter(Boolean).join(' ')
+  const year = String(student.year || '').replace(/^Year\s+/i, '')
 
   return (
-    <section className="border-b-2 border-border-strong pb-8">
-      <p className="font-mono text-xs font-bold uppercase text-accent-primary">{displaySection} / Semester III</p>
-      <div className="mt-4 grid min-w-0 gap-8 lg:grid-cols-[minmax(260px,360px)_minmax(0,1fr)] lg:items-start">
-        <div className="min-w-0">
-          <h1 className="font-display text-4xl font-bold leading-tight [overflow-wrap:anywhere] sm:text-5xl">
-            {formatStudentName(student.name)}
-          </h1>
-          <div className="mt-4 flex min-w-0 flex-col gap-1.5 text-sm font-semibold text-text-secondary sm:flex-row sm:flex-wrap sm:gap-x-4 sm:gap-y-2 sm:text-base">
-            <p className="[overflow-wrap:anywhere]">{student.course} {student.branch}</p>
-            <p>Year {student.year}</p>
-            <p className="[overflow-wrap:anywhere]">Class {displaySection}</p>
-          </div>
-        </div>
-        {children}
+    <section className="min-w-0 border-b border-border-default pb-7 md:border-b-0 md:pb-0">
+      <p className="font-mono text-xs font-bold uppercase tracking-wide text-accent-primary">{displaySection} / Semester III</p>
+      <h1 className="mt-3 min-w-0 font-display text-2xl font-bold leading-tight [overflow-wrap:anywhere] sm:text-3xl lg:text-4xl xl:text-5xl">
+        {formatStudentName(student.name)}
+      </h1>
+      <div className="mt-4 min-w-0 space-y-1 text-sm font-medium leading-5 text-text-secondary sm:text-base">
+        <p className="[overflow-wrap:anywhere]">{course}</p>
+        <p>Year {year}</p>
+        <p className="[overflow-wrap:anywhere]">Class {displaySection}</p>
       </div>
     </section>
   )

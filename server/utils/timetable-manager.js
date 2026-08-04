@@ -159,7 +159,7 @@ function parsePlainText(text) {
     const prefix = line.slice(0, range.index).trim();
     const explicitDay = normalizeDay(prefix);
     const remainder = line.slice(range.index + range[0].length).trim();
-    const roomMatch = remainder.match(/\b(UGF[\s-]?\d{3}|[1-5]\d{2}|CENTRAL\s+LIBRARY|CENTRAL\s+INSTRUMENT\s+LAB)\s*$/i);
+    const roomMatch = remainder.match(/\b([LU]GF[\s-]?\d{3}|[1-5]\d{2}|CENTRAL\s+LIBRARY|CENTRAL\s+INSTRUMENT\s+LAB)\s*$/i);
     const room = roomMatch?.[1] || '';
     const details = roomMatch ? remainder.slice(0, roomMatch.index).trim() : remainder;
     const teacherMatch = details.match(/\b((?:DR|MR|MRS|MS|PROF)\.?\s+.+)$/i);

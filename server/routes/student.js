@@ -126,6 +126,8 @@ router.post('/lookup', async (req, res) => {
             originalClassroom: location.originalClassroom || null,
             room,
             locationName: location.locationName,
+            fullLocationName: location.fullLocationName,
+            subLocations: location.subLocations,
             isSpecialLocation: location.isSpecialLocation,
             locationDisplay: location.displayLabel,
             shortLocationDisplay: location.shortLabel,

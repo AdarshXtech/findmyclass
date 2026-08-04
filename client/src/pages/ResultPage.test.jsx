@@ -1,5 +1,5 @@
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import NextClassHero from '../components/timetable/NextClassHero'
@@ -27,8 +27,9 @@ describe('ResultPage', () => {
     await user.keyboard('{Enter}')
 
     expect(screen.getByRole('button', { name: 'Close schedule menu' })).toHaveAttribute('aria-expanded', 'true')
-    expect(screen.getByRole('button', { name: 'Today Classes' })).toBeVisible()
-    expect(screen.getByRole('button', { name: 'Weekly Classes' })).toBeVisible()
+    const mobileMenu = document.getElementById('schedule-menu')
+    expect(within(mobileMenu).getByRole('button', { name: 'Daily Classes' })).toBeVisible()
+    expect(within(mobileMenu).getByRole('button', { name: 'Weekly Classes' })).toBeVisible()
 
     await user.keyboard('{Escape}')
     expect(menuButton).toHaveAttribute('aria-expanded', 'false')
@@ -42,7 +43,7 @@ describe('ResultPage', () => {
       timetable: [makeEntry({ dayOfWeek: 1, startTime: '09:00', endTime: '10:00' })],
     }))
 
-    expect(screen.getByRole('button', { name: /today classes/i })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('button', { name: /other classes/i })).toHaveAttribute('aria-expanded', 'true')
   })
 
   it('shows the end-of-day state after the final class', () => {
@@ -69,9 +70,19 @@ describe('ResultPage', () => {
 
     const menuButton = screen.getByRole('button', { name: 'Open schedule menu' })
     expect(menuButton).toBeVisible()
-    expect(screen.getByRole('button', { name: /today classes/i })).toBeVisible()
+    expect(screen.getByRole('button', { name: /other classes/i })).toBeVisible()
     expect(screen.getByRole('button', { name: 'Search again' })).toBeVisible()
     await user.click(menuButton)
-    expect(screen.getByRole('button', { name: 'Weekly Classes' })).toBeVisible()
+    expect(within(document.getElementById('schedule-menu')).getByRole('button', { name: 'Weekly Classes' })).toBeVisible()
+  })
+
+  it('switches to weekly classes and closes the mobile menu', async () => {
+    const user = userEvent.setup()
+    renderResultPage()
+    await user.click(screen.getByRole('button', { name: 'Open schedule menu' }))
+    await user.click(within(document.getElementById('schedule-menu')).getByRole('button', { name: 'Weekly Classes' }))
+
+    expect(screen.getByRole('button', { name: 'Open schedule menu' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByRole('heading', { name: 'Weekly Classes' })).toBeVisible()
   })
 })

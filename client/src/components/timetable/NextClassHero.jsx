@@ -1,48 +1,44 @@
 import { formatTime } from '../../utils/timetableTime'
 import LocationHeader from './LocationHeader'
 
-export default function NextClassHero({ entry, status, finishedForToday }) {
+export default function NextClassHero({ entry, status, finishedForToday, timeContext }) {
   if (!entry) {
     return (
-      <section className="border border-border-default bg-surface-primary px-4 py-5" aria-live="polite">
-        <p className="font-mono text-xs font-black uppercase tracking-wide text-accent-primary">Today&apos;s schedule</p>
-        <p className="mt-2 font-display text-xl font-bold">
+      <section className="rounded-lg border border-border-default bg-surface-primary px-5 py-7" aria-live="polite">
+        <p className="font-mono text-xs font-bold uppercase tracking-wide text-accent-primary">Today&apos;s schedule</p>
+        <p className="mt-2 font-display text-2xl font-bold">
           {finishedForToday ? 'No more classes today' : 'No classes scheduled today'}
         </p>
-        <p className="mt-1 text-sm text-text-secondary">Open Weekly Classes to check another day.</p>
+        <p className="mt-2 text-sm leading-6 text-text-secondary">Open Weekly Classes to check another day.</p>
       </section>
     )
   }
 
-  const details = [
-    ['Subject', entry.subjectName],
-    ['Type of class', entry.sessionType],
-    ['Teacher', entry.facultyName || 'Not scheduled'],
-  ]
-
   return (
-    <div className="min-w-0">
-      <section className="border border-border-default bg-surface-primary" aria-label={`${status} location`}>
-        <div className="flex flex-wrap items-end justify-between gap-3 border-b border-border-default bg-accent-highlight px-4 py-3">
-          <div>
-            <p className="font-mono text-xs font-black uppercase tracking-wide text-accent-strong">{status}</p>
-            <p className="mt-1 min-w-0 font-bold leading-snug [overflow-wrap:anywhere]">{entry.subjectName}</p>
-          </div>
-          <p className="font-mono text-xs font-bold">
-            Starts at <time>{formatTime(entry.startTime)}</time>
-          </p>
-        </div>
+    <section className="current-class-hero min-w-0" aria-label={`${status} location`} aria-live="polite">
+      <div className="current-class-hero__location min-w-0">
         <LocationHeader entry={entry} />
-      </section>
-
-      <dl className="grid border-x border-b border-border-default bg-surface-muted sm:grid-cols-3">
-        {details.map(([label, value], index) => (
-          <div key={label} className={`min-w-0 px-3 py-3 ${index < details.length - 1 ? 'max-sm:border-b max-sm:border-border-default sm:border-r sm:border-border-default' : ''}`}>
-            <dt className="text-xs font-bold uppercase tracking-wide text-text-secondary">{label}</dt>
-            <dd className="mt-1 text-sm font-bold [overflow-wrap:anywhere]" title={String(value)}>{value}</dd>
+      </div>
+      <div className="current-class-hero__details min-w-0 text-text-on-dark">
+        <p className="font-mono text-xs font-bold uppercase tracking-wide text-result-subtle">{status}</p>
+        <h2 className="mt-2 min-w-0 font-display text-2xl font-bold leading-tight [overflow-wrap:anywhere] lg:text-3xl">
+          {entry.subjectName}
+        </h2>
+        <div className="mt-3 min-w-0 text-sm leading-6 text-result-subtle">
+          <p className="font-semibold text-text-on-dark">{timeContext}</p>
+          <p><time>{formatTime(entry.startTime)}</time> &ndash; <time>{formatTime(entry.endTime)}</time></p>
+        </div>
+        <dl className="mt-6 grid min-w-0 gap-5 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+          <div className="min-w-0">
+            <dt className="font-mono text-xs font-bold uppercase tracking-wide text-result-subtle">Type of class</dt>
+            <dd className="mt-1 font-bold [overflow-wrap:anywhere]">{entry.sessionType}</dd>
           </div>
-        ))}
-      </dl>
-    </div>
+          <div className="min-w-0">
+            <dt className="font-mono text-xs font-bold uppercase tracking-wide text-result-subtle">Teacher</dt>
+            <dd className="mt-1 font-bold [overflow-wrap:anywhere]">{entry.facultyName || 'Teacher not listed'}</dd>
+          </div>
+        </dl>
+      </div>
+    </section>
   )
 }

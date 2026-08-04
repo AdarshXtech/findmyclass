@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
   CLASSROOM_ERROR,
+  LGF_ERROR,
   getClassroomLocationOptions,
   parseClassroomLocation,
 } = require('../utils/classroom-location');
@@ -22,6 +23,61 @@ test('normalizes and maps Underground Floor rooms', () => {
   assert.equal(normalized.floor, 'UGF');
   assert.equal(normalized.floorLabel, 'Underground Floor');
   assert.equal(normalized.displayLabel, 'Underground Floor \u00b7 Wing A \u00b7 Room UGF001');
+});
+
+test('normalizes and maps every confirmed Lower Ground Floor room', () => {
+  const cases = [
+    ['LGF001', 'A', 'DLD Lab', 'Digital Logic Design Lab'],
+    ['LGF002', 'A', 'Basic Electrical Engineering Lab', 'Basic Electrical Engineering Lab'],
+    ['LGF003', 'A', 'Lab 2', 'Lab 2'],
+    ['LGF004', 'A', 'Fluid Mechanics Lab', 'Fluid Mechanics Lab'],
+    ['LGF005', 'B', 'Carpentry Shop', 'Carpentry Shop'],
+    ['LGF006', 'B', 'Manufacturing Lab', 'Manufacturing Lab'],
+    ['LGF007', 'B', 'Workshop Practices', 'Workshop Practices'],
+    ['LGF008', 'B', 'Engineering Mechanics Lab', 'Engineering Mechanics Lab'],
+    ['LGF009', 'B', 'Multi-shop Area', 'Multi-shop Area'],
+  ];
+
+  for (const [room, wing, locationName, fullLocationName] of cases) {
+    const location = parseClassroomLocation(room);
+    assert.equal(location.isValid, true, room);
+    assert.equal(location.floor, 'LGF', room);
+    assert.equal(location.floorLabel, 'Lower Ground Floor', room);
+    assert.equal(location.shortFloor, 'LGF', room);
+    assert.equal(location.wing, wing, room);
+    assert.equal(location.room, room, room);
+    assert.equal(location.locationName, locationName, room);
+    assert.equal(location.fullLocationName, fullLocationName, room);
+    assert.equal(location.displayLabel, `Lower Ground Floor \u00b7 Wing ${wing} \u00b7 ${locationName} \u00b7 Room ${room}`, room);
+    assert.equal(location.isSpecialLocation, true, room);
+  }
+
+  assert.deepEqual(parseClassroomLocation('LGF009').subLocations, [
+    'Sheet Metal Shop',
+    'Welding Shop',
+    'Blacksmith Shop',
+    'Fitting Shop',
+  ]);
+});
+
+test('accepts supported Lower Ground Floor input formats', () => {
+  for (const input of ['lgf001', 'LGF-001', 'LGF 001']) {
+    assert.equal(parseClassroomLocation(input).room, 'LGF001', input);
+  }
+  assert.equal(parseClassroomLocation('lgf 009').room, 'LGF009');
+});
+
+test('rejects unconfirmed Lower Ground Floor rooms with a specific error', () => {
+  for (const room of ['LGF000', 'LGF010', 'LGF020', 'LGF999', 'LGFABC']) {
+    const location = parseClassroomLocation(room);
+    assert.equal(location.isValid, false, room);
+    assert.equal(location.floor, 'LGF', room);
+    assert.equal(location.floorLabel, 'Lower Ground Floor', room);
+    assert.equal(location.wing, null, room);
+    assert.equal(location.locationName, null, room);
+    assert.deepEqual(location.subLocations, [], room);
+    assert.equal(location.error, LGF_ERROR, room);
+  }
 });
 
 test('maps every corrected numbered-floor boundary', () => {
@@ -73,7 +129,7 @@ test('maps Central Library and the observed LIB timetable alias', () => {
 test('rejects every room outside the corrected building map', () => {
   const invalidRooms = [
     '521', '420', '422', '322', '222', '121', '100',
-    'UGF000', 'UGF021', 'UGF01', 'LGF001', 'ABC407', '601', '821',
+    'UGF000', 'UGF021', 'UGF01', 'ABC407', '601', '821',
   ];
 
   for (const room of invalidRooms) {
@@ -92,6 +148,7 @@ test('generates only valid options for the admin editor', () => {
   assert.ok(options.every((option) => option.isValid));
   assert.equal(options.filter((option) => option.locationName === 'Central Library').length, 1);
   assert.equal(options.filter((option) => option.locationName === 'Central Instrument Lab').length, 1);
+  assert.equal(options.filter((option) => option.floor === 'LGF').length, 9);
 });
 
 test('treats a missing classroom differently from an invalid classroom', () => {

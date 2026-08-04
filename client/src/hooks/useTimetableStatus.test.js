@@ -26,7 +26,8 @@ describe('getTimetableStatus', () => {
 
     expect(status.activeEntry).toBeNull()
     expect(status.priorityEntry?.subjectName).toBe('First class')
-    expect(status.locationStatus).toBe('Next class')
+    expect(status.locationStatus).toBe('First class today')
+    expect(status.timeContext).toBe('Starts in 60 minutes')
   })
 
   it('shows the next class between scheduled classes', () => {
@@ -34,6 +35,7 @@ describe('getTimetableStatus', () => {
 
     expect(status.priorityEntry?.subjectName).toBe('Second class')
     expect(status.locationStatus).toBe('Next class')
+    expect(status.timeContext).toBe('Starts in 30 minutes')
   })
 
   it('reports that the day is finished after the final class', () => {
@@ -57,5 +59,24 @@ describe('getTimetableStatus', () => {
     expect(getTimetableStatus(mondaySchedule, mondayAt(7, 30)).shouldAutoExpandToday).toBe(true)
     expect(getTimetableStatus(mondaySchedule, mondayAt(7, 29)).shouldAutoExpandToday).toBe(false)
     expect(getTimetableStatus(mondaySchedule, mondayAt(9, 30)).shouldAutoExpandToday).toBe(true)
+  })
+
+  it('provides readable status for every timetable entry', () => {
+    const status = getTimetableStatus(mondaySchedule, mondayAt(10, 30))
+
+    expect(status.entryStatusById.get(1)).toBe('completed')
+    expect(status.entryStatusById.get(2)).toBe('next')
+    expect(status.entryStatusById.get(3)).toBe('upcoming')
+  })
+
+  it('keeps cancelled classes visible without selecting them as the next destination', () => {
+    const schedule = [
+      makeEntry({ id: 1, startTime: '09:00', endTime: '10:00', status: 'cancelled' }),
+      makeEntry({ id: 2, startTime: '11:00', endTime: '12:00', subjectName: 'Available class' }),
+    ]
+    const status = getTimetableStatus(schedule, mondayAt(8, 30))
+
+    expect(status.priorityEntry?.subjectName).toBe('Available class')
+    expect(status.entryStatusById.get(1)).toBe('cancelled')
   })
 })

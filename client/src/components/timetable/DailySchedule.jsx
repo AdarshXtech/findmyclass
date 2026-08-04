@@ -3,71 +3,61 @@ import ClassCard from './ClassCard'
 import TimetableEmptyState from './TimetableEmptyState'
 
 export default function DailySchedule({
-  activeEntry,
-  currentTime,
+  entryStatusById,
   formattedDate,
   expanded,
+  locationStatus,
   onToggle,
-  priorityEntry,
   todayClasses,
   todayEntries,
 }) {
   return (
-    <section className="mt-10 border-y-2 border-border-strong">
+    <section className="mt-8 min-w-0 lg:mt-10">
       <button
         type="button"
         onClick={onToggle}
-        className={`grid w-full text-left transition-colors sm:grid-cols-[minmax(0,1fr)_180px] ${expanded ? 'bg-accent-highlight' : 'bg-surface-primary hover:bg-surface-muted'}`}
+        className={`flex min-h-12 w-full min-w-0 items-center justify-between gap-4 rounded-lg border px-5 py-4 text-left transition-colors ${expanded ? 'border-result-blue bg-result-blue text-text-on-dark' : 'border-border-default bg-surface-primary hover:border-result-blue'}`}
         aria-expanded={expanded}
         aria-controls="today-schedule"
       >
-        <span className="flex items-center gap-3 px-4 py-5 sm:px-6">
-          <HiOutlineCalendar aria-hidden="true" className="shrink-0 text-2xl text-accent-primary" />
+        <span className="flex min-w-0 items-center gap-3">
+          <HiOutlineCalendar aria-hidden="true" className="shrink-0 text-xl" />
           <span className="min-w-0">
-            <span className="block font-display text-2xl font-bold">Today classes</span>
-            <span className="mt-1 block font-mono text-xs font-bold text-text-secondary">{formattedDate}</span>
+            <span className="block font-display text-lg font-bold">Other Classes</span>
+            <span className={`mt-1 block font-mono text-xs font-medium [overflow-wrap:anywhere] ${expanded ? 'text-result-subtle' : 'text-text-secondary'}`}>{formattedDate}</span>
           </span>
         </span>
-        <span className="flex items-center justify-between gap-4 border-t border-border-default px-4 py-4 sm:border-l sm:border-t-0 sm:px-6">
-          <span className="text-sm font-medium text-text-secondary">
-            {todayClasses.length
-              ? `${todayClasses.length} ${todayClasses.length === 1 ? 'class' : 'classes'}`
-              : 'No classes'}
-          </span>
-          <HiOutlineChevronDown aria-hidden="true" className={`shrink-0 text-xl transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />
+        <span className="flex shrink-0 items-center gap-3">
+          <span className="text-sm font-semibold">{todayClasses.length}</span>
+          <HiOutlineChevronDown aria-hidden="true" className={`text-xl transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />
         </span>
       </button>
 
       <div
         id="today-schedule"
         aria-hidden={!expanded}
-        className="grid transition-[grid-template-rows] duration-300"
-        style={{ gridTemplateRows: expanded ? '1fr' : '0fr' }}
+        className={`grid transition-[grid-template-rows] duration-200 ${expanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}
       >
         <div className="overflow-hidden">
-          {todayClasses.length ? (
-            <div className="divide-y divide-border-default border-t border-border-default bg-surface-primary">
-              {todayEntries.map((entry) => (
-                <ClassCard
-                  key={entry.id}
-                  entry={entry}
-                  status={
-                    entry.id === priorityEntry?.id
-                      ? 'priority'
-                      : entry.sessionType !== 'Break' && entry.endTime <= currentTime
-                        ? 'completed'
-                        : 'upcoming'
-                  }
-                  priorityLabel={entry.id === activeEntry?.id ? 'Current class' : 'Next class'}
-                />
-              ))}
-            </div>
-          ) : (
-            <TimetableEmptyState
-              message="No classes scheduled for today."
-              detail="Your weekly timetable is still available from the menu."
-            />
-          )}
+          <div className="other-classes-scroll mt-4">
+            {todayClasses.length ? (
+              <div className="schedule-card-grid">
+                {todayEntries.map((entry) => (
+                  <ClassCard
+                    key={entry.id}
+                    entry={entry}
+                    status={entryStatusById.get(entry.id)}
+                    priorityLabel={entryStatusById.get(entry.id) === 'next' ? locationStatus : undefined}
+                  />
+                ))}
+              </div>
+            ) : (
+              <TimetableEmptyState
+                message="No classes scheduled for today."
+                detail="Your weekly timetable is still available from Daily and Weekly navigation."
+              />
+            )}
+          </div>
         </div>
       </div>
     </section>

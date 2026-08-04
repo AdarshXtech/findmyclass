@@ -57,6 +57,12 @@ test('blocks overlapping classes and parses table imports into an unsaved previe
   assert.equal(preview.length, 1);
   assert.equal(preview[0].status, 'valid');
   assert.equal(preview[0].subjectName, 'Digital Logic Design');
+
+  const [lowerGroundLab] = parseTimetableText(
+    'Tuesday 11:00 AM - 12:00 PM Digital Logic Design Mr. Sharma LGF-001'
+  );
+  assert.equal(lowerGroundLab.room, 'LGF001');
+  assert.equal(lowerGroundLab.parsedLocation.fullLocationName, 'Digital Logic Design Lab');
 });
 
 test('accepts lunch breaks, rejects Saturday, and reports exact duplicates', () => {

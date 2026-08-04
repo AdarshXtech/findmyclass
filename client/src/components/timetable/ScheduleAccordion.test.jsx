@@ -21,7 +21,7 @@ describe('schedule accordions', () => {
       <DailySchedule {...emptyDailyProps} expanded={false} onToggle={onToggle} />
     )
 
-    const button = screen.getByRole('button', { name: /today classes/i })
+    const button = screen.getByRole('button', { name: /other classes/i })
     expect(button).toHaveAttribute('aria-expanded', 'false')
     await user.click(button)
     expect(onToggle).toHaveBeenCalledOnce()

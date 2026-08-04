@@ -48,6 +48,29 @@ function EntryFields({ row, onChange }) {
   )
 }
 
+function LocationPreview({ location }) {
+  if (!location) return <p className="text-text-secondary">Location not parsed</p>
+
+  const title = location.fullLocationName || location.locationName
+  const details = title
+    ? [location.floorLabel, location.wing ? `Wing ${location.wing}` : null, location.room ? `Room ${location.room}` : null]
+      .filter(Boolean)
+      .join(' · ')
+    : location.displayLabel
+
+  return (
+    <div className="min-w-0">
+      {title ? <strong className="block text-text-primary [overflow-wrap:anywhere]">{title}</strong> : null}
+      <p className="text-text-secondary [overflow-wrap:anywhere]">{details}</p>
+      {location.subLocations?.length ? (
+        <ul className="mt-2 list-inside list-disc text-text-secondary">
+          {location.subLocations.map((item) => <li key={item}>{item}</li>)}
+        </ul>
+      ) : null}
+    </div>
+  )
+}
+
 function ContextSelect({ classes, course, year, section, onCourseChange, onYearChange, onSectionChange }) {
   const courseOptions = [...new Map(classes.map((item) => {
     const value = `${item.course}::${item.branch || ''}`
@@ -370,13 +393,13 @@ export default function AdminTimetablePage() {
         <section className="border border-border-default bg-surface-primary p-4 shadow-admin sm:p-6">
           <h2 className="font-display text-xl font-bold">New timetable entry</h2>
           <div className="mt-5"><EntryFields row={row} onChange={setRow} /></div>
-          <p className={`mt-3 text-sm ${row.parsedLocation?.isValid || row.sessionType === 'Break' ? 'text-status-success' : 'text-status-danger'}`}>
+          <div className={`mt-3 text-sm ${row.parsedLocation?.isValid || row.sessionType === 'Break' ? 'text-status-success' : 'text-status-danger'}`}>
             {row.sessionType === 'Break'
-              ? 'Teacher and classroom are optional for a break.'
+              ? <p>Teacher and classroom are optional for a break.</p>
               : row.parsedLocation?.isValid
-                ? `${row.classroom} detected as ${row.parsedLocation.displayLabel}`
-                : row.classroom ? row.parsedLocation?.error : 'Enter a classroom to check its mapped location.'}
-          </p>
+                ? <LocationPreview location={row.parsedLocation} />
+                : <p>{row.classroom ? row.parsedLocation?.error : 'Enter a classroom to check its mapped location.'}</p>}
+          </div>
           {row.errors?.length ? <ul className="mt-2 text-sm text-status-danger">{row.errors.map((item) => <li key={item}>{item}</li>)}</ul> : null}
           <button type="button" disabled={busy || !section} onClick={addManually} className="mt-5 min-h-11 bg-accent-primary px-5 py-3 font-bold text-text-on-accent disabled:opacity-60">{busy ? 'Adding...' : 'Add timetable entry'}</button>
         </section>
@@ -408,7 +431,7 @@ export default function AdminTimetablePage() {
             <article key={entry.clientId || index} className={`border bg-surface-primary p-4 ${entry.status === 'error' ? 'border-status-danger' : 'border-border-default'}`}>
               <EntryFields row={entry} onChange={(next) => setRows((current) => current.map((item, itemIndex) => itemIndex === index ? next : item))} />
               <div className="mt-3 flex items-start justify-between gap-3 text-sm">
-                <div><strong>{entry.status === 'error' ? 'Error' : 'Valid'}</strong><p className="text-text-secondary">{entry.parsedLocation?.displayLabel || 'Location not parsed'}</p>{entry.errors?.map((item) => <p className="text-status-danger" key={item}>{item}</p>)}</div>
+                <div><strong>{entry.status === 'error' ? 'Error' : 'Valid'}</strong><LocationPreview location={entry.parsedLocation} />{entry.errors?.map((item) => <p className="text-status-danger" key={item}>{item}</p>)}</div>
                 <button type="button" aria-label={`Remove preview row ${index + 1}`} onClick={() => setRows((current) => current.filter((_, itemIndex) => itemIndex !== index))} className="flex h-11 w-11 items-center justify-center border border-border-default text-status-danger"><HiOutlineTrash /></button>
               </div>
             </article>
@@ -425,7 +448,7 @@ export default function AdminTimetablePage() {
                 {entries.length === 0 ? <p className="text-sm text-text-secondary">No classes.</p> : entries.map((entry) => (
                   <article key={entry.timetableEntryId} className={`border border-border-default p-4 ${entry.sessionType === 'Break' ? 'bg-surface-secondary' : ''}`}>
                     <EntryFields row={entry} onChange={(next) => setSchedule((current) => current.map((item) => item.timetableEntryId === entry.timetableEntryId ? next : item))} />
-                    {entry.sessionType === 'Break' ? <p className="mt-3 text-sm text-text-secondary">Breaks are not counted as classes.</p> : <p className="mt-3 text-sm text-text-secondary">{entry.parsedLocation?.displayLabel}</p>}
+                    {entry.sessionType === 'Break' ? <p className="mt-3 text-sm text-text-secondary">Breaks are not counted as classes.</p> : <div className="mt-3 text-sm"><LocationPreview location={entry.parsedLocation} /></div>}
                     {entry.errors?.map((item) => <p className="mt-1 text-sm text-status-danger" key={item}>{item}</p>)}
                     <div className="mt-4 flex flex-wrap gap-2">
                       <button type="button" disabled={busy} onClick={() => editEntry(schedule.find((item) => item.timetableEntryId === entry.timetableEntryId))} className="min-h-11 border border-border-strong px-3 py-2 font-bold"><HiOutlinePencil className="mr-1 inline" />Save edit</button>

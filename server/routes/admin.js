@@ -502,6 +502,8 @@ router.get('/classroom-options', authenticateToken, (req, res) => {
       wing: location.wing,
       room: location.room,
       locationName: location.locationName,
+      fullLocationName: location.fullLocationName,
+      subLocations: location.subLocations,
       displayLabel: location.displayLabel,
       shortLabel: location.shortLabel,
       isSpecialLocation: location.isSpecialLocation,
@@ -561,7 +563,7 @@ router.post('/classrooms', authenticateToken, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Please enter a valid section.' });
     }
     if (!location.valid) {
-      return res.status(400).json({ success: false, message: CLASSROOM_ERROR });
+      return res.status(400).json({ success: false, message: location.error || CLASSROOM_ERROR });
     }
 
     const floor = location.floorLabel;
@@ -623,7 +625,7 @@ router.put('/classrooms/:id', authenticateToken, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Please enter a valid section.' });
     }
     if (!location.valid) {
-      return res.status(400).json({ success: false, message: CLASSROOM_ERROR });
+      return res.status(400).json({ success: false, message: location.error || CLASSROOM_ERROR });
     }
 
     const finalFloor = location.floorLabel;

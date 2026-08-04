@@ -14,4 +14,26 @@ describe('ClassCard', () => {
     expect(card).toHaveTextContent('407')
     expect(card.className).not.toMatch(/opacity/)
   })
+
+  it('communicates a cancelled class with text as well as colour', () => {
+    render(<ClassCard entry={makeEntry({ status: 'cancelled' })} />)
+
+    expect(screen.getByRole('article', { name: /cancelled/i })).toHaveTextContent('Cancelled')
+    expect(screen.getByText('Room 407')).toBeVisible()
+  })
+
+  it('keeps the LGF lab name, floor, wing, and room visible', () => {
+    render(<ClassCard entry={makeEntry({
+      room: 'LGF001',
+      classroomNumber: 'LGF001',
+      floor: 'Lower Ground Floor',
+      floorLabel: 'Lower Ground Floor',
+      shortFloor: 'LGF',
+      wing: 'A',
+      locationName: 'DLD Lab',
+    })} />)
+
+    expect(screen.getByText('DLD Lab')).toBeVisible()
+    expect(screen.getByText('Lower Ground Floor · Wing A · Room LGF001')).toBeVisible()
+  })
 })

@@ -1,6 +1,13 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { HiOutlineAcademicCap, HiOutlineArrowRight, HiOutlinePhone, HiOutlineUser } from 'react-icons/hi'
+import {
+  HiOutlineAcademicCap,
+  HiOutlineArrowRight,
+  HiOutlineLocationMarker,
+  HiOutlinePhone,
+  HiOutlineShieldCheck,
+  HiOutlineUser,
+} from 'react-icons/hi'
 import { lookupStudentSchedule } from '../api/publicApi'
 import { normalizePhoneNumber, normalizeStudentName } from '../utils/studentIdentity'
 
@@ -55,108 +62,116 @@ export default function LandingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-surface-secondary text-text-primary">
-      <header className="border-b border-border-default">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-4 sm:px-8">
+    <div className="student-result-theme min-h-screen bg-surface-secondary text-text-primary">
+      <header className="border-b border-border-default bg-surface-primary">
+        <div className="mx-auto flex max-w-[1400px] items-center justify-between gap-4 px-5 py-4 sm:px-8 lg:px-12 2xl:px-[72px]">
           <div className="flex items-center gap-3">
-            <span className="flex h-9 w-9 items-center justify-center bg-surface-inverse text-text-on-dark">
+            <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-result-navy text-text-on-dark">
               <HiOutlineAcademicCap className="text-xl" />
             </span>
             <div>
-              <p className="font-display text-lg font-bold leading-none">Find My Class</p>
+              <p className="font-display text-lg font-bold leading-tight">Find My Class</p>
               <p className="mt-1 font-mono text-xs uppercase tracking-wide text-text-secondary">BBD University</p>
             </div>
           </div>
-          <p className="hidden font-mono text-sm text-text-secondary sm:block">Odd semester / 2026-27</p>
+          <p className="hidden font-mono text-xs font-bold uppercase tracking-wide text-accent-primary sm:block">Semester III / 2026-27</p>
         </div>
       </header>
 
-      <main>
-        <section className="mx-auto max-w-6xl px-5 pb-12 pt-12 sm:px-8 md:pb-16 md:pt-20">
-          <p className="mb-5 font-mono text-xs font-bold uppercase text-accent-primary">School of Engineering / CSAI</p>
-          <div className="max-w-3xl">
-            <h1 className="font-display text-5xl font-bold leading-[0.98] sm:text-6xl md:text-7xl">BBDU timetable</h1>
-            <p className="mt-6 max-w-xl text-lg leading-7 text-text-secondary">
-              View the timetable assigned to your class. Verify your student details to open today&apos;s schedule.
+      <main className="mx-auto grid min-h-[calc(100vh-77px)] max-w-[1400px] lg:grid-cols-[minmax(0,1.05fr)_minmax(360px,0.95fr)]">
+        <section className="flex min-w-0 items-center px-5 py-10 sm:px-8 sm:py-14 lg:px-12 lg:py-16 2xl:pl-[72px] 2xl:pr-16">
+          <div className="w-full max-w-xl">
+            <p className="font-mono text-xs font-bold uppercase tracking-wide text-accent-primary">Student timetable access</p>
+            <h1 className="mt-4 max-w-lg font-display text-4xl font-bold leading-tight sm:text-5xl lg:text-6xl">Find your next classroom.</h1>
+            <p className="mt-5 max-w-lg text-base leading-7 text-text-secondary sm:text-lg">
+              Enter the details registered with your class roster to open today&apos;s timetable and room assignment.
             </p>
-          </div>
 
-          <form onSubmit={handleSubmit} className="mt-10 max-w-3xl border-y border-border-strong py-6">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <label htmlFor="student-name-input" className="mb-2 block text-sm font-bold">Student name</label>
-                <div className="relative">
-                  <HiOutlineUser className="absolute left-4 top-1/2 -translate-y-1/2 text-xl text-text-secondary" />
-                  <input
-                    id="student-name-input"
-                    type="text"
-                    value={name}
-                    onChange={(event) => { setName(event.target.value); clearError() }}
-                    placeholder="For example, Rudransh Kumar Singh"
-                    autoComplete="name"
-                    autoFocus
-                    required
-                    className="h-14 w-full border border-border-input bg-surface-primary pl-12 pr-4 text-base font-semibold outline-none transition focus:border-focus focus:ring-2 focus:ring-focus-soft"
-                  />
+            <form onSubmit={handleSubmit} aria-busy={loading} className="mt-9 border-t border-border-strong pt-7">
+              <div className="grid gap-5">
+                <div>
+                  <label htmlFor="student-name-input" className="mb-2 block text-sm font-bold">Student name</label>
+                  <div className="relative">
+                    <HiOutlineUser aria-hidden="true" className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-xl text-text-secondary" />
+                    <input
+                      id="student-name-input"
+                      type="text"
+                      value={name}
+                      onChange={(event) => { setName(event.target.value); clearError() }}
+                      placeholder="For example, Rudransh Kumar Singh"
+                      autoComplete="name"
+                      autoFocus
+                      required
+                      className="h-14 w-full rounded-lg border border-border-input bg-surface-primary pl-12 pr-4 text-base font-semibold outline-none transition focus:border-focus focus:ring-2 focus:ring-focus-soft"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label htmlFor="student-phone-input" className="mb-2 block text-sm font-bold">Phone number</label>
+                  <div className="relative">
+                    <HiOutlinePhone aria-hidden="true" className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-xl text-text-secondary" />
+                    <input
+                      id="student-phone-input"
+                      type="tel"
+                      inputMode="tel"
+                      value={phoneNumber}
+                      onChange={(event) => { setPhoneNumber(event.target.value); clearError() }}
+                      placeholder="10-digit number"
+                      autoComplete="tel"
+                      maxLength={18}
+                      required
+                      className="h-14 w-full rounded-lg border border-border-input bg-surface-primary pl-12 pr-4 font-mono text-base font-semibold outline-none transition focus:border-focus focus:ring-2 focus:ring-focus-soft"
+                    />
+                  </div>
                 </div>
               </div>
-              <div>
-                <label htmlFor="student-phone-input" className="mb-2 block text-sm font-bold">Phone number</label>
-                <div className="relative">
-                  <HiOutlinePhone className="absolute left-4 top-1/2 -translate-y-1/2 text-xl text-text-secondary" />
-                  <input
-                    id="student-phone-input"
-                    type="tel"
-                    inputMode="tel"
-                    value={phoneNumber}
-                    onChange={(event) => { setPhoneNumber(event.target.value); clearError() }}
-                    placeholder="10-digit number"
-                    autoComplete="tel"
-                    maxLength={18}
-                    required
-                    className="h-14 w-full border border-border-input bg-surface-primary pl-12 pr-4 font-mono text-base font-semibold outline-none transition focus:border-focus focus:ring-2 focus:ring-focus-soft"
-                  />
-                </div>
-              </div>
-            </div>
-            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="min-h-5">
+
+              <div className="mt-5 min-h-12">
                 {error ? (
-                  <p role="alert" className="border-l-4 border-status-danger pl-3 text-sm font-medium text-status-danger">{error}</p>
+                  <p role="alert" className="rounded-lg border border-result-red bg-result-red-soft px-4 py-3 text-sm font-semibold text-result-red-strong">{error}</p>
                 ) : (
-                  <p className="text-sm text-text-secondary">Both details must match the same student record.</p>
+                  <p className="flex items-start gap-2 text-sm leading-6 text-text-secondary">
+                    <HiOutlineShieldCheck aria-hidden="true" className="mt-0.5 shrink-0 text-lg text-result-blue" />
+                    Your full phone number is used only to verify your student record and is never shown on the timetable.
+                  </p>
                 )}
               </div>
+
               <button
                 type="submit"
                 disabled={loading}
-                className="flex h-14 shrink-0 items-center justify-center gap-3 bg-accent-primary px-6 font-bold text-text-on-accent transition hover:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-60"
+                className="mt-5 flex min-h-14 w-full items-center justify-center gap-3 rounded-lg bg-result-blue px-6 py-3 font-bold text-text-on-dark transition-colors hover:bg-result-navy disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
               >
                 <span>{loading ? loadingMessage : 'Open my timetable'}</span>
-                {!loading ? <HiOutlineArrowRight className="text-xl" /> : null}
+                {!loading ? <HiOutlineArrowRight aria-hidden="true" className="text-xl" /> : null}
               </button>
-            </div>
-          </form>
-        </section>
+            </form>
 
-        <section className="bg-surface-inverse text-text-on-dark">
-          <div className="mx-auto grid max-w-6xl gap-8 px-5 py-6 sm:px-8 md:grid-cols-[220px_minmax(0,1fr)] md:items-start md:py-8">
-            <div className="md:pt-5">
-              <p className="font-mono text-xs font-bold uppercase text-accent-highlight">BBDU / Lucknow</p>
-              <h2 className="mt-3 font-display text-3xl font-bold leading-tight">Babu Banarasi Das University.</h2>
-              <p className="mt-4 text-sm leading-6 text-text-muted-inverse">
-                Located at BBD City on Ayodhya Road, BBDU is a state private university focused on teaching, learning and research across a multidisciplinary campus.
-              </p>
+            <div className="mt-9 flex min-w-0 items-center gap-3 border-t border-border-default pt-5 text-sm text-text-secondary">
+              <HiOutlineLocationMarker aria-hidden="true" className="shrink-0 text-xl text-accent-primary" />
+              <span>School of Engineering, BBD University, Lucknow</span>
             </div>
-            <figure className="border border-border-inverse bg-surface-primary p-2 shadow-brand-lg">
-              <img src="/bbdu-campus.webp" alt="Babu Banarasi Das University campus building in Lucknow" className="h-64 w-full object-cover object-top sm:h-80 md:h-[420px]" />
-              <figcaption className="bg-surface-primary px-2 pb-1 pt-3 text-xs text-text-secondary">Babu Banarasi Das University / Lucknow</figcaption>
-            </figure>
           </div>
         </section>
-      </main>
 
-      <footer className="bg-surface-inverse px-5 pb-8 pt-2 text-center text-xs text-text-muted-inverse">Academic session 2026-27 / Semester III</footer>
+        <aside className="min-w-0 bg-result-navy p-5 text-text-on-dark sm:p-8 lg:flex lg:flex-col lg:justify-end lg:p-10 2xl:pr-[72px]">
+          <figure className="min-w-0">
+            <img
+              src="/bbdu-campus.webp"
+              alt="Babu Banarasi Das University campus building in Lucknow"
+              className="h-56 w-full rounded-lg object-cover object-top sm:h-80 lg:h-[420px]"
+            />
+            <figcaption className="mt-6">
+              <p className="font-mono text-xs font-bold uppercase tracking-wide text-result-subtle">BBDU / Lucknow</p>
+              <h2 className="mt-3 max-w-md font-display text-2xl font-bold leading-tight sm:text-3xl">Babu Banarasi Das University</h2>
+              <p className="mt-3 max-w-lg text-sm leading-6 text-result-subtle">
+                BBD City, Faizabad Road, Lucknow. Timetable information follows the School of Engineering&apos;s issued class schedule.
+              </p>
+            </figcaption>
+          </figure>
+          <p className="mt-8 border-t border-border-inverse pt-4 font-mono text-xs uppercase tracking-wide text-result-subtle">Academic session 2026-27 / Semester III</p>
+        </aside>
+      </main>
     </div>
   )
 }

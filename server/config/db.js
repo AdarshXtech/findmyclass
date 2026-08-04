@@ -137,6 +137,7 @@ function createSqliteSchema() {
   sqlite.run('CREATE TABLE IF NOT EXISTS subjects (subject_id INTEGER PRIMARY KEY AUTOINCREMENT, subject_name TEXT NOT NULL UNIQUE, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)');
   sqlite.run('CREATE TABLE IF NOT EXISTS classrooms (classroom_id INTEGER PRIMARY KEY AUTOINCREMENT, section TEXT NOT NULL, subject TEXT NOT NULL, floor TEXT NOT NULL, wing TEXT NOT NULL, room TEXT NOT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)');
   sqlite.run('CREATE TABLE IF NOT EXISTS admins (admin_id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL UNIQUE, password TEXT NOT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)');
+  sqlite.run('CREATE TABLE IF NOT EXISTS timetable_seed_state (section TEXT NOT NULL, academic_session TEXT NOT NULL, seeded_at DATETIME DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (section, academic_session))');
   sqlite.run(`
     CREATE TABLE IF NOT EXISTS timetable_entries (
       timetable_entry_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -234,6 +235,12 @@ async function createPostgresSchema() {
       username TEXT NOT NULL UNIQUE,
       password TEXT NOT NULL,
       created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS timetable_seed_state (
+      section TEXT NOT NULL,
+      academic_session TEXT NOT NULL,
+      seeded_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (section, academic_session)
     );
     CREATE TABLE IF NOT EXISTS timetable_entries (
       timetable_entry_id SERIAL PRIMARY KEY,

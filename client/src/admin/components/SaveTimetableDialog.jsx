@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef } from 'react'
 import { createPortal } from 'react-dom'
 
-export default function SaveTimetableDialog({ busy, onCancel, onSave }) {
+export default function SaveTimetableDialog({ busy, error, onCancel, onSave }) {
   const titleId = useId()
   const dialogRef = useRef(null)
   const cancelRef = useRef(null)
@@ -37,6 +37,7 @@ export default function SaveTimetableDialog({ busy, onCancel, onSave }) {
       >
         <h2 id={titleId} className="font-display text-2xl font-bold">How should this timetable be saved?</h2>
         <p className="mt-2 text-text-secondary">Replace the complete class schedule, or merge these rows into it.</p>
+        {error ? <p role="alert" className="mt-4 border-l-4 border-status-danger pl-3 text-sm text-status-danger">{error}</p> : null}
         <div className="mt-6 grid gap-3">
           <button type="button" disabled={busy} onClick={() => onSave('replace')} className="min-h-11 bg-accent-primary px-4 py-3 font-bold text-text-on-accent disabled:opacity-60">
             Replace existing timetable

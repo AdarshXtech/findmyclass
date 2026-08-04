@@ -13,7 +13,10 @@ const focusableSelector = [
 export default function ConfirmDialog({
   title,
   description,
+  children,
+  error,
   confirmLabel,
+  confirmDisabled = false,
   busy = false,
   returnFocusTo,
   onCancel,
@@ -75,7 +78,9 @@ export default function ConfirmDialog({
         className="w-full max-w-md border border-border-strong bg-surface-primary p-6 text-text-primary shadow-brand"
       >
         <h2 id={titleId} className="font-display text-2xl font-bold">{title}</h2>
-        <p id={descriptionId} className="mt-3 leading-6 text-text-secondary">{description}</p>
+        <div id={descriptionId} className="mt-3 leading-6 text-text-secondary">{description}</div>
+        {children ? <div className="mt-5">{children}</div> : null}
+        {error ? <p role="alert" className="mt-4 border-l-4 border-status-danger pl-3 text-sm text-status-danger">{error}</p> : null}
         <div className="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
           <button
             ref={cancelRef}
@@ -91,7 +96,7 @@ export default function ConfirmDialog({
             onClick={() => {
               if (!busy) onConfirm()
             }}
-            disabled={busy}
+            disabled={busy || confirmDisabled}
             className="min-h-11 bg-status-danger px-5 py-2.5 font-bold text-text-on-accent transition hover:bg-accent-strong disabled:opacity-60"
           >
             {busy ? 'Deleting...' : confirmLabel}

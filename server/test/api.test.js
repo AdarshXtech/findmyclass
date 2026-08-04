@@ -18,6 +18,7 @@ const bcrypt = require('bcryptjs');
 const ExcelJS = require('exceljs');
 const { startServer } = require('../server');
 const { initDatabase, execute, queryAll } = require('../config/db');
+const { loadScheduleData } = require('../config/load-schedule-data');
 const csai2bDataset = require('../data/csai2b-2026.json');
 const csai2gDataset = require('../data/csai2g-2026.json');
 const { normalizeStudentName, hashPhoneNumber } = require('../utils/student-identity');
@@ -443,11 +444,41 @@ test('health, lookup, authentication, CRUD, and import workflows', async (t) => 
 
     const beforeImport = (await queryAll('SELECT * FROM timetable_entries WHERE section = ?', ['CSE-A'])).length;
     const form = new FormData();
+    form.append('course', 'B.Tech');
+    form.append('year', '1');
+    form.append('section', 'CSE-A');
     form.append('text', 'Day | Time | Subject | Teacher | Room\nTuesday | 10:00-11:00 | Physics | Dr. Rao | 414');
     const imported = await apiRequest('/api/admin/timetables/import', { method: 'POST', token, body: form });
     assert.equal(imported.status, 200);
     assert.equal(imported.body.data.saved, false);
     assert.equal(imported.body.data.rows[0].parsedLocation.locationName, 'Central Instrument Lab');
+    assert.equal((await queryAll('SELECT * FROM timetable_entries WHERE section = ?', ['CSE-A'])).length, beforeImport);
+
+    const imageForm = new FormData();
+    imageForm.append('course', 'B.Tech');
+    imageForm.append('year', '1');
+    imageForm.append('section', 'CSE-A');
+    imageForm.append(
+      'image',
+      new Blob([fs.readFileSync(path.resolve(__dirname, '../../client/public/csai2b-timetable.jpeg'))], { type: 'image/jpeg' }),
+      'csai2b-timetable.jpeg'
+    );
+    const imageImport = await apiRequest('/api/admin/timetables/import', {
+      method: 'POST',
+      token,
+      body: imageForm,
+    });
+    assert.equal(imageImport.status, 200);
+    assert.equal(imageImport.body.data.saved, false);
+    assert.equal(imageImport.body.data.rows.length, 28);
+    assert.equal(imageImport.body.data.rows.filter((row) => row.sessionType !== 'Break').length, 24);
+    assert.equal(imageImport.body.data.rows.some((row) => row.day === 'Tuesday'), false);
+    assert.deepEqual(
+      imageImport.body.data.rows.slice(0, 1).map(({ day, startTime, endTime, subjectName, classroom }) => (
+        { day, startTime, endTime, subjectName, classroom }
+      )),
+      [{ day: 'Monday', startTime: '09:00', endTime: '11:00', subjectName: 'Data Structure Lab', classroom: '515' }]
+    );
     assert.equal((await queryAll('SELECT * FROM timetable_entries WHERE section = ?', ['CSE-A'])).length, beforeImport);
 
     const conflict = await apiRequest('/api/admin/timetables/validate', {
@@ -501,6 +532,53 @@ test('health, lookup, authentication, CRUD, and import workflows', async (t) => 
     const saved = await queryAll('SELECT * FROM timetable_entries WHERE section = ? ORDER BY day_of_week', ['CSE-A']);
     assert.equal(saved.length, 2);
     assert.deepEqual(saved.map((entry) => entry.room), ['407', 'UGF014']);
+
+    const updatedEntry = await apiRequest(`/api/admin/timetables/${saved[0].timetable_entry_id}`, {
+      method: 'PUT',
+      token,
+      body: {
+        day: 'Tuesday', startTime: '10:00', endTime: '11:00',
+        subjectName: 'Updated DLD', facultyName: 'Updated Teacher',
+        sessionType: 'Lecture', classroom: '408',
+      },
+    });
+    assert.equal(updatedEntry.status, 200);
+    const updatedRow = (await queryAll('SELECT * FROM timetable_entries WHERE timetable_entry_id = ?', [saved[0].timetable_entry_id]))[0];
+    assert.equal(updatedRow.subject_name, 'Updated DLD');
+    assert.equal(updatedRow.faculty_name, 'Updated Teacher');
+    assert.equal(updatedRow.room, '408');
+
+    const unauthorizedDelete = await apiRequest(`/api/admin/timetables/${saved[0].timetable_entry_id}`, { method: 'DELETE' });
+    assert.equal(unauthorizedDelete.status, 401);
+
+    const invalidDelete = await apiRequest('/api/admin/timetables/not-an-id', { method: 'DELETE', token });
+    assert.equal(invalidDelete.status, 400);
+
+    const missingDelete = await apiRequest('/api/admin/timetables/999999', { method: 'DELETE', token });
+    assert.equal(missingDelete.status, 404);
+
+    const deletedEntry = await apiRequest(`/api/admin/timetables/${saved[0].timetable_entry_id}`, { method: 'DELETE', token });
+    assert.equal(deletedEntry.status, 200);
+    assert.equal((await queryAll('SELECT * FROM timetable_entries WHERE section = ?', ['CSE-A'])).length, 1);
+
+    const deletedTimetable = await apiRequest('/api/admin/timetables/class/CSE-A', { method: 'DELETE', token });
+    assert.equal(deletedTimetable.status, 200);
+    assert.equal(deletedTimetable.body.deletedCount, 1);
+
+    const deletedEmptyTimetable = await apiRequest('/api/admin/timetables/class/CSE-A', { method: 'DELETE', token });
+    assert.equal(deletedEmptyTimetable.status, 200);
+    assert.equal(deletedEmptyTimetable.body.deletedCount, 0);
+
+    const emptySchedule = await apiRequest('/api/admin/timetables/CSE-A', { token });
+    assert.equal(emptySchedule.status, 200);
+    assert.deepEqual(emptySchedule.body.data.rows, []);
+
+    const publicEmptySchedule = await apiRequest('/api/student/lookup', {
+      method: 'POST',
+      body: { name: 'Test Student', phone_number: '7000000001' },
+    });
+    assert.equal(publicEmptySchedule.status, 404);
+    assert.equal(publicEmptySchedule.body.message, 'No timetable is currently available for your assigned class.');
   });
 
   await t.test('imports CSV and reports every skipped row', async () => {
@@ -602,6 +680,17 @@ test('health, lookup, authentication, CRUD, and import workflows', async (t) => 
     const parsed = JSON.parse(zlib.gunzipSync(compressed.body).toString('utf8'));
     assert.equal(parsed.success, true);
     assert.ok(parsed.data.length >= 250);
+  });
+
+  await t.test('does not restore a deliberately deleted seeded timetable on restart loading', async () => {
+    await loadScheduleData({ accessRecords: [] });
+    const deleted = await apiRequest('/api/admin/timetables/class/CSAI2B', { method: 'DELETE', token });
+    assert.equal(deleted.status, 200);
+    assert.ok(deleted.body.deletedCount > 0);
+
+    await loadScheduleData({ accessRecords: [] });
+    const rows = await queryAll('SELECT * FROM timetable_entries WHERE section = ?', ['CSAI2B']);
+    assert.equal(rows.length, 0);
   });
 
   await t.test('temporarily rate limits repeated failed identity matches', async () => {

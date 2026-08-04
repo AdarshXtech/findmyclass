@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
   CONFLICT_ERROR,
+  DUPLICATE_ERROR,
   parseTimetableText,
   validateRows,
 } = require('../utils/timetable-manager');
@@ -56,4 +57,28 @@ test('blocks overlapping classes and parses table imports into an unsaved previe
   assert.equal(preview.length, 1);
   assert.equal(preview[0].status, 'valid');
   assert.equal(preview[0].subjectName, 'Digital Logic Design');
+});
+
+test('accepts lunch breaks, rejects Saturday, and reports exact duplicates', () => {
+  const [lunch] = validateRows([{
+    day: 'Friday',
+    startTime: '13:00',
+    endTime: '14:00',
+    subject: 'Lunch break',
+    sessionType: 'Break',
+  }]);
+  assert.equal(lunch.status, 'valid');
+  assert.equal(lunch.facultyName, '');
+  assert.equal(lunch.room, '');
+
+  assert.equal(validateRows([row({ day: 'Saturday' })])[0].status, 'error');
+
+  const duplicates = validateRows([row(), row()]);
+  assert.ok(duplicates.every((entry) => entry.errors.includes(DUPLICATE_ERROR)));
+
+  const [importedLunch] = parseTimetableText(
+    'Day | Time | Subject | Teacher | Room | Type\nFriday | 1:00 PM - 2:00 PM | Lunch break | | | Break'
+  );
+  assert.equal(importedLunch.status, 'valid');
+  assert.equal(importedLunch.sessionType, 'Break');
 });

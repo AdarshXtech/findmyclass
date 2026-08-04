@@ -1,11 +1,12 @@
 const { parseClassroomLocation } = require('./classroom-location');
 
-const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 const DAY_LOOKUP = new Map(DAYS.flatMap((day, index) => [
   [day.toLowerCase(), index + 1],
   [day.slice(0, 3).toLowerCase(), index + 1],
 ]));
 const CONFLICT_ERROR = 'Time conflict detected. This class overlaps with another timetable entry.';
+const DUPLICATE_ERROR = 'Duplicate timetable entry detected for this day and time.';
 
 function sanitizeImportText(value) {
   return String(value || '')
@@ -15,7 +16,7 @@ function sanitizeImportText(value) {
 }
 
 function normalizeDay(value) {
-  if (Number.isInteger(Number(value)) && Number(value) >= 1 && Number(value) <= 6) {
+  if (Number.isInteger(Number(value)) && Number(value) >= 1 && Number(value) <= DAYS.length) {
     return Number(value);
   }
   return DAY_LOOKUP.get(String(value || '').trim().toLowerCase()) || null;
@@ -40,17 +41,20 @@ function formatEntry(row, index = 0) {
   const dayOfWeek = normalizeDay(row.dayOfWeek ?? row.day_of_week ?? row.day);
   const startTime = normalizeTime(row.startTime ?? row.start_time);
   const endTime = normalizeTime(row.endTime ?? row.end_time);
-  const subjectName = String(row.subjectName ?? row.subject_name ?? row.subject ?? '').trim().replace(/\s+/g, ' ');
+  const requestedSessionType = String(row.sessionType ?? row.session_type ?? 'Lecture').trim();
+  const sessionType = /^break$/i.test(requestedSessionType) ? 'Break' : requestedSessionType || 'Lecture';
+  const isBreak = sessionType === 'Break';
+  const subjectName = String(row.subjectName ?? row.subject_name ?? row.subject ?? (isBreak ? 'Lunch break' : '')).trim().replace(/\s+/g, ' ');
   const facultyName = String(row.facultyName ?? row.faculty_name ?? row.teacher ?? '').trim().replace(/\s+/g, ' ');
   const roomInput = String(row.classroom ?? row.room ?? '').trim();
-  const parsedLocation = parseClassroomLocation(roomInput, { subjectName, sessionType: row.sessionType });
+  const parsedLocation = parseClassroomLocation(roomInput, { subjectName, sessionType });
   const errors = [];
   if (!dayOfWeek) errors.push('Select a valid day.');
   if (!startTime || !endTime) errors.push('Enter valid start and end times.');
   else if (startTime >= endTime) errors.push('Start time must be before end time.');
   if (!subjectName) errors.push('Subject is required.');
-  if (!facultyName) errors.push('Teacher is required.');
-  if (!parsedLocation.isValid) errors.push(parsedLocation.error || 'Classroom is required.');
+  if (!isBreak && !facultyName) errors.push('Teacher is required.');
+  if (!isBreak && !parsedLocation.isValid) errors.push(parsedLocation.error || 'Classroom is required.');
 
   return {
     clientId: row.clientId || `row-${index + 1}`,
@@ -61,10 +65,10 @@ function formatEntry(row, index = 0) {
     endTime,
     subjectCode: String(row.subjectCode ?? row.subject_code ?? '').trim(),
     subjectName,
-    sessionType: String(row.sessionType ?? row.session_type ?? 'Lecture').trim() || 'Lecture',
+    sessionType,
     facultyCode: String(row.facultyCode ?? row.faculty_code ?? '').trim(),
     facultyName,
-    room: parsedLocation.isValid ? parsedLocation.room : roomInput,
+    room: isBreak ? '' : parsedLocation.isValid ? parsedLocation.room : roomInput,
     classroom: roomInput,
     parsedLocation,
     errors,
@@ -81,6 +85,12 @@ function validateRows(inputRows, existingRows = []) {
       ...existing.filter((entry) => String(entry.timetableEntryId) !== String(row.timetableEntryId)),
       ...rows.filter((_, candidateIndex) => candidateIndex !== index),
     ];
+    const duplicate = candidates.some((entry) => (
+      entry.dayOfWeek === row.dayOfWeek
+      && entry.startTime === row.startTime
+      && entry.endTime === row.endTime
+      && entry.subjectName.toLowerCase() === row.subjectName.toLowerCase()
+    ));
     const conflict = candidates.some((entry) => (
       entry.dayOfWeek === row.dayOfWeek
       && entry.startTime
@@ -88,7 +98,8 @@ function validateRows(inputRows, existingRows = []) {
       && row.startTime < entry.endTime
       && row.endTime > entry.startTime
     ));
-    if (conflict && !row.errors.includes(CONFLICT_ERROR)) row.errors.push(CONFLICT_ERROR);
+    if (duplicate && !row.errors.includes(DUPLICATE_ERROR)) row.errors.push(DUPLICATE_ERROR);
+    else if (conflict && !row.errors.includes(CONFLICT_ERROR)) row.errors.push(CONFLICT_ERROR);
     row.status = row.errors.length ? 'error' : 'valid';
   });
   return rows;
@@ -116,17 +127,20 @@ function parseDelimited(text) {
     subject: find('subject', 'course name'),
     teacher: find('teacher', 'faculty'),
     room: find('room', 'classroom', 'location'),
+    type: find('type', 'session'),
   };
   return lines.slice(1).map((line) => {
     const cells = line.split(delimiter).map((cell) => cell.trim());
     const [rangeStart, rangeEnd] = splitTimeRange(cells[indexes.time]);
+    const subject = cells[indexes.subject];
     return {
       day: cells[indexes.day],
       startTime: indexes.start >= 0 ? cells[indexes.start] : rangeStart,
       endTime: indexes.end >= 0 ? cells[indexes.end] : rangeEnd,
-      subject: cells[indexes.subject],
+      subject,
       teacher: cells[indexes.teacher],
       classroom: cells[indexes.room],
+      sessionType: indexes.type >= 0 ? cells[indexes.type] : /\b(?:lunch|break)\b/i.test(subject || '') ? 'Break' : 'Lecture',
     };
   });
 }
@@ -156,6 +170,7 @@ function parsePlainText(text) {
       subject: teacherMatch ? details.slice(0, teacherMatch.index).trim() : details,
       teacher: teacherMatch?.[1] || '',
       classroom: room,
+      sessionType: /\b(?:lunch|break)\b/i.test(details) ? 'Break' : 'Lecture',
     });
   }
   return rows;
@@ -171,6 +186,7 @@ function parseTimetableText(value) {
 module.exports = {
   CONFLICT_ERROR,
   DAYS,
+  DUPLICATE_ERROR,
   formatEntry,
   normalizeDay,
   normalizeTime,

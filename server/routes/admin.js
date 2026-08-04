@@ -35,7 +35,7 @@ const {
   parseTimetableText,
   validateRows,
 } = require('../utils/timetable-manager');
-const { recognizeTimetableImage } = require('../utils/timetable-ocr');
+const { extractTimetableImage } = require('../utils/timetable-ocr');
 const { createFailedAttemptLimiter } = require('../middleware/rate-limit');
 
 const adminLoginLimiter = createFailedAttemptLimiter({
@@ -980,17 +980,31 @@ function timetableResponseRow(row) {
   return formatEntry(row);
 }
 
-async function validateTimetableRequest(body, { includeExisting = true, excludeId = null } = {}) {
-  const section = String(body.section || '').trim().toUpperCase();
-  const context = await getTimetableContext(section);
-  const metadataErrors = [];
-  if (!context) metadataErrors.push('Select an existing class or section.');
-  if (!String(body.course || '').trim()) metadataErrors.push('Course is required.');
-  if (!Number(body.year)) metadataErrors.push('Year is required.');
+function timetableMetadataErrors(body, context) {
+  const errors = [];
+  if (!context) errors.push('Select an existing class or section.');
+  if (!String(body.course || '').trim()) errors.push('Course is required.');
+  if (!Number(body.year)) errors.push('Year is required.');
   if (context && (
     String(context.course) !== String(body.course).trim()
     || Number(context.year) !== Number(body.year)
-  )) metadataErrors.push('Course, year, and class must match an existing student class.');
+  )) errors.push('Course, year, and class must match an existing student class.');
+  return errors;
+}
+
+function timetableId(value) {
+  const id = Number(value);
+  return Number.isSafeInteger(id) && id > 0 ? id : null;
+}
+
+function isTimetableConflict(error) {
+  return error?.code === '23505' || /unique constraint/i.test(String(error?.message || ''));
+}
+
+async function validateTimetableRequest(body, { includeExisting = true, excludeId = null } = {}) {
+  const section = String(body.section || '').trim().toUpperCase();
+  const context = await getTimetableContext(section);
+  const metadataErrors = timetableMetadataErrors(body, context);
 
   const existing = includeExisting && context
     ? (await getTimetableRows(section)).filter((row) => String(row.timetable_entry_id) !== String(excludeId))
@@ -1039,16 +1053,31 @@ router.post('/timetables/validate', authenticateToken, async (req, res) => {
 /** POST /api/admin/timetables/import */
 router.post('/timetables/import', authenticateToken, uploadTimetableImage, async (req, res) => {
   try {
+    const context = await getTimetableContext(req.body.section);
+    const metadataErrors = timetableMetadataErrors(req.body, context);
+    if (metadataErrors.length) {
+      return res.status(context ? 400 : 404).json({ success: false, message: metadataErrors[0], data: { metadataErrors } });
+    }
     if (req.file && req.body.text) {
       return res.status(400).json({ success: false, message: 'Choose either an image or pasted text for each import.' });
     }
     if (!req.file && !String(req.body.text || '').trim()) {
       return res.status(400).json({ success: false, message: 'Upload an image or paste timetable text.' });
     }
-    const extractedText = req.file
-      ? await recognizeTimetableImage(req.file.buffer)
-      : String(req.body.text);
-    const rows = parseTimetableText(extractedText);
+    const extraction = req.file
+      ? await extractTimetableImage(req.file.buffer)
+      : { text: String(req.body.text), rows: null };
+    const extractedText = extraction.text;
+    const rows = extraction.rows
+      ? validateRows(extraction.rows)
+      : parseTimetableText(extractedText);
+    if (!rows.length) {
+      return res.status(422).json({
+        success: false,
+        message: 'No timetable entries could be read. Try a clearer image or paste the timetable as text.',
+        data: { rows, extractedText: req.file ? extractedText : undefined, saved: false },
+      });
+    }
     res.json({
       success: true,
       data: {
@@ -1095,6 +1124,9 @@ router.post('/timetables', authenticateToken, async (req, res) => {
     res.status(201).json({ success: true, message: 'Timetable saved successfully.' });
   } catch (error) {
     console.error('Timetable save failed:', error.message);
+    if (isTimetableConflict(error)) {
+      return res.status(409).json({ success: false, message: 'This change conflicts with an existing timetable entry.' });
+    }
     res.status(500).json({ success: false, message: 'Could not save the timetable.' });
   }
 });
@@ -1102,10 +1134,12 @@ router.post('/timetables', authenticateToken, async (req, res) => {
 /** PUT /api/admin/timetables/:id */
 router.put('/timetables/:id', authenticateToken, async (req, res) => {
   try {
-    const id = Number(req.params.id);
+    const id = timetableId(req.params.id);
+    if (!id) return res.status(400).json({ success: false, message: 'Invalid timetable entry ID.' });
     const current = await queryOne('SELECT * FROM timetable_entries WHERE timetable_entry_id = ?', [id]);
     if (!current) return res.status(404).json({ success: false, message: 'Timetable entry not found.' });
     const context = await getTimetableContext(current.section);
+    if (!context) return res.status(404).json({ success: false, message: 'Class not found.' });
     const validation = await validateTimetableRequest({
       ...req.body,
       course: context.course,
@@ -1119,24 +1153,51 @@ router.put('/timetables/:id', authenticateToken, async (req, res) => {
     const row = validation.rows[0];
     await execute(
       `UPDATE timetable_entries
-       SET day_of_week=?, start_time=?, end_time=?, subject_name=?, session_type=?,
-           faculty_name=?, room=?, source_label=?
+       SET day_of_week=?, start_time=?, end_time=?, subject_code=?, subject_name=?, session_type=?,
+           faculty_code=?, faculty_name=?, room=?, source_label=?
        WHERE timetable_entry_id=?`,
-      [row.dayOfWeek, row.startTime, row.endTime, row.subjectName, row.sessionType, row.facultyName, row.room, 'ADMIN', id]
+      [
+        row.dayOfWeek, row.startTime, row.endTime, row.subjectCode || null, row.subjectName,
+        row.sessionType, row.facultyCode || null, row.facultyName || null, row.room || null, 'ADMIN', id,
+      ]
     );
     res.json({ success: true, message: 'Timetable entry updated successfully.' });
   } catch (error) {
+    if (isTimetableConflict(error)) {
+      return res.status(409).json({ success: false, message: 'This change conflicts with an existing timetable entry.' });
+    }
     res.status(500).json({ success: false, message: 'Could not update the timetable entry.' });
+  }
+});
+
+/** DELETE /api/admin/timetables/class/:classId */
+router.delete('/timetables/class/:classId', authenticateToken, async (req, res) => {
+  try {
+    const context = await getTimetableContext(req.params.classId);
+    if (!context) return res.status(404).json({ success: false, message: 'Class not found.' });
+    const result = await execute('DELETE FROM timetable_entries WHERE section = ?', [context.section]);
+    console.info(`Admin deleted timetable for ${context.section}: ${result.changes} entries.`);
+    res.json({
+      success: true,
+      deletedCount: result.changes,
+      message: result.changes
+        ? 'Complete timetable deleted successfully.'
+        : 'No timetable entries existed for this class.',
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Could not delete the complete timetable.' });
   }
 });
 
 /** DELETE /api/admin/timetables/:id */
 router.delete('/timetables/:id', authenticateToken, async (req, res) => {
   try {
-    const id = Number(req.params.id);
+    const id = timetableId(req.params.id);
+    if (!id) return res.status(400).json({ success: false, message: 'Invalid timetable entry ID.' });
     const current = await queryOne('SELECT timetable_entry_id FROM timetable_entries WHERE timetable_entry_id = ?', [id]);
     if (!current) return res.status(404).json({ success: false, message: 'Timetable entry not found.' });
     await execute('DELETE FROM timetable_entries WHERE timetable_entry_id = ?', [id]);
+    console.info(`Admin deleted timetable entry ${id}.`);
     res.json({ success: true, message: 'Timetable entry deleted successfully.' });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Could not delete the timetable entry.' });

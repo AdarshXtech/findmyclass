@@ -41,6 +41,7 @@ async function loadScheduleData({ accessRecords = readAccessRecords(), replaceTi
   );
   const existingRolls = new Set(existingStudents.map((student) => student.university_roll_number));
   const studentsCreated = roster.filter((student) => !existingRolls.has(student.universityRollNumber)).length;
+  let timetablesLoaded = 0;
 
   await withTransaction(async (transaction) => {
     await transaction.insertMany(
@@ -80,16 +81,27 @@ async function loadScheduleData({ accessRecords = readAccessRecords(), replaceTi
     );
 
     for (const dataset of datasets) {
+      const seedState = await transaction.queryOne(
+        'SELECT section FROM timetable_seed_state WHERE section = ? AND academic_session = ?',
+        [dataset.section, dataset.academicSession]
+      );
       const existing = await transaction.queryOne(
         'SELECT COUNT(*) AS count FROM timetable_entries WHERE section = ? AND academic_session = ?',
         [dataset.section, dataset.academicSession]
       );
-      if (!replaceTimetables && Number(existing?.count) > 0) continue;
+      if (!replaceTimetables && seedState) continue;
+      if (!replaceTimetables && Number(existing?.count) > 0) {
+        await transaction.execute(
+          'INSERT INTO timetable_seed_state (section, academic_session) VALUES (?, ?) ON CONFLICT (section, academic_session) DO NOTHING',
+          [dataset.section, dataset.academicSession]
+        );
+        continue;
+      }
       await transaction.execute(
         'DELETE FROM timetable_entries WHERE section = ? AND academic_session = ?',
         [dataset.section, dataset.academicSession]
       );
-      await transaction.insertMany(
+      const inserted = await transaction.insertMany(
         'timetable_entries',
         [
           'section', 'day_of_week', 'start_time', 'end_time', 'subject_code', 'subject_name',
@@ -111,6 +123,11 @@ async function loadScheduleData({ accessRecords = readAccessRecords(), replaceTi
           dataset.semester,
           dataset.sourceSectionLabels.timetable,
         ])
+      );
+      timetablesLoaded += inserted.changes;
+      await transaction.execute(
+        'INSERT INTO timetable_seed_state (section, academic_session) VALUES (?, ?) ON CONFLICT (section, academic_session) DO NOTHING',
+        [dataset.section, dataset.academicSession]
       );
     }
 
@@ -146,7 +163,7 @@ async function loadScheduleData({ accessRecords = readAccessRecords(), replaceTi
   console.log(
     `Loaded ${datasets.map((dataset) => dataset.displayName).join(' and ')}: ` +
     `${studentsCreated} students created, ${roster.length - studentsCreated} updated, ` +
-    `${datasets.reduce((total, dataset) => total + dataset.timetable.length, 0)} timetable entries.`
+    `${timetablesLoaded} timetable entries loaded.`
   );
 }
 

@@ -33,6 +33,30 @@ function readAccessRecords() {
 async function loadScheduleData({ accessRecords = readAccessRecords(), replaceTimetables = false } = {}) {
   await initDatabase();
 
+  const preparedAccessRecords = accessRecords.map((record) => {
+    const phoneNumber = normalizePhoneNumber(record.phoneNumber);
+    const normalizedName = normalizeStudentName(record.name);
+    const dataset = datasets.find((entry) => entry.section === record.section);
+    const universityRollNumber = String(record.universityRollNumber || '').trim();
+    if (!phoneNumber || !normalizedName || !dataset || !universityRollNumber) {
+      throw new Error('Student access records must include a valid name, phone number, university roll number, and class.');
+    }
+    return {
+      name: String(record.name).trim().replace(/\s+/g, ' '),
+      normalizedName,
+      phoneHash: hashPhoneNumber(phoneNumber),
+      phoneLastFour: phoneNumber.slice(-4),
+      universityRollNumber,
+      dataset,
+    };
+  });
+  if (new Set(preparedAccessRecords.map((record) => record.phoneHash)).size !== preparedAccessRecords.length) {
+    throw new Error('Student access records must use a unique phone number for each student.');
+  }
+  if (new Set(preparedAccessRecords.map((record) => record.universityRollNumber)).size !== preparedAccessRecords.length) {
+    throw new Error('Student access records must contain each university roll number only once.');
+  }
+
   const roster = csai2b.students;
   const rollPlaceholders = roster.map(() => '?').join(', ');
   const existingStudents = await queryAll(
@@ -131,28 +155,29 @@ async function loadScheduleData({ accessRecords = readAccessRecords(), replaceTi
       );
     }
 
-    for (const record of accessRecords) {
-      const phoneNumber = normalizePhoneNumber(record.phoneNumber);
-      const normalizedName = normalizeStudentName(record.name);
-      const dataset = datasets.find((entry) => entry.section === record.section);
-      if (!phoneNumber || !normalizedName || !dataset || !record.universityRollNumber) {
-        throw new Error('Student access records must include a valid name, phone number, university roll number, and class.');
-      }
+    for (const record of preparedAccessRecords) {
+      await transaction.execute(
+        `UPDATE students SET phone_lookup_hash=NULL, phone_last_four=NULL
+         WHERE university_roll_number=? OR phone_lookup_hash=?`,
+        [record.universityRollNumber, record.phoneHash]
+      );
+    }
 
+    for (const record of preparedAccessRecords) {
       const result = await transaction.execute(
         `UPDATE students
          SET name=?, normalized_name=?, phone_lookup_hash=?, phone_last_four=?,
              course=?, branch=?, year=?, section=?
-         WHERE university_roll_number=?`,
+        WHERE university_roll_number=?`,
         [
-          String(record.name).trim().replace(/\s+/g, ' '),
-          normalizedName,
-          hashPhoneNumber(phoneNumber),
-          phoneNumber.slice(-4),
-          dataset.course,
-          dataset.branch,
-          dataset.year,
-          dataset.section,
+          record.name,
+          record.normalizedName,
+          record.phoneHash,
+          record.phoneLastFour,
+          record.dataset.course,
+          record.dataset.branch,
+          record.dataset.year,
+          record.dataset.section,
           record.universityRollNumber,
         ]
       );

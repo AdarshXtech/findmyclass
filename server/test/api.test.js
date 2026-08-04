@@ -693,6 +693,33 @@ test('health, lookup, authentication, CRUD, and import workflows', async (t) => 
     assert.equal(rows.length, 0);
   });
 
+  await t.test('reassigns a configured phone hash without violating its unique index', async () => {
+    const phoneNumber = '7000000199';
+    const phoneHash = hashPhoneNumber(phoneNumber);
+    await execute(
+      'UPDATE students SET phone_lookup_hash=?, phone_last_four=? WHERE university_roll_number=?',
+      [phoneHash, phoneNumber.slice(-4), '1250439358']
+    );
+
+    await loadScheduleData({
+      accessRecords: [{
+        name: 'Adarsh Tiwari',
+        phoneNumber,
+        universityRollNumber: '1250439028',
+        section: 'CSAI2B',
+      }],
+    });
+
+    const records = await queryAll(
+      'SELECT university_roll_number, phone_lookup_hash FROM students WHERE university_roll_number IN (?, ?) ORDER BY university_roll_number',
+      ['1250439028', '1250439358']
+    );
+    assert.deepEqual(records, [
+      { university_roll_number: '1250439028', phone_lookup_hash: phoneHash },
+      { university_roll_number: '1250439358', phone_lookup_hash: null },
+    ]);
+  });
+
   await t.test('temporarily rate limits repeated failed identity matches', async () => {
     for (let attempt = 0; attempt < 5; attempt += 1) {
       const response = await apiRequest('/api/student/lookup', {

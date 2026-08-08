@@ -7,19 +7,11 @@ const {
   normalizePhoneNumber,
   hashPhoneNumber,
 } = require('../utils/student-identity');
-const { createFailedAttemptLimiter } = require('../middleware/rate-limit');
 
 const LOOKUP_ERROR = 'Student details not found. Please check your name and phone number.';
-const lookupLimiter = createFailedAttemptLimiter({
-  windowMs: 15 * 60 * 1000,
-  maxAttempts: 5,
-  message: 'Too many unsuccessful attempts. Please wait 15 minutes and try again.',
-});
 
 /** POST /api/student/lookup - verify a student and return their class schedule. */
 router.post('/lookup', async (req, res) => {
-  if (lookupLimiter.check(req, res)) return;
-
   try {
     const normalizedName = normalizeStudentName(req.body.name);
     const phoneNumber = normalizePhoneNumber(req.body.phone_number ?? req.body.phoneNumber);
@@ -48,12 +40,10 @@ router.post('/lookup', async (req, res) => {
     );
 
     if (matches.length !== 1) {
-      lookupLimiter.recordFailure(req);
       return res.status(404).json({ success: false, message: LOOKUP_ERROR });
     }
 
     const student = matches[0];
-    lookupLimiter.clear(req);
 
     const classrooms = await queryAll(
       'SELECT classroom_id, section, subject, floor, wing, room FROM classrooms WHERE section = ? ORDER BY subject',

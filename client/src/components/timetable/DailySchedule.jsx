@@ -16,7 +16,7 @@ export default function DailySchedule({
       <button
         type="button"
         onClick={onToggle}
-        className={`flex min-h-12 w-full min-w-0 items-center justify-between gap-4 rounded-lg border px-5 py-4 text-left transition-colors ${expanded ? 'border-result-blue bg-result-blue text-text-on-dark' : 'border-border-default bg-surface-primary hover:border-result-blue'}`}
+        className={`flex min-h-12 w-full min-w-0 items-center justify-between gap-4 rounded-lg border px-5 py-4 text-left transition-colors ${expanded ? 'border-result-slate bg-result-slate text-text-on-dark hover:bg-result-slate-hover' : 'border-border-default bg-surface-primary hover:border-result-slate'}`}
         aria-expanded={expanded}
         aria-controls="today-schedule"
       >
@@ -24,7 +24,7 @@ export default function DailySchedule({
           <HiOutlineCalendar aria-hidden="true" className="shrink-0 text-xl" />
           <span className="min-w-0">
             <span className="block font-display text-lg font-bold">Other Classes</span>
-            <span className={`mt-1 block font-mono text-xs font-medium [overflow-wrap:anywhere] ${expanded ? 'text-result-subtle' : 'text-text-secondary'}`}>{formattedDate}</span>
+            <span className={`mt-1 block font-mono text-xs font-medium [overflow-wrap:anywhere] ${expanded ? 'text-text-on-dark' : 'text-text-secondary'}`}>{formattedDate}</span>
           </span>
         </span>
         <span className="flex shrink-0 items-center gap-3">

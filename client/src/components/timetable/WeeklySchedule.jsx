@@ -20,7 +20,7 @@ export default function WeeklySchedule({
     <section className="mt-8 min-w-0 lg:mt-10">
       <div className="mb-5 flex min-w-0 flex-wrap items-end justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
-          <HiOutlineCalendar aria-hidden="true" className="shrink-0 text-2xl text-result-blue" />
+          <HiOutlineCalendar aria-hidden="true" className="shrink-0 text-2xl text-result-slate" />
           <div className="min-w-0">
             <h2 className="font-display text-2xl font-bold sm:text-3xl">Weekly Classes</h2>
             <p className="mt-1 text-sm text-text-secondary">Monday to Friday</p>

@@ -6,6 +6,10 @@ import NextClassHero from '../components/timetable/NextClassHero'
 import { makeEntry, makeLookupData, setViewport } from '../test/fixtures'
 import ResultPage from './ResultPage'
 
+vi.mock('../components/map/CampusMapView', () => ({
+  default: () => <h1>Campus Map View</h1>,
+}))
+
 function renderResultPage(data = makeLookupData()) {
   return render(
     <MemoryRouter initialEntries={[{ pathname: '/result', state: { lookupData: data } }]}>
@@ -30,26 +34,36 @@ describe('ResultPage', () => {
     const mobileMenu = document.getElementById('schedule-menu')
     expect(within(mobileMenu).getByRole('button', { name: 'Daily Classes' })).toBeVisible()
     expect(within(mobileMenu).getByRole('button', { name: 'Weekly Classes' })).toBeVisible()
+    expect(within(mobileMenu).getByRole('button', { name: 'Map' })).toBeVisible()
 
     await user.keyboard('{Escape}')
     expect(menuButton).toHaveAttribute('aria-expanded', 'false')
     expect(menuButton).toHaveFocus()
   })
 
-  it('auto-expands today when the first class is 90 minutes away', () => {
+  it('keeps the class list collapsed until the student opens it', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date(2026, 6, 20, 7, 30))
     renderResultPage(makeLookupData({
       timetable: [makeEntry({ dayOfWeek: 1, startTime: '09:00', endTime: '10:00' })],
     }))
 
-    expect(screen.getByRole('button', { name: /other classes/i })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('button', { name: /other classes/i })).toHaveAttribute('aria-expanded', 'false')
   })
 
   it('shows the end-of-day state after the final class', () => {
     render(<NextClassHero entry={null} status={null} finishedForToday />)
 
     expect(screen.getByText('No more classes today')).toBeVisible()
+  })
+
+  it('uses the softer next-class hero state without changing its content', () => {
+    render(<NextClassHero entry={makeEntry()} status="Next class" timeContext="Starts at 9:00 AM" />)
+
+    const hero = screen.getByRole('region', { name: 'Next class location' })
+    expect(hero).toHaveClass('current-class-hero--next')
+    expect(hero).toHaveTextContent('Digital Logic Design')
+    expect(hero).toHaveTextContent('Room 407')
   })
 
   it('never displays a student full phone number', () => {
@@ -60,9 +74,14 @@ describe('ResultPage', () => {
 
   it.each([
     [320, 'small mobile'],
+    [360, 'compact mobile'],
     [390, 'standard mobile'],
+    [430, 'large mobile'],
     [768, 'tablet'],
+    [1024, 'small desktop'],
     [1280, 'desktop'],
+    [1440, 'large desktop'],
+    [1920, 'wide desktop'],
   ])('keeps primary timetable interactions available at %ipx (%s)', async (width) => {
     const user = userEvent.setup()
     setViewport(width)
@@ -84,5 +103,16 @@ describe('ResultPage', () => {
 
     expect(screen.getByRole('button', { name: 'Open schedule menu' })).toHaveAttribute('aria-expanded', 'false')
     expect(screen.getByRole('heading', { name: 'Weekly Classes' })).toBeVisible()
+    expect(screen.getByRole('button', { name: /monday/i })).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('opens Map from the student navigation and closes the mobile menu', async () => {
+    const user = userEvent.setup()
+    renderResultPage()
+    await user.click(screen.getByRole('button', { name: 'Open schedule menu' }))
+    await user.click(within(document.getElementById('schedule-menu')).getByRole('button', { name: 'Map' }))
+
+    expect(screen.getByRole('button', { name: 'Open schedule menu' })).toHaveAttribute('aria-expanded', 'false')
+    expect(await screen.findByRole('heading', { name: 'Campus Map View' })).toBeVisible()
   })
 })

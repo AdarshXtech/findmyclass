@@ -53,7 +53,7 @@ function formatEntry(row, index = 0) {
   if (!startTime || !endTime) errors.push('Enter valid start and end times.');
   else if (startTime >= endTime) errors.push('Start time must be before end time.');
   if (!subjectName) errors.push('Subject is required.');
-  if (!isBreak && !facultyName) errors.push('Teacher is required.');
+  if (!isBreak && !facultyName) errors.push('Faculty is required.');
   if (!isBreak && !parsedLocation.isValid) errors.push(parsedLocation.error || 'Classroom is required.');
 
   return {

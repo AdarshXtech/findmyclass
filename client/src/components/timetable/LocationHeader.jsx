@@ -13,9 +13,9 @@ export default function LocationHeader({ entry, inline = false, inverted = false
 
   if (inline) {
     return (
-      <div aria-label={locationLabel} className={`min-w-0 border-l-2 pl-4 sm:text-right ${inverted ? 'border-result-blue-pale' : 'border-result-blue-light'}`}>
-        <p className={`font-display text-xl font-bold leading-tight [overflow-wrap:anywhere] ${inverted ? 'text-text-on-dark' : 'text-text-primary'}`}>{title}</p>
-        <p className={`mt-1 font-mono text-xs font-bold uppercase tracking-wide [overflow-wrap:anywhere] ${inverted ? 'text-result-subtle' : 'text-text-secondary'}`}>{secondaryLocation}</p>
+      <div aria-label={locationLabel} className={`schedule-card__location min-w-0 border-l-2 pl-4 sm:text-right ${inverted ? 'border-result-slate-soft' : 'border-result-slate-light'}`}>
+        <p className={`schedule-card__room font-display text-xl font-bold leading-tight [overflow-wrap:anywhere] ${inverted ? 'text-text-on-dark' : 'text-text-primary'}`}>{title}</p>
+        <p className={`schedule-card__location-meta mt-1 font-mono text-xs font-bold uppercase tracking-wide [overflow-wrap:anywhere] ${inverted ? 'text-result-subtle' : 'text-text-secondary'}`}>{secondaryLocation}</p>
         {entry.locationError ? <p role="alert" className={`mt-2 text-xs font-bold ${inverted ? 'text-text-on-dark' : 'text-status-danger'}`}>{entry.locationError}</p> : null}
       </div>
     )

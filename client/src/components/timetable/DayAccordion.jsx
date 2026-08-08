@@ -9,7 +9,7 @@ export default function DayAccordion({ day, entries, entryStatusById, expanded, 
       <button
         type="button"
         onClick={onToggle}
-        className={`flex min-h-14 w-full min-w-0 items-center justify-between gap-4 px-4 py-4 text-left transition-colors sm:px-5 ${expanded ? 'bg-result-blue-pale' : 'hover:bg-surface-secondary'}`}
+        className={`flex min-h-14 w-full min-w-0 items-center justify-between gap-4 px-4 py-4 text-left transition-colors sm:px-5 ${expanded ? 'bg-result-wine-soft' : 'hover:bg-surface-secondary'}`}
         aria-expanded={expanded}
         aria-controls={`day-${day.id}`}
       >

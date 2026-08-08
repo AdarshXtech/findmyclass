@@ -720,20 +720,14 @@ test('health, lookup, authentication, CRUD, and import workflows', async (t) => 
     ]);
   });
 
-  await t.test('temporarily rate limits repeated failed identity matches', async () => {
-    for (let attempt = 0; attempt < 5; attempt += 1) {
+  await t.test('does not rate limit failed student lookups', async () => {
+    for (let attempt = 0; attempt < 6; attempt += 1) {
       const response = await apiRequest('/api/student/lookup', {
         method: 'POST',
-        body: { name: 'Unknown Student', phone_number: `800000000${attempt}` },
+        body: { name: ' Unknown   Student ', phone_number: '+91 8000000001' },
       });
       assert.equal(response.status, 404);
     }
-
-    const blocked = await apiRequest('/api/student/lookup', {
-      method: 'POST',
-      body: { name: 'Test Student', phone_number: '7000000001' },
-    });
-    assert.equal(blocked.status, 429);
   });
 
   await t.test('temporarily rate limits repeated failed admin logins', async () => {

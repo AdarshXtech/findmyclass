@@ -1,14 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 
-export default function useScheduleExpansion(currentDay, autoExpandToday = false) {
-  const [todayExpanded, setTodayExpanded] = useState(autoExpandToday)
-  const [expandedDay, setExpandedDay] = useState(() => (
-    currentDay >= 1 && currentDay <= 5 ? currentDay : 1
-  ))
-
-  useEffect(() => {
-    if (autoExpandToday) setTodayExpanded(true)
-  }, [autoExpandToday])
+export default function useScheduleExpansion() {
+  const [todayExpanded, setTodayExpanded] = useState(false)
+  const [expandedDay, setExpandedDay] = useState(null)
 
   return {
     expandedDay,

@@ -4,6 +4,7 @@ export default function ScheduleNavigation({ activeView, onSelect, tabIndex }) {
       {[
         ['daily', 'Daily Classes'],
         ['weekly', 'Weekly Classes'],
+        ['map', 'Map'],
       ].map(([view, label]) => (
         <button
           key={view}
@@ -12,8 +13,8 @@ export default function ScheduleNavigation({ activeView, onSelect, tabIndex }) {
           onClick={() => onSelect(view)}
           className={`flex min-h-11 items-center justify-between rounded-lg border px-4 py-3 text-left font-bold transition-colors ${
             activeView === view
-              ? 'border-result-blue bg-result-blue-pale text-result-navy'
-              : 'border-border-default bg-surface-primary text-text-secondary hover:border-result-blue'
+              ? 'border-result-wine bg-result-wine-soft text-result-wine-strong'
+              : 'border-border-default bg-surface-primary text-result-slate-dark hover:border-result-wine'
           }`}
           aria-current={activeView === view ? 'page' : undefined}
         >

@@ -13,6 +13,9 @@ describe('ClassCard', () => {
     expect(card).toHaveTextContent('Mr. Vivek Singh')
     expect(card).toHaveTextContent('407')
     expect(card.className).not.toMatch(/opacity/)
+    expect(card.querySelector('.schedule-card__time')).toBeInTheDocument()
+    expect(card.querySelector('.schedule-card__room')).toHaveTextContent('Room 407')
+    expect(card.querySelector('.schedule-card__location-meta')).toHaveTextContent('Floor 4')
   })
 
   it('communicates a cancelled class with text as well as colour', () => {

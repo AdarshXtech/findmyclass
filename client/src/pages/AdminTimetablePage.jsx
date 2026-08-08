@@ -42,7 +42,7 @@ function EntryFields({ row, onChange }) {
       <label className="text-sm font-bold">End time<input type="time" className="input-field mt-2" {...field('endTime')} /></label>
       <label className="text-sm font-bold">Type<select className="input-field mt-2" {...field('sessionType')}><option>Lecture</option><option>Practical</option><option>Library</option><option>Break</option></select></label>
       <label className="text-sm font-bold sm:col-span-2">Subject<input className="input-field mt-2" {...field('subjectName')} /></label>
-      <label className="text-sm font-bold">Teacher<input className="input-field mt-2" {...field('facultyName')} /></label>
+      <label className="text-sm font-bold">Faculty<input className="input-field mt-2" {...field('facultyName')} /></label>
       <label className="text-sm font-bold">Classroom<input className="input-field mt-2 uppercase" {...field('classroom')} /></label>
     </div>
   )
@@ -177,7 +177,7 @@ export default function AdminTimetablePage() {
         const response = await adminApi.post('/timetables/validate', {
           ...metadata,
           mode: 'replace',
-          rows: [{ ...row, subjectName: row.subjectName || 'Subject', facultyName: row.facultyName || 'Teacher' }],
+          rows: [{ ...row, subjectName: row.subjectName || 'Subject', facultyName: row.facultyName || 'Faculty' }],
         })
         setRow((current) => ({ ...current, parsedLocation: response.data.data.rows[0].parsedLocation }))
       } catch (requestError) {
@@ -395,7 +395,7 @@ export default function AdminTimetablePage() {
           <div className="mt-5"><EntryFields row={row} onChange={setRow} /></div>
           <div className={`mt-3 text-sm ${row.parsedLocation?.isValid || row.sessionType === 'Break' ? 'text-status-success' : 'text-status-danger'}`}>
             {row.sessionType === 'Break'
-              ? <p>Teacher and classroom are optional for a break.</p>
+              ? <p>Faculty and classroom are optional for a break.</p>
               : row.parsedLocation?.isValid
                 ? <LocationPreview location={row.parsedLocation} />
                 : <p>{row.classroom ? row.parsedLocation?.error : 'Enter a classroom to check its mapped location.'}</p>}
@@ -413,7 +413,7 @@ export default function AdminTimetablePage() {
             <label className="flex items-center gap-2"><input type="radio" checked={source === 'image'} onChange={() => setSource('image')} /> Image</label>
           </div>
           {source === 'text' ? (
-            <label className="mt-5 block text-sm font-bold">Timetable text<textarea rows="9" className="input-field mt-2 font-mono" value={text} onChange={(event) => setText(event.target.value)} placeholder="Day | Time | Subject | Teacher | Room | Type" /></label>
+            <label className="mt-5 block text-sm font-bold">Timetable text<textarea rows="9" className="input-field mt-2 font-mono" value={text} onChange={(event) => setText(event.target.value)} placeholder="Day | Time | Subject | Faculty | Room | Type" /></label>
           ) : (
             <label className="mt-5 block text-sm font-bold">Timetable image<input type="file" accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp" className="input-field mt-2" onChange={(event) => setImage(event.target.files?.[0] || null)} /></label>
           )}

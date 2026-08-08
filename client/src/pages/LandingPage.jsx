@@ -66,7 +66,7 @@ export default function LandingPage() {
       <header className="border-b border-border-default bg-surface-primary">
         <div className="mx-auto flex max-w-[1400px] items-center justify-between gap-4 px-5 py-4 sm:px-8 lg:px-12 2xl:px-[72px]">
           <div className="flex items-center gap-3">
-            <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-result-navy text-text-on-dark">
+            <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-result-slate-dark text-text-on-dark">
               <HiOutlineAcademicCap className="text-xl" />
             </span>
             <div>
@@ -128,10 +128,10 @@ export default function LandingPage() {
 
               <div className="mt-5 min-h-12">
                 {error ? (
-                  <p role="alert" className="rounded-lg border border-result-red bg-result-red-soft px-4 py-3 text-sm font-semibold text-result-red-strong">{error}</p>
+                  <p role="alert" className="rounded-lg border border-result-wine bg-result-wine-soft px-4 py-3 text-sm font-semibold text-result-wine-strong">{error}</p>
                 ) : (
                   <p className="flex items-start gap-2 text-sm leading-6 text-text-secondary">
-                    <HiOutlineShieldCheck aria-hidden="true" className="mt-0.5 shrink-0 text-lg text-result-blue" />
+                    <HiOutlineShieldCheck aria-hidden="true" className="mt-0.5 shrink-0 text-lg text-result-slate" />
                     Your full phone number is used only to verify your student record and is never shown on the timetable.
                   </p>
                 )}
@@ -140,7 +140,7 @@ export default function LandingPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="mt-5 flex min-h-14 w-full items-center justify-center gap-3 rounded-lg bg-result-blue px-6 py-3 font-bold text-text-on-dark transition-colors hover:bg-result-navy disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                className="mt-5 flex min-h-14 w-full items-center justify-center gap-3 rounded-lg bg-result-slate px-6 py-3 font-bold text-text-on-dark transition-colors hover:bg-result-slate-hover disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
               >
                 <span>{loading ? loadingMessage : 'Open my timetable'}</span>
                 {!loading ? <HiOutlineArrowRight aria-hidden="true" className="text-xl" /> : null}
@@ -154,7 +154,7 @@ export default function LandingPage() {
           </div>
         </section>
 
-        <aside className="min-w-0 bg-result-navy p-5 text-text-on-dark sm:p-8 lg:flex lg:flex-col lg:justify-end lg:p-10 2xl:pr-[72px]">
+        <aside className="min-w-0 bg-result-slate-dark p-5 text-text-on-dark sm:p-8 lg:flex lg:flex-col lg:justify-end lg:p-10 2xl:pr-[72px]">
           <figure className="min-w-0">
             <img
               src="/bbdu-campus.webp"

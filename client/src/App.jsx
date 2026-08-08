@@ -12,6 +12,7 @@ const AdminSubjectsPage = lazy(() => import('./pages/AdminSubjectsPage'))
 const AdminClassroomsPage = lazy(() => import('./pages/AdminClassroomsPage'))
 const AdminImportPage = lazy(() => import('./pages/AdminImportPage'))
 const AdminTimetablePage = lazy(() => import('./pages/AdminTimetablePage'))
+const AdminPathsPage = lazy(() => import('./pages/AdminPathsPage'))
 const ProtectedRoute = lazy(() => import('./admin/components/ProtectedRoute'))
 const AdminLayout = lazy(() => import('./admin/components/AdminLayout'))
 
@@ -37,6 +38,7 @@ function App() {
               <Route path="classrooms" element={<AdminClassroomsPage />} />
               <Route path="import" element={<AdminImportPage />} />
               <Route path="timetables" element={<AdminTimetablePage />} />
+              <Route path="paths" element={<AdminPathsPage />} />
             </Route>
           </Route>
 

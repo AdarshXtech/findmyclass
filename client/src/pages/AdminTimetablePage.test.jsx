@@ -103,7 +103,7 @@ describe('AdminTimetablePage', () => {
     render(<AdminTimetablePage />)
     await selectClass(user)
     await user.type(screen.getByLabelText('Subject'), 'Digital Logic Design')
-    await user.type(screen.getByLabelText('Teacher'), 'Mr. Sharma')
+    await user.type(screen.getByLabelText('Faculty'), 'Mr. Sharma')
     await user.type(screen.getByLabelText('Classroom'), '407')
     await user.click(screen.getByRole('button', { name: 'Add timetable entry' }))
 

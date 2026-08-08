@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { HiOutlineArrowLeft, HiOutlineMenuAlt3, HiOutlineX } from 'react-icons/hi'
 import DailySchedule from '../components/timetable/DailySchedule'
@@ -11,6 +11,7 @@ import useScheduleExpansion from '../hooks/useScheduleExpansion'
 import useTimetableStatus from '../hooks/useTimetableStatus'
 
 const EMPTY_TIMETABLE = []
+const CampusMapView = lazy(() => import('../components/map/CampusMapView'))
 
 export default function ResultPage() {
   const navigate = useNavigate()
@@ -22,8 +23,9 @@ export default function ResultPage() {
   const timetable = data?.timetable ?? EMPTY_TIMETABLE
   const now = useCurrentTime()
   const status = useTimetableStatus(timetable, now)
-  const expansion = useScheduleExpansion(status.currentDay, status.shouldAutoExpandToday)
-  const activeView = searchParams.get('view') === 'weekly' ? 'weekly' : 'daily'
+  const expansion = useScheduleExpansion()
+  const requestedView = searchParams.get('view')
+  const activeView = ['weekly', 'map'].includes(requestedView) ? requestedView : 'daily'
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'auto' })
@@ -41,7 +43,7 @@ export default function ResultPage() {
   }, [menuOpen])
 
   const selectView = (view) => {
-    setSearchParams(view === 'weekly' ? { view: 'weekly' } : {}, { replace: true, state: location.state })
+    setSearchParams(view === 'daily' ? {} : { view }, { replace: true, state: location.state })
     setMenuOpen(false)
   }
 
@@ -52,7 +54,7 @@ export default function ResultPage() {
           <p className="font-mono text-xs font-bold uppercase tracking-wide text-accent-primary">Student verification</p>
           <h1 className="mt-3 font-display text-3xl font-bold">We could not open that timetable.</h1>
           <p className="mt-4 leading-7 text-text-secondary">Verify your name and phone number to open your assigned timetable.</p>
-          <button onClick={() => navigate('/')} className="mt-7 flex min-h-11 items-center gap-2 rounded-lg bg-result-blue px-5 py-3 font-bold text-text-on-dark">
+          <button onClick={() => navigate('/')} className="mt-7 flex min-h-11 items-center gap-2 rounded-lg bg-result-slate px-5 py-3 font-bold text-text-on-dark">
             <HiOutlineArrowLeft aria-hidden="true" /> Verify student
           </button>
         </div>
@@ -65,10 +67,10 @@ export default function ResultPage() {
   return (
     <div className="student-result-theme min-h-screen bg-surface-secondary text-text-primary">
       <header className="relative z-30 border-b border-border-default bg-surface-primary">
-        <div className="relative mx-auto flex max-w-[1400px] items-center justify-between px-5 py-4 sm:px-8 lg:px-12 2xl:px-[72px]">
+        <div className="relative mx-auto flex max-w-[1280px] items-center justify-between px-5 py-4 sm:px-8 lg:px-12">
           <button
             onClick={() => navigate('/')}
-            className="flex h-11 w-11 items-center justify-center rounded-lg border border-border-strong transition-colors hover:border-result-blue hover:bg-result-blue-pale"
+            className="flex h-11 w-11 items-center justify-center rounded-lg border border-border-strong transition-colors hover:border-result-slate hover:bg-result-slate-soft"
             aria-label="Search again"
             title="Search again"
           >
@@ -81,7 +83,7 @@ export default function ResultPage() {
               ref={menuButtonRef}
               type="button"
               onClick={() => setMenuOpen((open) => !open)}
-              className="flex h-11 w-11 items-center justify-center rounded-lg border border-border-strong transition-colors hover:border-result-blue hover:bg-result-blue-pale md:hidden"
+              className="flex h-11 w-11 items-center justify-center rounded-lg border border-border-strong transition-colors hover:border-result-slate hover:bg-result-slate-soft md:hidden"
               aria-label={menuOpen ? 'Close schedule menu' : 'Open schedule menu'}
               aria-expanded={menuOpen}
               aria-controls="schedule-menu"
@@ -101,25 +103,36 @@ export default function ResultPage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-[1400px] px-5 py-8 sm:px-8 sm:py-10 lg:px-12 lg:py-14 2xl:px-[72px]">
-        <div className="grid min-w-0 gap-8 md:grid-cols-[minmax(220px,0.8fr)_minmax(0,1.4fr)] md:items-start lg:grid-cols-[minmax(280px,340px)_minmax(0,1fr)] lg:gap-12 xl:gap-16">
+      <main className="mx-auto max-w-[1280px] px-5 py-8 sm:px-8 sm:py-10 lg:px-12 lg:py-12">
+        <div className={`grid min-w-0 gap-8 md:items-start ${activeView === 'map' ? 'lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-8' : 'md:grid-cols-[minmax(220px,0.8fr)_minmax(0,1.4fr)] lg:grid-cols-[minmax(280px,340px)_minmax(0,1fr)] lg:gap-12 xl:gap-16'}`}>
           <aside className="min-w-0 md:sticky md:top-8">
             <StudentContext student={student} />
             <div className="mt-8 hidden md:block">
-              <p className="mb-3 font-mono text-xs font-bold uppercase tracking-wide text-text-secondary">Schedule view</p>
+              <p className="mb-3 font-mono text-xs font-bold uppercase tracking-wide text-text-secondary">Student tools</p>
               <ScheduleNavigation activeView={activeView} onSelect={selectView} />
             </div>
           </aside>
 
           <section className="min-w-0">
-            <NextClassHero
-              entry={status.priorityEntry}
-              status={status.locationStatus}
-              finishedForToday={status.finishedForToday}
-              timeContext={status.timeContext}
-            />
+            {activeView !== 'map' ? (
+              <NextClassHero
+                entry={status.priorityEntry}
+                status={status.locationStatus}
+                finishedForToday={status.finishedForToday}
+                timeContext={status.timeContext}
+                onNavigate={status.priorityEntry ? () => selectView('map') : undefined}
+              />
+            ) : null}
 
-            {activeView === 'daily' ? (
+            {activeView === 'map' ? (
+              <Suspense fallback={<div className="rounded-lg border border-border-default bg-surface-primary p-6" role="status">Loading campus map...</div>}>
+                <CampusMapView
+                  locationStatus={status.locationStatus}
+                  priorityEntry={status.priorityEntry}
+                  timetable={timetable}
+                />
+              </Suspense>
+            ) : activeView === 'daily' ? (
               <DailySchedule
                 entryStatusById={status.entryStatusById}
                 expanded={expansion.todayExpanded}

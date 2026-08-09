@@ -377,14 +377,6 @@ a:focus-visible {
   content: "";
 }
 
-.campus-map-quick-scroll {
-  scrollbar-width: none;
-}
-
-.campus-map-quick-scroll::-webkit-scrollbar {
-  display: none;
-}
-
 @media (max-width: 1279px) {
   .campus-map-sidebar,
   .campus-map-main {
@@ -393,10 +385,9 @@ a:focus-visible {
 
   .campus-map-search { order: 1; }
   .campus-map-priority { order: 2; }
-  .campus-map-quick { order: 3; }
-  .campus-map-canvas { order: 4; }
-  .campus-map-location { order: 5; }
-  .campus-map-details { order: 6; }
+  .campus-map-canvas { order: 3; }
+  .campus-map-location { order: 4; }
+  .campus-map-details { order: 5; }
 }
 
 @media (min-width: 1024px) {

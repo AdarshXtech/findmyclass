@@ -50,4 +50,11 @@ describe('campus locations', () => {
     expect(searchCampusLocations('M Block', CAMPUS_LOCATIONS)[0]?.name)
       .toBe('Management Building (M-block)')
   })
+
+  it('places Central Library across Wing B on Floor 6', () => {
+    expect(searchCampusLocations('Central Library', CAMPUS_LOCATIONS)[0]).toMatchObject({
+      floor: 'Floor 6',
+      wing: 'B',
+    })
+  })
 })

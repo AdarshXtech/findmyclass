@@ -57,14 +57,6 @@ export default function CampusMapView({ locationStatus, priorityEntry, timetable
   const start = geolocation.position
     ? { name: 'Your current location', coordinates: geolocation.position.coordinates }
     : manualStart
-  const quickDestinations = [
-    priorityDestination,
-    CAMPUS_LOCATIONS.find((location) => location.id === 'central-library'),
-    CAMPUS_LOCATIONS.find((location) => location.id === 'stadium-canteen'),
-    CAMPUS_LOCATIONS.find((location) => location.id === 'bbd-girls-hostel'),
-    CAMPUS_LOCATIONS.find((location) => location.id === 'auditorium'),
-  ].filter(Boolean)
-
   const selectDestination = (destination) => {
     setSelectedDestination(destination)
     setQuery('')
@@ -117,22 +109,6 @@ export default function CampusMapView({ locationStatus, priorityEntry, timetable
               <button type="button" onClick={() => selectDestination(priorityDestination)} className="mt-4 min-h-11 rounded-lg bg-result-slate px-4 py-2 font-bold text-text-on-dark hover:bg-result-slate-hover">Navigate</button>
             </article>
           ) : null}
-
-          <div className="campus-map-quick min-w-0">
-            <p className="mb-2 font-mono text-xs font-bold uppercase tracking-wide text-text-secondary">Quick destinations</p>
-            <div className="campus-map-quick-scroll flex gap-2 overflow-x-auto pb-1 xl:grid xl:grid-cols-2">
-              {quickDestinations.map((destination) => (
-                <button
-                  key={destination.id}
-                  type="button"
-                  onClick={() => selectDestination(destination)}
-                  className={`min-h-11 shrink-0 rounded-lg border px-3 py-2 text-sm font-bold transition-colors ${selectedDestination?.id === destination.id ? 'border-result-wine bg-result-wine-soft text-result-wine-strong' : 'border-border-default bg-surface-primary hover:border-result-slate'}`}
-                >
-                  {destination === priorityDestination ? 'Next class' : destination.name}
-                </button>
-              ))}
-            </div>
-          </div>
 
           <div className="campus-map-location min-w-0 rounded-lg border border-border-default bg-surface-primary p-4">
             <div className="flex items-start gap-3">

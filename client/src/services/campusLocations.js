@@ -37,7 +37,9 @@ export const CAMPUS_LOCATIONS = [
     coordinates: UNIVERSITY_BUILDING_COORDINATES,
     coordinatePrecision: 'university building',
     building: 'BBD University Building',
-    aliases: ['Library'],
+    floor: 'Floor 6',
+    wing: 'B',
+    aliases: ['Library', '6th Floor', 'Wing B'],
     source: 'BBDU Central Library page and OpenStreetMap university footprint',
   },
   {

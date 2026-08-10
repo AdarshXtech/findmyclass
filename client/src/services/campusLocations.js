@@ -83,6 +83,48 @@ export const CAMPUS_LOCATIONS = [
   { id: 'parking', name: 'Parking', category: 'Services', coordinates: null, aliases: ['Campus Parking'] },
 ]
 
+function classroomDestination(room, floor, wing) {
+  return {
+    id: `classroom-${room.toLowerCase()}`,
+    name: `Room ${room}`,
+    category: 'Classroom',
+    coordinates: UNIVERSITY_BUILDING_COORDINATES,
+    coordinatePrecision: 'university building',
+    building: 'BBD University Building',
+    floor,
+    wing,
+    room,
+    aliases: [room, floor, `Wing ${wing}`],
+    source: 'Confirmed BBD University building map',
+  }
+}
+
+function wingForPosition(position, upperGround = false) {
+  if (position <= 7) return 'A'
+  if (upperGround) return position <= 13 ? 'B' : 'C'
+  return position <= 14 ? 'B' : 'C'
+}
+
+export const CLASSROOM_LOCATIONS = [
+  ...Array.from({ length: 20 }, (_, index) => {
+    const position = index + 1
+    const room = `UGF${String(position).padStart(3, '0')}`
+    return classroomDestination(room, 'Underground Floor', wingForPosition(position, true))
+  }),
+  ...Array.from({ length: 9 }, (_, index) => {
+    const position = index + 1
+    const room = `LGF${String(position).padStart(3, '0')}`
+    return classroomDestination(room, 'Lower Ground Floor', position <= 4 ? 'A' : 'B')
+  }),
+  ...Object.entries({ 1: 20, 2: 21, 3: 21, 4: 19, 5: 20 }).flatMap(([floor, maximum]) => (
+    Array.from({ length: maximum }, (_, index) => {
+      const position = index + 1
+      const room = `${floor}${String(position).padStart(2, '0')}`
+      return classroomDestination(room, `Floor ${floor}`, wingForPosition(position))
+    })
+  )),
+]
+
 function text(value) {
   return String(value || '').trim()
 }

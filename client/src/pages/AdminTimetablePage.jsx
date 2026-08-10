@@ -12,6 +12,12 @@ import SaveTimetableDialog from '../admin/components/SaveTimetableDialog'
 import { formatTime } from '../utils/timetableTime'
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+const TIME_SLOTS = [
+  ['09:00', '10:00'], ['09:00', '11:00'], ['10:00', '11:00'],
+  ['11:00', '12:00'], ['11:00', '13:00'], ['12:00', '13:00'],
+  ['13:00', '14:00'], ['14:00', '15:00'], ['14:00', '16:00'],
+  ['15:00', '16:00'], ['16:00', '17:00'],
+]
 const emptyRow = () => ({
   day: 'Monday',
   startTime: '09:00',
@@ -26,7 +32,7 @@ function requestErrorMessage(error, fallback) {
   const status = error.response?.status
   if (status === 401) return 'Your admin session has expired. Sign in again.'
   if (status === 403) return 'You do not have permission to manage timetable entries.'
-  if (status === 409) return 'This change conflicts with an existing timetable entry.'
+  if (status === 409) return error.response?.data?.message || 'This change conflicts with an existing timetable entry.'
   return error.response?.data?.message || fallback
 }
 
@@ -35,14 +41,43 @@ function EntryFields({ row, onChange }) {
     value: row[name] || '',
     onChange: (event) => onChange({ ...row, [name]: event.target.value, errors: [], status: undefined }),
   })
+  const fixedSlot = TIME_SLOTS.find(([startTime, endTime]) => startTime === row.startTime && endTime === row.endTime)
+  const slotValue = row.customTime || !fixedSlot ? 'custom' : `${row.startTime}|${row.endTime}`
+  const facultyOptional = row.sessionType === 'Library' || row.sessionType === 'Break'
+  const changeType = (event) => {
+    const sessionType = event.target.value
+    const optional = sessionType === 'Library' || sessionType === 'Break'
+    onChange({
+      ...row,
+      sessionType,
+      facultyName: optional ? '' : row.facultyName,
+      subjectName: row.subjectName || (sessionType === 'Library' ? 'Library' : sessionType === 'Break' ? 'Lunch break' : ''),
+      classroom: sessionType === 'Break' ? '' : row.classroom,
+      errors: [],
+      status: undefined,
+    })
+  }
+  const changeSlot = (event) => {
+    if (event.target.value === 'custom') return onChange({ ...row, customTime: true, errors: [], status: undefined })
+    const [startTime, endTime] = event.target.value.split('|')
+    onChange({ ...row, startTime, endTime, customTime: false, errors: [], status: undefined })
+  }
   return (
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
       <label className="text-sm font-bold">Day<select className="input-field mt-2" {...field('day')}>{DAYS.map((day) => <option key={day}>{day}</option>)}</select></label>
-      <label className="text-sm font-bold">Start time<input type="time" className="input-field mt-2" {...field('startTime')} /></label>
-      <label className="text-sm font-bold">End time<input type="time" className="input-field mt-2" {...field('endTime')} /></label>
-      <label className="text-sm font-bold">Type<select className="input-field mt-2" {...field('sessionType')}><option>Lecture</option><option>Practical</option><option>Library</option><option>Break</option></select></label>
+      <label className="text-sm font-bold sm:col-span-1 xl:col-span-2">Time slot<select aria-label="Time slot" className="input-field mt-2" value={slotValue} onChange={changeSlot}>
+        {TIME_SLOTS.map(([startTime, endTime]) => <option key={`${startTime}-${endTime}`} value={`${startTime}|${endTime}`}>{formatTime(startTime)} – {formatTime(endTime)}</option>)}
+        <option value="custom">Custom time</option>
+      </select></label>
+      <label className="text-sm font-bold">Type<select className="input-field mt-2" value={row.sessionType || 'Lecture'} onChange={changeType}><option>Lecture</option><option>Practical</option><option>Library</option><option>Break</option></select></label>
+      {slotValue === 'custom' ? (
+        <>
+          <label className="text-sm font-bold">Start time<input type="time" className="input-field mt-2" {...field('startTime')} /></label>
+          <label className="text-sm font-bold">End time<input type="time" className="input-field mt-2" {...field('endTime')} /></label>
+        </>
+      ) : null}
       <label className="text-sm font-bold sm:col-span-2">Subject<input className="input-field mt-2" {...field('subjectName')} /></label>
-      <label className="text-sm font-bold">Faculty<input className="input-field mt-2" {...field('facultyName')} /></label>
+      <label className="text-sm font-bold">{facultyOptional ? 'Faculty (not required)' : 'Faculty'}<input disabled={facultyOptional} className="input-field mt-2 disabled:bg-surface-secondary disabled:text-text-secondary" {...field('facultyName')} /></label>
       <label className="text-sm font-bold">Classroom<input className="input-field mt-2 uppercase" {...field('classroom')} /></label>
     </div>
   )
@@ -396,6 +431,8 @@ export default function AdminTimetablePage() {
           <div className={`mt-3 text-sm ${row.parsedLocation?.isValid || row.sessionType === 'Break' ? 'text-status-success' : 'text-status-danger'}`}>
             {row.sessionType === 'Break'
               ? <p>Faculty and classroom are optional for a break.</p>
+              : row.sessionType === 'Library' && !row.classroom
+                ? <p>Faculty is optional. Central Library is assigned automatically.</p>
               : row.parsedLocation?.isValid
                 ? <LocationPreview location={row.parsedLocation} />
                 : <p>{row.classroom ? row.parsedLocation?.error : 'Enter a classroom to check its mapped location.'}</p>}

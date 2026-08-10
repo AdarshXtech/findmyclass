@@ -4,11 +4,13 @@ import {
   HiOutlineSearch,
   HiOutlineShieldCheck,
   HiOutlineViewGrid,
+  HiOutlineX,
 } from 'react-icons/hi'
 import useGeolocation from '../../hooks/useGeolocation'
 import {
   buildTimetableDestinations,
   CAMPUS_LOCATIONS,
+  CLASSROOM_LOCATIONS,
   destinationContext,
   destinationForEntry,
   searchCampusLocations,
@@ -37,7 +39,14 @@ function DestinationButton({ destination, onSelect }) {
 
 export default function CampusMapView({ locationStatus, priorityEntry, timetable = [] }) {
   const timetableDestinations = useMemo(() => buildTimetableDestinations(timetable), [timetable])
-  const locations = useMemo(() => [...timetableDestinations, ...CAMPUS_LOCATIONS], [timetableDestinations])
+  const locations = useMemo(() => {
+    const timetableRooms = new Set(timetableDestinations.map((destination) => destination.room).filter(Boolean))
+    return [
+      ...timetableDestinations,
+      ...CLASSROOM_LOCATIONS.filter((destination) => !timetableRooms.has(destination.room)),
+      ...CAMPUS_LOCATIONS,
+    ]
+  }, [timetableDestinations])
   const priorityDestination = useMemo(
     () => destinationForEntry(priorityEntry, timetableDestinations),
     [priorityEntry, timetableDestinations],
@@ -47,6 +56,7 @@ export default function CampusMapView({ locationStatus, priorityEntry, timetable
   const [manualStartId, setManualStartId] = useState('')
   const [recenterToken, setRecenterToken] = useState(0)
   const [mapFocus, setMapFocus] = useState('campus')
+  const [showRoute, setShowRoute] = useState(true)
   const geolocation = useGeolocation()
   const searchResults = useMemo(
     () => searchCampusLocations(query, locations).slice(0, 8),
@@ -60,15 +70,17 @@ export default function CampusMapView({ locationStatus, priorityEntry, timetable
   const selectDestination = (destination) => {
     setSelectedDestination(destination)
     setQuery('')
+    setShowRoute(true)
     setMapFocus('selection')
     setRecenterToken((value) => value + 1)
   }
 
   const indoorSteps = selectedDestination ? getIndoorGuidance(selectedDestination) : []
-  const route = useMemo(
+  const calculatedRoute = useMemo(
     () => findCampusRoute(start, selectedDestination, CAMPUS_PATH_NODES, CAMPUS_PATH_EDGES),
     [selectedDestination, start],
   )
+  const route = showRoute ? calculatedRoute : null
 
   return (
     <section className="min-w-0" aria-labelledby="campus-map-title">
@@ -120,7 +132,7 @@ export default function CampusMapView({ locationStatus, priorityEntry, timetable
             </div>
             <button
               type="button"
-              onClick={geolocation.start}
+              onClick={() => { setShowRoute(true); geolocation.start() }}
               disabled={geolocation.status === 'loading' || geolocation.status === 'denied'}
               className="mt-4 min-h-11 rounded-lg border border-result-slate px-4 py-2 font-bold text-result-slate-dark disabled:cursor-not-allowed disabled:opacity-60"
             >
@@ -128,7 +140,7 @@ export default function CampusMapView({ locationStatus, priorityEntry, timetable
             </button>
             {geolocation.message ? <p className="mt-3 text-sm leading-6 text-text-secondary" role="status">{geolocation.message}</p> : null}
             <label htmlFor="manual-start" className="mt-5 block text-sm font-bold">Choose starting point</label>
-            <select id="manual-start" value={manualStartId} onChange={(event) => setManualStartId(event.target.value)} className="mt-2 h-12 w-full rounded-lg border border-border-input bg-surface-primary px-3">
+            <select id="manual-start" value={manualStartId} onChange={(event) => { setManualStartId(event.target.value); setShowRoute(true) }} className="mt-2 h-12 w-full rounded-lg border border-border-input bg-surface-primary px-3">
               <option value="">Select a verified location</option>
               {manualLocations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}
             </select>
@@ -155,6 +167,15 @@ export default function CampusMapView({ locationStatus, priorityEntry, timetable
               >
                 <HiOutlineLocationMarker aria-hidden="true" className="text-xl text-result-slate" /> Recenter
               </button>
+              {calculatedRoute ? (
+                <button
+                  type="button"
+                  onClick={() => setShowRoute((visible) => !visible)}
+                  className="flex min-h-11 items-center gap-2 rounded-lg border border-border-strong bg-surface-primary px-3 py-2 font-bold shadow-result"
+                >
+                  <HiOutlineX aria-hidden="true" className="text-xl text-accent-primary" /> {showRoute ? 'Remove path' : 'Show path'}
+                </button>
+              ) : null}
             </div>
           </div>
 

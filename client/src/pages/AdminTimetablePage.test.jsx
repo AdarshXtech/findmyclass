@@ -114,6 +114,22 @@ describe('AdminTimetablePage', () => {
     expect(await screen.findByText('Timetable entry added successfully.')).toBeVisible()
   })
 
+  it('uses fixed time slots and makes faculty optional for Library and Break', async () => {
+    const user = userEvent.setup()
+    render(<AdminTimetablePage />)
+
+    expect(await screen.findByLabelText('Time slot')).toHaveValue('09:00|10:00')
+    await user.selectOptions(screen.getByLabelText('Time slot'), '11:00|13:00')
+    expect(screen.getByLabelText('Time slot')).toHaveValue('11:00|13:00')
+
+    await user.selectOptions(screen.getByLabelText('Type'), 'Library')
+    expect(screen.getByLabelText('Faculty (not required)')).toBeDisabled()
+    expect(screen.getByLabelText('Subject')).toHaveValue('Library')
+
+    await user.selectOptions(screen.getByLabelText('Type'), 'Break')
+    expect(screen.getByLabelText('Faculty (not required)')).toBeDisabled()
+  })
+
   it('edits an existing timetable entry and preserves its selected class', async () => {
     const user = userEvent.setup()
     mockSchedule([timetableEntry])

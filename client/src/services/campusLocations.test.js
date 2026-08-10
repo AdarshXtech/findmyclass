@@ -3,6 +3,7 @@ import { makeEntry } from '../test/fixtures'
 import {
   buildTimetableDestinations,
   CAMPUS_LOCATIONS,
+  CLASSROOM_LOCATIONS,
   destinationForEntry,
   searchCampusLocations,
 } from './campusLocations'
@@ -56,5 +57,13 @@ describe('campus locations', () => {
       floor: 'Floor 6',
       wing: 'B',
     })
+  })
+
+  it('makes every confirmed classroom searchable without map-specific room data', () => {
+    expect(CLASSROOM_LOCATIONS).toHaveLength(130)
+    expect(searchCampusLocations('Room 101', CLASSROOM_LOCATIONS)[0]).toMatchObject({ floor: 'Floor 1', wing: 'A' })
+    expect(searchCampusLocations('520', CLASSROOM_LOCATIONS)[0]).toMatchObject({ floor: 'Floor 5', wing: 'C' })
+    expect(searchCampusLocations('UGF020', CLASSROOM_LOCATIONS)[0]).toMatchObject({ floor: 'Underground Floor', wing: 'C' })
+    expect(searchCampusLocations('LGF009', CLASSROOM_LOCATIONS)[0]).toMatchObject({ floor: 'Lower Ground Floor', wing: 'B' })
   })
 })

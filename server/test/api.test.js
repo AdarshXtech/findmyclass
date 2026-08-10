@@ -250,6 +250,34 @@ test('health, lookup, authentication, CRUD, and import workflows', async (t) => 
     assert.equal(noTimetable.body.message, 'No timetable is currently available for your assigned class.');
   });
 
+  await t.test('provides the read-only test login without adding a roster student', async () => {
+    const studentCountBefore = Number((await queryAll('SELECT COUNT(*) AS count FROM students'))[0].count);
+    const response = await apiRequest('/api/student/lookup', {
+      method: 'POST',
+      body: { name: ' test ', phone_number: '1234567890' },
+    });
+    const studentCountAfter = Number((await queryAll('SELECT COUNT(*) AS count FROM students'))[0].count);
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(response.body.data.student, {
+      id: 'test',
+      name: 'Test',
+      maskedPhone: '******7890',
+      course: 'B.Tech',
+      branch: 'CSAI',
+      year: 2,
+      section: 'CSAI2B',
+    });
+    assert.ok(response.body.data.timetable.length > 0);
+    assert.equal(studentCountAfter, studentCountBefore);
+
+    const wrongNumber = await apiRequest('/api/student/lookup', {
+      method: 'POST',
+      body: { name: 'test', phone_number: '1234567891' },
+    });
+    assert.equal(wrongNumber.status, 404);
+  });
+
   await t.test('rejects invalid credentials and protects admin endpoints', async () => {
     const unauthenticated = await apiRequest('/api/admin/stats');
     assert.equal(unauthenticated.status, 401);
@@ -493,6 +521,8 @@ test('health, lookup, authentication, CRUD, and import workflows', async (t) => 
       },
     });
     assert.equal(conflict.status, 422);
+    assert.match(conflict.body.data.rows[0].errors.join(' '), /DS/);
+    assert.match(conflict.body.data.rows[1].errors.join(' '), /DLD/);
 
     const invalid = await apiRequest('/api/admin/timetables', {
       method: 'POST',

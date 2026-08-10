@@ -5,7 +5,7 @@ const DAY_LOOKUP = new Map(DAYS.flatMap((day, index) => [
   [day.toLowerCase(), index + 1],
   [day.slice(0, 3).toLowerCase(), index + 1],
 ]));
-const CONFLICT_ERROR = 'Time conflict detected. This class overlaps with another timetable entry.';
+const CONFLICT_ERROR = 'Time conflict detected';
 const DUPLICATE_ERROR = 'Duplicate timetable entry detected for this day and time.';
 
 function sanitizeImportText(value) {
@@ -42,8 +42,11 @@ function formatEntry(row, index = 0) {
   const startTime = normalizeTime(row.startTime ?? row.start_time);
   const endTime = normalizeTime(row.endTime ?? row.end_time);
   const requestedSessionType = String(row.sessionType ?? row.session_type ?? 'Lecture').trim();
-  const sessionType = /^break$/i.test(requestedSessionType) ? 'Break' : requestedSessionType || 'Lecture';
+  const sessionType = /^(break|library)$/i.test(requestedSessionType)
+    ? requestedSessionType.charAt(0).toUpperCase() + requestedSessionType.slice(1).toLowerCase()
+    : requestedSessionType || 'Lecture';
   const isBreak = sessionType === 'Break';
+  const facultyOptional = isBreak || sessionType === 'Library';
   const subjectName = String(row.subjectName ?? row.subject_name ?? row.subject ?? (isBreak ? 'Lunch break' : '')).trim().replace(/\s+/g, ' ');
   const facultyName = String(row.facultyName ?? row.faculty_name ?? row.teacher ?? '').trim().replace(/\s+/g, ' ');
   const roomInput = String(row.classroom ?? row.room ?? '').trim();
@@ -53,7 +56,7 @@ function formatEntry(row, index = 0) {
   if (!startTime || !endTime) errors.push('Enter valid start and end times.');
   else if (startTime >= endTime) errors.push('Start time must be before end time.');
   if (!subjectName) errors.push('Subject is required.');
-  if (!isBreak && !facultyName) errors.push('Faculty is required.');
+  if (!facultyOptional && !facultyName) errors.push('Faculty is required.');
   if (!isBreak && !parsedLocation.isValid) errors.push(parsedLocation.error || 'Classroom is required.');
 
   return {
@@ -91,7 +94,7 @@ function validateRows(inputRows, existingRows = []) {
       && entry.endTime === row.endTime
       && entry.subjectName.toLowerCase() === row.subjectName.toLowerCase()
     ));
-    const conflict = candidates.some((entry) => (
+    const conflict = candidates.find((entry) => (
       entry.dayOfWeek === row.dayOfWeek
       && entry.startTime
       && entry.endTime
@@ -99,7 +102,10 @@ function validateRows(inputRows, existingRows = []) {
       && row.endTime > entry.startTime
     ));
     if (duplicate && !row.errors.includes(DUPLICATE_ERROR)) row.errors.push(DUPLICATE_ERROR);
-    else if (conflict && !row.errors.includes(CONFLICT_ERROR)) row.errors.push(CONFLICT_ERROR);
+    else if (conflict) {
+      const conflictMessage = `${CONFLICT_ERROR}: "${conflict.subjectName || 'Unnamed subject'}" is scheduled from ${conflict.startTime} to ${conflict.endTime}.`;
+      if (!row.errors.includes(conflictMessage)) row.errors.push(conflictMessage);
+    }
     row.status = row.errors.length ? 'error' : 'valid';
   });
   return rows;

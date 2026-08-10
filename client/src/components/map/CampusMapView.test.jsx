@@ -6,7 +6,7 @@ import { makeEntry } from '../../test/fixtures'
 import CampusMapView from './CampusMapView'
 
 vi.mock('./CampusMap', () => ({
-  default: () => <div data-testid="campus-map">Interactive map</div>,
+  default: ({ route }) => <div data-testid="campus-map" data-route={route?.kind || 'none'}>Interactive map</div>,
 }))
 
 vi.mock('../../hooks/useGeolocation', () => ({
@@ -44,6 +44,15 @@ describe('CampusMapView', () => {
     expect(screen.getByRole('heading', { name: 'Room 407' })).toBeVisible()
   })
 
+  it('searches rooms outside the student timetable', async () => {
+    const user = userEvent.setup()
+    renderMap()
+
+    await user.type(screen.getByLabelText('Search destination'), '520')
+    await user.click(screen.getByRole('button', { name: /Room 520/ }))
+    expect(screen.getByRole('heading', { name: 'Room 520' })).toBeVisible()
+  })
+
   it('explains when a campus destination still needs surveyed coordinates', async () => {
     const user = userEvent.setup()
     renderMap({ priorityEntry: null, locationStatus: null })
@@ -61,5 +70,10 @@ describe('CampusMapView', () => {
     expect(screen.getByText(/Direct line/)).toBeVisible()
     expect(screen.getByText(/surveyed walking path does not reach/i)).toBeVisible()
     expect(screen.queryByRole('link', { name: /walking directions/i })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Remove path' }))
+    expect(screen.getByTestId('campus-map')).toHaveAttribute('data-route', 'none')
+    await user.click(screen.getByRole('button', { name: 'Show path' }))
+    expect(screen.getByTestId('campus-map')).toHaveAttribute('data-route', 'straight')
   })
 })

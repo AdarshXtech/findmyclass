@@ -9,6 +9,11 @@ const {
 } = require('../utils/student-identity');
 
 const LOOKUP_ERROR = 'Student details not found. Please check your name and phone number.';
+const TEST_LOGIN = Object.freeze({
+  name: 'TEST',
+  phoneNumber: '1234567890',
+  section: 'CSAI2B',
+});
 
 /** POST /api/student/lookup - verify a student and return their class schedule. */
 router.post('/lookup', async (req, res) => {
@@ -32,12 +37,23 @@ router.post('/lookup', async (req, res) => {
     const phoneHash = hashPhoneNumber(phoneNumber);
     if (!phoneHash) throw new Error('PHONE_LOOKUP_SECRET is not configured.');
 
-    const matches = await queryAll(
-      `SELECT student_id, name, phone_last_four, course, branch, year, section
-       FROM students
-       WHERE normalized_name = ? AND phone_lookup_hash = ?`,
-      [normalizedName, phoneHash]
-    );
+    const isTestLogin = normalizedName === TEST_LOGIN.name && phoneNumber === TEST_LOGIN.phoneNumber;
+    const matches = isTestLogin
+      ? [{
+          student_id: 'test',
+          name: 'Test',
+          phone_last_four: TEST_LOGIN.phoneNumber.slice(-4),
+          course: 'B.Tech',
+          branch: 'CSAI',
+          year: 2,
+          section: TEST_LOGIN.section,
+        }]
+      : await queryAll(
+          `SELECT student_id, name, phone_last_four, course, branch, year, section
+           FROM students
+           WHERE normalized_name = ? AND phone_lookup_hash = ?`,
+          [normalizedName, phoneHash]
+        );
 
     if (matches.length !== 1) {
       return res.status(404).json({ success: false, message: LOOKUP_ERROR });

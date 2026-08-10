@@ -96,7 +96,7 @@ export default function CampusMap({ destination, focus, locations = [], position
         <CircleMarker center={UNIVERSITY_BUILDING_COORDINATES} radius={8} pathOptions={{ color: '#ffffff', fillColor: '#456a89', fillOpacity: 0.95, weight: 3 }}>
           <Popup>BBD University Building</Popup>
         </CircleMarker>
-        {locations.filter((location) => location.coordinates && location.id !== destination?.id).map((location) => (
+        {locations.filter((location) => location.category !== 'Classroom' && location.coordinates && location.id !== destination?.id).map((location) => (
           <CircleMarker key={location.id} center={location.coordinates} radius={6} pathOptions={{ color: '#ffffff', fillColor: '#456a89', fillOpacity: 0.9, weight: 2 }}>
             <Popup>{location.name}</Popup>
           </CircleMarker>
@@ -108,7 +108,7 @@ export default function CampusMap({ destination, focus, locations = [], position
         ) : null}
         {destination?.coordinates ? (
           <CircleMarker center={destination.coordinates} radius={10} pathOptions={{ color: '#ffffff', fillColor: '#843f43', fillOpacity: 1, weight: 4 }}>
-            <Popup>{destination.name}</Popup>
+            <Popup>{destination.category === 'Classroom' ? destination.building : destination.name}</Popup>
           </CircleMarker>
         ) : null}
       </MapContainer>

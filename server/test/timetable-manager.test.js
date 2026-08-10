@@ -47,9 +47,11 @@ test('validates manual rooms and special classroom mappings', () => {
 test('blocks overlapping classes and parses table imports into an unsaved preview', () => {
   const conflicting = validateRows([
     row(),
-    row({ startTime: '10:30', endTime: '11:30', classroom: '408' }),
+    row({ startTime: '10:30', endTime: '11:30', subject: 'Data Structures', classroom: '408' }),
   ]);
-  assert.ok(conflicting.every((entry) => entry.errors.includes(CONFLICT_ERROR)));
+  assert.ok(conflicting.every((entry) => entry.errors.some((error) => error.startsWith(CONFLICT_ERROR))));
+  assert.match(conflicting[0].errors.join(' '), /Data Structures/);
+  assert.match(conflicting[1].errors.join(' '), /Digital Logic Design/);
 
   const preview = parseTimetableText(
     'Day | Time | Subject | Teacher | Room\nMonday | 10:00 AM - 11:00 AM | Digital Logic Design | Mr. Sharma | 407'
@@ -87,4 +89,17 @@ test('accepts lunch breaks, rejects Saturday, and reports exact duplicates', () 
   );
   assert.equal(importedLunch.status, 'valid');
   assert.equal(importedLunch.sessionType, 'Break');
+});
+
+test('accepts Library and Break entries without faculty', () => {
+  const [library, breakEntry] = validateRows([
+    row({ day: 'Tuesday', subject: 'Library', teacher: '', classroom: '', sessionType: 'Library' }),
+    row({ day: 'Wednesday', subject: 'Lunch break', teacher: '', classroom: '', sessionType: 'Break' }),
+  ]);
+
+  assert.equal(library.status, 'valid');
+  assert.equal(library.facultyName, '');
+  assert.equal(library.parsedLocation.locationName, 'Central Library');
+  assert.equal(breakEntry.status, 'valid');
+  assert.equal(breakEntry.facultyName, '');
 });

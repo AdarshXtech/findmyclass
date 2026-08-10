@@ -1,0 +1,19 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "test-server-api",
+			"type": "shell",
+			"command": "node",
+			"args": [
+				"--test",
+				"server/test/api.test.js"
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$tsc"
+			],
+			"group": "test"
+		}
+	]
+}

@@ -1,7 +1,7 @@
 import { formatTime } from '../../utils/timetableTime'
 import LocationHeader from './LocationHeader'
 
-export default function NextClassHero({ entry, status, finishedForToday, timeContext, onNavigate }) {
+export default function NextClassHero({ entry, status, finishedForToday, timeContext }) {
   if (!entry) {
     return (
       <section className="rounded-lg border border-border-default bg-surface-primary px-5 py-7" aria-live="polite">
@@ -42,15 +42,6 @@ export default function NextClassHero({ entry, status, finishedForToday, timeCon
             <dd className="mt-1 font-bold [overflow-wrap:anywhere]">{entry.facultyName || 'Faculty not listed'}</dd>
           </div>
         </dl>
-        {onNavigate ? (
-          <button
-            type="button"
-            onClick={onNavigate}
-            className={`mt-6 min-h-11 rounded-lg border px-4 py-2 font-bold transition-colors ${current ? 'border-result-slate-soft text-text-on-dark hover:bg-surface-primary-subtle' : 'border-result-slate bg-surface-primary text-result-slate-dark hover:bg-result-slate-soft'}`}
-          >
-            Navigate to class
-          </button>
-        ) : null}
       </div>
     </section>
   )

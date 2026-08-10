@@ -189,7 +189,19 @@ async function recognizeGridRows(worker, image, data) {
         parsed = parseMetadata(cleanCell(`${cells[slot]}${cells[slot + 1]}`), legend);
         if (parsed) duration = 2;
       }
-      if (!parsed) continue;
+      if (!parsed) {
+        const unclear = cells[slot].replace(/\s+/g, ' ').trim();
+        if (/[A-Z]{4,}/i.test(unclear) || /\b(?:lib|lunch|break)\b/i.test(unclear)) {
+          rows.push({
+            day: DAYS[dayIndex],
+            startTime: START_TIMES[slot],
+            endTime: END_TIMES[slot],
+            subjectName: unclear,
+            sessionType: /\b(?:lunch|break)\b/i.test(unclear) ? 'Break' : 'Class',
+          });
+        }
+        continue;
+      }
 
       const correctionIndex = corrections.findIndex((candidate, index) => (
         !usedCorrections.has(index)

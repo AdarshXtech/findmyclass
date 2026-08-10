@@ -31,7 +31,7 @@ function MapController({ destination, focus, position, recenterToken, route }) {
   return null
 }
 
-export default function CampusMap({ destination, focus, locations = [], position, recenterToken, route }) {
+export default function CampusMap({ destination, focus, locations = [], position, recenterToken, route, routeMode = 'preview' }) {
   const [ready, setReady] = useState(false)
   const directArrow = useMemo(() => {
     if (route?.kind !== 'straight' || route.pathCoordinates.length !== 2) return null
@@ -48,7 +48,7 @@ export default function CampusMap({ destination, focus, locations = [], position
   }, [route])
 
   return (
-    <div className="campus-map relative min-h-[420px] overflow-hidden rounded-lg border border-border-default bg-surface-muted" aria-label="Interactive BBD University campus map">
+    <div className="campus-map relative min-h-[420px] overflow-hidden rounded-lg border border-border-default bg-surface-muted" aria-label="Interactive BBD University campus map" data-route-mode={route ? routeMode : 'none'}>
       {!ready ? <div className="absolute inset-0 z-[500] flex items-center justify-center bg-surface-muted font-semibold" role="status">Loading campus map...</div> : null}
       <MapContainer
         center={CAMPUS_CENTER}
@@ -82,13 +82,13 @@ export default function CampusMap({ destination, focus, locations = [], position
           <>
             <Polyline
               positions={route.pathCoordinates}
-              pathOptions={{ color: '#fffdf7', weight: route.kind === 'network' ? 11 : 9, opacity: 0.96, lineCap: 'round', lineJoin: 'round' }}
+              pathOptions={{ color: '#fffdf7', weight: routeMode === 'active' ? 11 : 9, opacity: 0.9, lineCap: 'round', lineJoin: 'round' }}
             />
             <Polyline
               positions={route.pathCoordinates}
-              pathOptions={route.kind === 'network'
-                ? { color: '#843f43', weight: 6, opacity: 1, lineCap: 'round', lineJoin: 'round' }
-                : { color: '#843f43', weight: 5, opacity: 1, dashArray: '9 11', lineCap: 'round' }}
+              pathOptions={routeMode === 'active'
+                ? { color: '#456a89', weight: 6, opacity: 1, lineCap: 'round', lineJoin: 'round' }
+                : { color: '#d7e2ea', weight: 5, opacity: 1, dashArray: '9 11', lineCap: 'round' }}
             />
           </>
         ) : null}

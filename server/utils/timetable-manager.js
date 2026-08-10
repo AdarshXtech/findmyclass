@@ -7,6 +7,58 @@ const DAY_LOOKUP = new Map(DAYS.flatMap((day, index) => [
 ]));
 const CONFLICT_ERROR = 'Time conflict detected';
 const DUPLICATE_ERROR = 'Duplicate timetable entry detected for this day and time.';
+const ENTRY_TYPES = ['Class', 'Lab', 'Break', 'Lunch Break', 'Free Period', 'Exam', 'Event', 'Library'];
+const NO_LOCATION_TYPES = new Set(['Break', 'Lunch Break', 'Free Period']);
+const FACULTY_REQUIRED_TYPES = new Set(['Class', 'Lab', 'Lecture', 'Practical']);
+const COLLEGE_OPEN = 8 * 60;
+const COLLEGE_CLOSE = 18 * 60;
+const SUBJECT_ALIASES = new Map([
+  ['DLD', 'Digital Logic Design'],
+  ['BEE', 'Basic Electrical Engineering'],
+  ['DS', 'Data Structures'],
+  ['EM', 'Engineering Mechanics'],
+  ['WORKSHOP', 'Workshop Practices'],
+]);
+
+function normalizeSubjectName(value) {
+  const subject = String(value || '').trim().replace(/\s+/g, ' ');
+  return SUBJECT_ALIASES.get(subject.toUpperCase()) || subject;
+}
+
+function normalizeSessionType(value, subjectName = '') {
+  const requested = String(value || '').trim();
+  const match = [...ENTRY_TYPES, 'Lecture', 'Practical'].find((type) => type.toLowerCase() === requested.toLowerCase());
+  if (match) return match;
+  const label = `${requested} ${subjectName}`.toLowerCase();
+  if (/\b(?:lunch)\b/.test(label)) return 'Lunch Break';
+  if (/\b(?:free period|no class)\b/.test(label)) return 'Free Period';
+  if (/\b(?:short break|break)\b/.test(label)) return 'Break';
+  if (!requested && /\b(?:lab|workshop)\b/.test(label)) return 'Lab';
+  return requested || 'Class';
+}
+
+function isBreakEntry(value) {
+  return NO_LOCATION_TYPES.has(normalizeSessionType(value));
+}
+
+function minutesFromTime(value) {
+  const [hour, minute] = String(value || '').split(':').map(Number);
+  return Number.isFinite(hour) && Number.isFinite(minute) ? hour * 60 + minute : null;
+}
+
+function timeFromMinutes(value) {
+  return `${String(Math.floor(value / 60)).padStart(2, '0')}:${String(value % 60).padStart(2, '0')}`;
+}
+
+function reviewStatusFor(errors, sessionType) {
+  if (errors.some((error) => error.startsWith(CONFLICT_ERROR) || error === DUPLICATE_ERROR)) return 'Conflict';
+  if (errors.some((error) => /classroom|room/i.test(error))) return 'Invalid Classroom';
+  if (errors.some((error) => /faculty/i.test(error))) return 'Missing Faculty';
+  if (errors.some((error) => /subject|title/i.test(error))) return 'Missing Subject';
+  if (errors.some((error) => /time/i.test(error))) return 'Missing Time';
+  if (errors.length) return 'Needs Review';
+  return NO_LOCATION_TYPES.has(sessionType) ? `${sessionType} - No Room Required` : 'Valid';
+}
 
 function sanitizeImportText(value) {
   return String(value || '')
@@ -41,23 +93,25 @@ function formatEntry(row, index = 0) {
   const dayOfWeek = normalizeDay(row.dayOfWeek ?? row.day_of_week ?? row.day);
   const startTime = normalizeTime(row.startTime ?? row.start_time);
   const endTime = normalizeTime(row.endTime ?? row.end_time);
-  const requestedSessionType = String(row.sessionType ?? row.session_type ?? 'Lecture').trim();
-  const sessionType = /^(break|library)$/i.test(requestedSessionType)
-    ? requestedSessionType.charAt(0).toUpperCase() + requestedSessionType.slice(1).toLowerCase()
-    : requestedSessionType || 'Lecture';
-  const isBreak = sessionType === 'Break';
-  const facultyOptional = isBreak || sessionType === 'Library';
-  const subjectName = String(row.subjectName ?? row.subject_name ?? row.subject ?? (isBreak ? 'Lunch break' : '')).trim().replace(/\s+/g, ' ');
+  const requestedSubject = normalizeSubjectName(row.subjectName ?? row.subject_name ?? row.subject);
+  const sessionType = normalizeSessionType(row.sessionType ?? row.session_type, requestedSubject);
+  const noLocation = NO_LOCATION_TYPES.has(sessionType);
+  const subjectName = requestedSubject || (noLocation ? sessionType : sessionType === 'Library' ? 'Library' : '');
   const facultyName = String(row.facultyName ?? row.faculty_name ?? row.teacher ?? '').trim().replace(/\s+/g, ' ');
   const roomInput = String(row.classroom ?? row.room ?? '').trim();
-  const parsedLocation = parseClassroomLocation(roomInput, { subjectName, sessionType });
+  const external = Boolean(row.external);
+  const locationRequired = ['Class', 'Lab', 'Lecture', 'Practical'].includes(sessionType)
+    || (sessionType === 'Exam' && !external);
+  const parsedLocation = noLocation ? null : parseClassroomLocation(roomInput, { subjectName, sessionType });
   const errors = [];
   if (!dayOfWeek) errors.push('Select a valid day.');
   if (!startTime || !endTime) errors.push('Enter valid start and end times.');
   else if (startTime >= endTime) errors.push('Start time must be before end time.');
-  if (!subjectName) errors.push('Subject is required.');
-  if (!facultyOptional && !facultyName) errors.push('Faculty is required.');
-  if (!isBreak && !parsedLocation.isValid) errors.push(parsedLocation.error || 'Classroom is required.');
+  if (!subjectName) errors.push(noLocation ? 'Break title is required.' : 'Subject is required.');
+  if (FACULTY_REQUIRED_TYPES.has(sessionType) && !facultyName) errors.push('Faculty is required.');
+  if (locationRequired && !parsedLocation?.isValid) errors.push(parsedLocation?.error || 'Classroom is required.');
+
+  const reviewStatus = reviewStatusFor(errors, sessionType);
 
   return {
     clientId: row.clientId || `row-${index + 1}`,
@@ -71,10 +125,13 @@ function formatEntry(row, index = 0) {
     sessionType,
     facultyCode: String(row.facultyCode ?? row.faculty_code ?? '').trim(),
     facultyName,
-    room: isBreak ? '' : parsedLocation.isValid ? parsedLocation.room : roomInput,
-    classroom: roomInput,
+    room: noLocation ? '' : parsedLocation?.isValid ? parsedLocation.room : roomInput,
+    classroom: noLocation ? '' : roomInput,
     parsedLocation,
+    notes: String(row.notes ?? row.note ?? row.description ?? '').trim(),
+    external,
     errors,
+    reviewStatus,
     status: errors.length ? 'error' : 'valid',
   };
 }
@@ -106,6 +163,7 @@ function validateRows(inputRows, existingRows = []) {
       const conflictMessage = `${CONFLICT_ERROR}: "${conflict.subjectName || 'Unnamed subject'}" is scheduled from ${conflict.startTime} to ${conflict.endTime}.`;
       if (!row.errors.includes(conflictMessage)) row.errors.push(conflictMessage);
     }
+    row.reviewStatus = reviewStatusFor(row.errors, row.sessionType);
     row.status = row.errors.length ? 'error' : 'valid';
   });
   return rows;
@@ -189,14 +247,51 @@ function parseTimetableText(value) {
   return validateRows(rows);
 }
 
+function shiftRows(inputRows, { direction = 'later', minutes = 0 } = {}, existingRows = []) {
+  const amount = Number(minutes);
+  if (!Number.isInteger(amount) || amount < 1 || amount > 240) {
+    return validateRows(inputRows).map((row) => ({
+      ...row,
+      errors: [...row.errors, 'Shift amount must be between 1 and 240 minutes.'],
+      reviewStatus: 'Needs Review',
+      status: 'error',
+    }));
+  }
+  const offset = direction === 'earlier' ? -amount : amount;
+  const shifted = inputRows.map((row) => {
+    const start = minutesFromTime(normalizeTime(row.startTime ?? row.start_time));
+    const end = minutesFromTime(normalizeTime(row.endTime ?? row.end_time));
+    return {
+      ...row,
+      startTime: start === null ? row.startTime : timeFromMinutes(start + offset),
+      endTime: end === null ? row.endTime : timeFromMinutes(end + offset),
+    };
+  });
+  const validated = validateRows(shifted, existingRows);
+  validated.forEach((row) => {
+    const start = minutesFromTime(row.startTime);
+    const end = minutesFromTime(row.endTime);
+    if (start < COLLEGE_OPEN || end > COLLEGE_CLOSE) {
+      row.errors.push('Shifted entries must stay between 8:00 AM and 6:00 PM.');
+      row.reviewStatus = 'Needs Review';
+      row.status = 'error';
+    }
+  });
+  return validated;
+}
+
 module.exports = {
   CONFLICT_ERROR,
   DAYS,
   DUPLICATE_ERROR,
+  ENTRY_TYPES,
   formatEntry,
+  isBreakEntry,
   normalizeDay,
+  normalizeSessionType,
   normalizeTime,
   parseTimetableText,
   sanitizeImportText,
+  shiftRows,
   validateRows,
 };

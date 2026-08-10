@@ -33,6 +33,7 @@ const {
   DAYS,
   formatEntry,
   parseTimetableText,
+  shiftRows,
   validateRows,
 } = require('../utils/timetable-manager');
 const { extractTimetableImage } = require('../utils/timetable-ocr');
@@ -1052,6 +1053,60 @@ router.post('/timetables/validate', authenticateToken, async (req, res) => {
   }
 });
 
+/** POST /api/admin/timetables/shift */
+router.post('/timetables/shift', authenticateToken, async (req, res) => {
+  try {
+    const section = String(req.body.section || '').trim().toUpperCase();
+    const context = await getTimetableContext(section);
+    const metadataErrors = timetableMetadataErrors(req.body, context);
+    if (metadataErrors.length) {
+      return res.status(context ? 400 : 404).json({ success: false, message: metadataErrors[0] });
+    }
+
+    const schedule = await getTimetableRows(section);
+    const requestedIds = new Set((req.body.entryIds || []).map(String));
+    const day = req.body.day ? String(req.body.day) : '';
+    const afterTime = String(req.body.afterTime || '00:00');
+    const selected = schedule.filter((entry) => (
+      requestedIds.size
+        ? requestedIds.has(String(entry.timetable_entry_id))
+        : (!day || formatEntry(entry).day === day) && entry.start_time >= afterTime
+    ));
+    if (!selected.length) {
+      return res.status(400).json({ success: false, message: 'Select at least one timetable entry to shift.' });
+    }
+
+    const selectedIds = new Set(selected.map((entry) => String(entry.timetable_entry_id)));
+    const untouched = schedule.filter((entry) => !selectedIds.has(String(entry.timetable_entry_id)));
+    const rows = shiftRows(selected, {
+      direction: req.body.direction,
+      minutes: Number(req.body.minutes),
+    }, untouched);
+    const valid = rows.every((row) => row.status === 'valid');
+    if (!valid) {
+      return res.status(422).json({
+        success: false,
+        message: 'Time conflict detected after shifting. Please review the affected entries before saving.',
+        data: { rows, valid: false },
+      });
+    }
+    if (!req.body.confirm) return res.json({ success: true, data: { rows, valid: true, saved: false } });
+
+    await withTransaction(async (transaction) => {
+      for (const row of rows) {
+        await transaction.execute(
+          `UPDATE timetable_entries SET start_time=?, end_time=?, source_label=? WHERE timetable_entry_id=?`,
+          [row.startTime, row.endTime, 'ADMIN', row.timetableEntryId]
+        );
+      }
+    });
+    res.json({ success: true, message: `${rows.length} timetable ${rows.length === 1 ? 'entry' : 'entries'} shifted successfully.`, data: { rows, valid: true, saved: true } });
+  } catch (error) {
+    console.error('Timetable shift failed:', error.message);
+    res.status(500).json({ success: false, message: 'Could not shift timetable entries.' });
+  }
+});
+
 /** POST /api/admin/timetables/import */
 router.post('/timetables/import', authenticateToken, uploadTimetableImage, async (req, res) => {
   try {
@@ -1070,7 +1125,7 @@ router.post('/timetables/import', authenticateToken, uploadTimetableImage, async
       ? await extractTimetableImage(req.file.buffer)
       : { text: String(req.body.text), rows: null };
     const extractedText = extraction.text;
-    const rows = extraction.rows
+    const rows = extraction.rows?.length
       ? validateRows(extraction.rows)
       : parseTimetableText(extractedText);
     if (!rows.length) {
@@ -1115,11 +1170,11 @@ router.post('/timetables', authenticateToken, async (req, res) => {
         'timetable_entries',
         [
           'section', 'day_of_week', 'start_time', 'end_time', 'subject_code', 'subject_name',
-          'session_type', 'faculty_code', 'faculty_name', 'room', 'academic_session', 'semester', 'source_label',
+          'session_type', 'faculty_code', 'faculty_name', 'room', 'academic_session', 'semester', 'source_label', 'notes',
         ],
         validation.rows.map((row) => [
           section, row.dayOfWeek, row.startTime, row.endTime, row.subjectCode || null, row.subjectName,
-          row.sessionType, row.facultyCode || null, row.facultyName, row.room, academicSession, semester, 'ADMIN',
+          row.sessionType, row.facultyCode || null, row.facultyName, row.room, academicSession, semester, 'ADMIN', row.notes || null,
         ])
       );
     });
@@ -1156,11 +1211,11 @@ router.put('/timetables/:id', authenticateToken, async (req, res) => {
     await execute(
       `UPDATE timetable_entries
        SET day_of_week=?, start_time=?, end_time=?, subject_code=?, subject_name=?, session_type=?,
-           faculty_code=?, faculty_name=?, room=?, source_label=?
+           faculty_code=?, faculty_name=?, room=?, source_label=?, notes=?
        WHERE timetable_entry_id=?`,
       [
         row.dayOfWeek, row.startTime, row.endTime, row.subjectCode || null, row.subjectName,
-        row.sessionType, row.facultyCode || null, row.facultyName || null, row.room || null, 'ADMIN', id,
+        row.sessionType, row.facultyCode || null, row.facultyName || null, row.room || null, 'ADMIN', row.notes || null, id,
       ]
     );
     res.json({ success: true, message: 'Timetable entry updated successfully.' });

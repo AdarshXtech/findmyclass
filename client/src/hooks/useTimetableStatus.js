@@ -6,14 +6,15 @@ import {
   timeToMinutes,
   toComparableTime,
 } from '../utils/timetableTime'
+import { isBreakEntry } from '../utils/timetableEntry'
 
 export function getTimetableStatus(timetable = [], now = new Date()) {
   const currentDay = now.getDay()
   const currentTime = toComparableTime(now)
   const timetableByDay = groupTimetableByDay(timetable)
-  const teachingEntries = timetable.filter((entry) => entry.sessionType !== 'Break')
+  const teachingEntries = timetable.filter((entry) => !isBreakEntry(entry))
   const todayEntries = timetableByDay.get(currentDay) || []
-  const todayClasses = todayEntries.filter((entry) => entry.sessionType !== 'Break')
+  const todayClasses = todayEntries.filter((entry) => !isBreakEntry(entry))
   const availableClasses = todayClasses.filter((entry) => entry.status !== 'cancelled' && !entry.cancelled)
   const firstClass = availableClasses[0] || null
   const activeEntry = availableClasses.find((entry) => (
@@ -40,7 +41,7 @@ export function getTimetableStatus(timetable = [], now = new Date()) {
         ? `Starts at ${formatTime(priorityEntry.startTime)}`
         : null
   const entryStatusById = new Map(timetable.map((entry) => {
-    if (entry.sessionType === 'Break') return [entry.id, 'break']
+    if (isBreakEntry(entry)) return [entry.id, 'break']
     if (entry.status === 'cancelled' || entry.cancelled) return [entry.id, 'cancelled']
     if (entry.id === activeEntry?.id) return [entry.id, 'current']
     if (entry.id === priorityEntry?.id) return [entry.id, 'next']

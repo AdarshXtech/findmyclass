@@ -1,6 +1,7 @@
 import { HiOutlineClock } from 'react-icons/hi'
 import { formatTime } from '../../utils/timetableTime'
 import LocationHeader from './LocationHeader'
+import { isBreakEntry } from '../../utils/timetableEntry'
 
 function entryLocationLabel(entry) {
   return entry.locationName
@@ -13,7 +14,7 @@ export default function ClassCard({
   priorityLabel = 'Next class',
   compact = false,
 }) {
-  if (entry.sessionType === 'Break') {
+  if (isBreakEntry(entry)) {
     return (
       <article className="schedule-card schedule-card--break min-w-0 rounded-lg border border-result-wine-soft bg-result-wine-soft px-4 py-4 sm:px-5">
         <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
@@ -21,10 +22,10 @@ export default function ClassCard({
             <HiOutlineClock aria-hidden="true" className="shrink-0 text-lg text-accent-primary" />
             <time>{formatTime(entry.startTime)} &ndash; {formatTime(entry.endTime)}</time>
           </div>
-          <span className="rounded border border-result-wine px-2 py-1 font-mono text-xs font-bold uppercase text-accent-primary">Break</span>
+          <span className="rounded border border-result-wine px-2 py-1 font-mono text-xs font-bold uppercase text-accent-primary">{entry.sessionType}</span>
         </div>
         <p className="mt-3 font-display text-lg font-bold [overflow-wrap:anywhere]">{entry.subjectName || 'Lunch break'}</p>
-        <p className="mt-1 text-sm text-text-secondary">No class scheduled</p>
+        <p className="mt-1 text-sm text-text-secondary">No room required</p>
       </article>
     )
   }

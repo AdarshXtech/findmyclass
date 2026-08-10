@@ -521,8 +521,8 @@ test('health, lookup, authentication, CRUD, and import workflows', async (t) => 
       },
     });
     assert.equal(conflict.status, 422);
-    assert.match(conflict.body.data.rows[0].errors.join(' '), /DS/);
-    assert.match(conflict.body.data.rows[1].errors.join(' '), /DLD/);
+    assert.match(conflict.body.data.rows[0].errors.join(' '), /Data Structures/);
+    assert.match(conflict.body.data.rows[1].errors.join(' '), /Digital Logic Design/);
 
     const invalid = await apiRequest('/api/admin/timetables', {
       method: 'POST',
@@ -547,7 +547,7 @@ test('health, lookup, authentication, CRUD, and import workflows', async (t) => 
     const managedSchedule = await apiRequest('/api/admin/timetables/CSE-A', { token });
     assert.equal(managedSchedule.status, 200);
     assert.equal(managedSchedule.body.data.rows[0].day, 'Tuesday');
-    assert.equal(managedSchedule.body.data.rows[0].subjectName, 'DLD');
+    assert.equal(managedSchedule.body.data.rows[0].subjectName, 'Digital Logic Design');
     assert.equal(managedSchedule.body.data.rows[0].facultyName, 'Sharma');
 
     const merged = await apiRequest('/api/admin/timetables', {
@@ -563,13 +563,29 @@ test('health, lookup, authentication, CRUD, and import workflows', async (t) => 
     assert.equal(saved.length, 2);
     assert.deepEqual(saved.map((entry) => entry.room), ['407', 'UGF014']);
 
+    const shiftPreview = await apiRequest('/api/admin/timetables/shift', {
+      method: 'POST',
+      token,
+      body: { course: 'B.Tech', year: 1, section: 'CSE-A', day: 'Tuesday', direction: 'later', minutes: 15, confirm: false },
+    });
+    assert.equal(shiftPreview.status, 200);
+    assert.equal(shiftPreview.body.data.rows[0].startTime, '10:15');
+    assert.equal(shiftPreview.body.data.saved, false);
+
+    const shifted = await apiRequest('/api/admin/timetables/shift', {
+      method: 'POST',
+      token,
+      body: { course: 'B.Tech', year: 1, section: 'CSE-A', day: 'Tuesday', direction: 'later', minutes: 15, confirm: true },
+    });
+    assert.equal(shifted.status, 200);
+
     const updatedEntry = await apiRequest(`/api/admin/timetables/${saved[0].timetable_entry_id}`, {
       method: 'PUT',
       token,
       body: {
-        day: 'Tuesday', startTime: '10:00', endTime: '11:00',
+        day: 'Tuesday', startTime: '10:15', endTime: '11:15',
         subjectName: 'Updated DLD', facultyName: 'Updated Teacher',
-        sessionType: 'Lecture', classroom: '408',
+        sessionType: 'Lecture', classroom: '408', notes: 'Bring lab record',
       },
     });
     assert.equal(updatedEntry.status, 200);
@@ -577,6 +593,7 @@ test('health, lookup, authentication, CRUD, and import workflows', async (t) => 
     assert.equal(updatedRow.subject_name, 'Updated DLD');
     assert.equal(updatedRow.faculty_name, 'Updated Teacher');
     assert.equal(updatedRow.room, '408');
+    assert.equal(updatedRow.notes, 'Bring lab record');
 
     const unauthorizedDelete = await apiRequest(`/api/admin/timetables/${saved[0].timetable_entry_id}`, { method: 'DELETE' });
     assert.equal(unauthorizedDelete.status, 401);

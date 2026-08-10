@@ -120,17 +120,12 @@ export default function ResultPage() {
                 status={status.locationStatus}
                 finishedForToday={status.finishedForToday}
                 timeContext={status.timeContext}
-                onNavigate={status.priorityEntry ? () => selectView('map') : undefined}
               />
             ) : null}
 
             {activeView === 'map' ? (
               <Suspense fallback={<div className="rounded-lg border border-border-default bg-surface-primary p-6" role="status">Loading campus map...</div>}>
-                <CampusMapView
-                  locationStatus={status.locationStatus}
-                  priorityEntry={status.priorityEntry}
-                  timetable={timetable}
-                />
+                <CampusMapView />
               </Suspense>
             ) : activeView === 'daily' ? (
               <DailySchedule

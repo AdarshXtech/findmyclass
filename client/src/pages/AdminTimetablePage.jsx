@@ -3,6 +3,7 @@ import {
   HiOutlineClipboardCopy,
   HiOutlinePencil,
   HiOutlinePlus,
+  HiOutlineSwitchHorizontal,
   HiOutlineTrash,
   HiOutlineUpload,
 } from 'react-icons/hi'
@@ -10,8 +11,10 @@ import adminApi from '../admin/api'
 import ConfirmDialog from '../admin/components/ConfirmDialog'
 import SaveTimetableDialog from '../admin/components/SaveTimetableDialog'
 import { formatTime } from '../utils/timetableTime'
+import { ENTRY_TYPES, isBreakEntry, requiresFaculty, requiresLocation } from '../utils/timetableEntry'
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+const VERIFICATION_DAYS = [...DAYS, 'Saturday']
 const TIME_SLOTS = [
   ['09:00', '10:00'], ['09:00', '11:00'], ['10:00', '11:00'],
   ['11:00', '12:00'], ['11:00', '13:00'], ['12:00', '13:00'],
@@ -26,6 +29,7 @@ const emptyRow = () => ({
   facultyName: '',
   sessionType: 'Lecture',
   classroom: '',
+  notes: '',
 })
 
 function requestErrorMessage(error, fallback) {
@@ -43,16 +47,19 @@ function EntryFields({ row, onChange }) {
   })
   const fixedSlot = TIME_SLOTS.find(([startTime, endTime]) => startTime === row.startTime && endTime === row.endTime)
   const slotValue = row.customTime || !fixedSlot ? 'custom' : `${row.startTime}|${row.endTime}`
-  const facultyOptional = row.sessionType === 'Library' || row.sessionType === 'Break'
+  const noLocation = isBreakEntry(row)
+  const facultyRequired = requiresFaculty(row.sessionType)
+  const locationRequired = requiresLocation(row)
   const changeType = (event) => {
     const sessionType = event.target.value
-    const optional = sessionType === 'Library' || sessionType === 'Break'
+    const breakEntry = isBreakEntry(sessionType)
+    const replaceDefaultTitle = !row.subjectName || ['Library', 'Break', 'Lunch Break', 'Free Period'].includes(row.subjectName)
     onChange({
       ...row,
       sessionType,
-      facultyName: optional ? '' : row.facultyName,
-      subjectName: row.subjectName || (sessionType === 'Library' ? 'Library' : sessionType === 'Break' ? 'Lunch break' : ''),
-      classroom: sessionType === 'Break' ? '' : row.classroom,
+      facultyName: breakEntry ? '' : row.facultyName,
+      subjectName: replaceDefaultTitle ? (sessionType === 'Library' ? 'Library' : breakEntry ? sessionType : '') : row.subjectName,
+      classroom: breakEntry ? '' : row.classroom,
       errors: [],
       status: undefined,
     })
@@ -69,16 +76,20 @@ function EntryFields({ row, onChange }) {
         {TIME_SLOTS.map(([startTime, endTime]) => <option key={`${startTime}-${endTime}`} value={`${startTime}|${endTime}`}>{formatTime(startTime)} – {formatTime(endTime)}</option>)}
         <option value="custom">Custom time</option>
       </select></label>
-      <label className="text-sm font-bold">Type<select className="input-field mt-2" value={row.sessionType || 'Lecture'} onChange={changeType}><option>Lecture</option><option>Practical</option><option>Library</option><option>Break</option></select></label>
+      <label className="text-sm font-bold">Type<select className="input-field mt-2" value={row.sessionType || 'Class'} onChange={changeType}>
+        {[...new Set([...ENTRY_TYPES, 'Lecture', 'Practical'])].map((type) => <option key={type}>{type}</option>)}
+      </select></label>
       {slotValue === 'custom' ? (
         <>
           <label className="text-sm font-bold">Start time<input type="time" className="input-field mt-2" {...field('startTime')} /></label>
           <label className="text-sm font-bold">End time<input type="time" className="input-field mt-2" {...field('endTime')} /></label>
         </>
       ) : null}
-      <label className="text-sm font-bold sm:col-span-2">Subject<input className="input-field mt-2" {...field('subjectName')} /></label>
-      <label className="text-sm font-bold">{facultyOptional ? 'Faculty (not required)' : 'Faculty'}<input disabled={facultyOptional} className="input-field mt-2 disabled:bg-surface-secondary disabled:text-text-secondary" {...field('facultyName')} /></label>
-      <label className="text-sm font-bold">Classroom<input className="input-field mt-2 uppercase" {...field('classroom')} /></label>
+      <label className="text-sm font-bold sm:col-span-2">{noLocation ? 'Break title' : 'Subject'}<input className="input-field mt-2" {...field('subjectName')} /></label>
+      {!noLocation ? <label className="text-sm font-bold">Faculty{facultyRequired ? '' : ' (not required)'}<input disabled={row.sessionType === 'Library'} className="input-field mt-2 disabled:bg-surface-secondary disabled:text-text-secondary" {...field('facultyName')} /></label> : null}
+      {!noLocation ? <label className="text-sm font-bold">Classroom{locationRequired ? '' : ' / location (not required)'}<input className="input-field mt-2 uppercase" {...field('classroom')} /></label> : null}
+      {row.sessionType === 'Exam' ? <label className="flex min-h-11 items-center gap-2 text-sm font-bold"><input type="checkbox" checked={Boolean(row.external)} onChange={(event) => onChange({ ...row, external: event.target.checked, errors: [], status: undefined })} /> External exam</label> : null}
+      <label className="text-sm font-bold sm:col-span-2 xl:col-span-4">Notes (not required)<textarea rows="2" className="input-field mt-2" {...field('notes')} /></label>
     </div>
   )
 }
@@ -146,6 +157,56 @@ function ContextSelect({ classes, course, year, section, onCourseChange, onYearC
   )
 }
 
+function addMinutes(time, amount) {
+  const [hour, minute] = time.split(':').map(Number)
+  const total = hour * 60 + minute + amount
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`
+}
+
+function VerificationRows({ rows, setRows }) {
+  const update = (index, next) => setRows((current) => current.map((item, itemIndex) => itemIndex === index ? next : item))
+  const remove = (index) => setRows((current) => current.filter((_, itemIndex) => itemIndex !== index))
+  const duplicate = (index) => setRows((current) => {
+    const copy = { ...current[index], clientId: `${current[index].clientId || 'row'}-copy-${Date.now()}` }
+    return [...current.slice(0, index + 1), copy, ...current.slice(index + 1)]
+  })
+
+  return (
+    <div className="space-y-4">
+      {VERIFICATION_DAYS.map((day) => {
+        const dayRows = rows.map((entry, index) => ({ entry, index })).filter(({ entry }) => entry.day === day)
+        const breaks = dayRows.filter(({ entry }) => isBreakEntry(entry)).length
+        const conflicts = dayRows.filter(({ entry }) => entry.reviewStatus === 'Conflict').length
+        const needsReview = dayRows.filter(({ entry }) => entry.status === 'error').length
+        return (
+          <details key={day} open={dayRows.length > 0} className="border border-border-default bg-surface-primary">
+            <summary className="cursor-pointer px-4 py-4 font-display text-lg font-bold">
+              {day} <span className="ml-2 text-sm font-normal text-text-secondary">{dayRows.length - breaks} classes · {breaks} breaks · {conflicts || needsReview} needs review</span>
+            </summary>
+            <div className="space-y-4 border-t border-border-default p-4">
+              {dayRows.length ? dayRows.map(({ entry, index }) => (
+                <article key={entry.clientId || index} className={`border p-4 ${entry.status === 'error' ? 'border-status-danger' : 'border-border-default'}`}>
+                  <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                    <strong>{formatTime(entry.startTime)} – {formatTime(entry.endTime)}</strong>
+                    <span className={`border px-2 py-1 text-xs font-bold uppercase ${entry.status === 'error' ? 'border-status-danger text-status-danger' : 'border-status-success text-status-success'}`}>{entry.reviewStatus || (entry.status === 'error' ? 'Needs Review' : 'Valid')}</span>
+                  </div>
+                  <EntryFields row={entry} onChange={(next) => update(index, next)} />
+                  {!isBreakEntry(entry) && entry.parsedLocation ? <div className="mt-3 text-sm"><LocationPreview location={entry.parsedLocation} /></div> : null}
+                  {entry.errors?.map((item) => <p className="mt-1 text-sm text-status-danger" key={item}>{item}</p>)}
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button type="button" onClick={() => duplicate(index)} className="min-h-11 border border-border-default px-3 py-2"><HiOutlineClipboardCopy className="mr-1 inline" />Duplicate row</button>
+                    <button type="button" onClick={() => remove(index)} className="min-h-11 border border-border-default px-3 py-2 text-status-danger"><HiOutlineTrash className="mr-1 inline" />Delete row</button>
+                  </div>
+                </article>
+              )) : <p className="text-sm text-text-secondary">No entries detected for {day}.</p>}
+            </div>
+          </details>
+        )
+      })}
+    </div>
+  )
+}
+
 export default function AdminTimetablePage() {
   const [classes, setClasses] = useState([])
   const [course, setCourse] = useState('')
@@ -168,6 +229,13 @@ export default function AdminTimetablePage() {
   const [pendingFullDelete, setPendingFullDelete] = useState(null)
   const [deleteError, setDeleteError] = useState('')
   const [deleteConfirmation, setDeleteConfirmation] = useState('')
+  const [shiftDay, setShiftDay] = useState('Monday')
+  const [shiftAfter, setShiftAfter] = useState('00:00')
+  const [shiftDirection, setShiftDirection] = useState('later')
+  const [shiftAmount, setShiftAmount] = useState('15')
+  const [shiftCustomAmount, setShiftCustomAmount] = useState('20')
+  const [shiftSelection, setShiftSelection] = useState([])
+  const [shiftPreview, setShiftPreview] = useState([])
   const scheduleRequest = useRef(0)
 
   const context = classes.find((item) => (
@@ -273,9 +341,13 @@ export default function AdminTimetablePage() {
       setRows(response.data.data.rows)
       if (response.data.data.extractedText) setText(response.data.data.extractedText)
       setMessage('Preview created. Review and correct every row before saving.')
+      setMode('verification')
     } catch (requestError) {
       const importData = requestError.response?.data?.data
-      if (importData?.rows) setRows(importData.rows)
+      if (importData?.rows) {
+        setRows(importData.rows)
+        setMode('verification')
+      }
       if (importData?.extractedText) {
         setText(importData.extractedText)
         setSource('text')
@@ -317,6 +389,54 @@ export default function AdminTimetablePage() {
     } finally {
       setBusy(false)
     }
+  }
+
+  const shiftPayload = (confirm = false) => ({
+    ...metadata,
+    day: shiftDay,
+    afterTime: shiftAfter,
+    direction: shiftDirection,
+    minutes: Number(shiftAmount === 'custom' ? shiftCustomAmount : shiftAmount),
+    entryIds: shiftSelection,
+    confirm,
+  })
+
+  const previewShift = async () => {
+    setBusy(true)
+    setError('')
+    try {
+      const response = await adminApi.post('/timetables/shift', shiftPayload(false))
+      setShiftPreview(response.data.data.rows)
+      setMessage('Shift preview ready. Review the new times before saving.')
+    } catch (requestError) {
+      setShiftPreview(requestError.response?.data?.data?.rows || [])
+      setError(requestErrorMessage(requestError, 'Could not preview the timetable shift.'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const saveShift = async () => {
+    setBusy(true)
+    setError('')
+    try {
+      await adminApi.post('/timetables/shift', shiftPayload(true))
+      setShiftPreview([])
+      setShiftSelection([])
+      setMessage('Timetable times shifted successfully.')
+      await loadSchedule()
+    } catch (requestError) {
+      setError(requestErrorMessage(requestError, 'Could not save the timetable shift.'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const prepareInsert = (day, startTime, endTime) => {
+    setRow({ ...emptyRow(), day, startTime, endTime, customTime: true })
+    setMode('manual')
+    setMessage(`Adding an entry in the available ${formatTime(startTime)} – ${formatTime(endTime)} slot.`)
+    window.scrollTo({ top: 0 })
   }
 
   const editEntry = async (entry) => {
@@ -381,7 +501,7 @@ export default function AdminTimetablePage() {
     return {
       day,
       entries,
-      classCount: entries.filter((entry) => entry.sessionType !== 'Break').length,
+      classCount: entries.filter((entry) => !isBreakEntry(entry)).length,
     }
   }), [schedule])
 
@@ -401,6 +521,8 @@ export default function AdminTimetablePage() {
             ['manual', 'Add Manually', HiOutlinePlus],
             ['import', 'Import Timetable', HiOutlineUpload],
             ['edit', 'Edit Existing', HiOutlinePencil],
+            ['shift', 'Shift Classes', HiOutlineSwitchHorizontal],
+            ['verification', 'Verification', HiOutlineClipboardCopy],
             ['delete', 'Delete Timetable', HiOutlineTrash],
           ].map(([value, label, Icon]) => (
             <button key={value} type="button" role="tab" aria-selected={mode === value} onClick={() => { setMode(value); setError(''); setMessage('') }} className={`min-h-11 border px-4 py-2 font-bold ${mode === value ? 'border-border-strong bg-accent-highlight' : 'border-border-default'}`}>
@@ -428,14 +550,16 @@ export default function AdminTimetablePage() {
         <section className="border border-border-default bg-surface-primary p-4 shadow-admin sm:p-6">
           <h2 className="font-display text-xl font-bold">New timetable entry</h2>
           <div className="mt-5"><EntryFields row={row} onChange={setRow} /></div>
-          <div className={`mt-3 text-sm ${row.parsedLocation?.isValid || row.sessionType === 'Break' ? 'text-status-success' : 'text-status-danger'}`}>
-            {row.sessionType === 'Break'
-              ? <p>Faculty and classroom are optional for a break.</p>
+          <div className={`mt-3 text-sm ${row.parsedLocation?.isValid || isBreakEntry(row) || !requiresLocation(row) ? 'text-status-success' : 'text-status-danger'}`}>
+            {isBreakEntry(row)
+              ? <p>Faculty and classroom are not required for this entry.</p>
               : row.sessionType === 'Library' && !row.classroom
                 ? <p>Faculty is optional. Central Library is assigned automatically.</p>
               : row.parsedLocation?.isValid
                 ? <LocationPreview location={row.parsedLocation} />
-                : <p>{row.classroom ? row.parsedLocation?.error : 'Enter a classroom to check its mapped location.'}</p>}
+                : requiresLocation(row)
+                  ? <p>{row.classroom ? row.parsedLocation?.error : 'Enter a classroom to check its mapped location.'}</p>
+                  : <p>A location is optional for this entry.</p>}
           </div>
           {row.errors?.length ? <ul className="mt-2 text-sm text-status-danger">{row.errors.map((item) => <li key={item}>{item}</li>)}</ul> : null}
           <button type="button" disabled={busy || !section} onClick={addManually} className="mt-5 min-h-11 bg-accent-primary px-5 py-3 font-bold text-text-on-accent disabled:opacity-60">{busy ? 'Adding...' : 'Add timetable entry'}</button>
@@ -458,21 +582,51 @@ export default function AdminTimetablePage() {
         </section>
       )}
 
-      {mode === 'import' && rows.length > 0 && (
+      {mode === 'verification' && (
         <section className="space-y-4">
           <div className="flex flex-wrap items-end justify-between gap-3">
-            <div><h2 className="font-display text-xl font-bold">Import preview</h2><p className="text-sm text-text-secondary">Nothing is saved until you approve it.</p></div>
-            <button type="button" disabled={busy} onClick={revalidatePreview} className="min-h-11 bg-accent-primary px-5 py-3 font-bold text-text-on-accent disabled:opacity-60">Validate and save</button>
+            <div><h2 className="font-display text-xl font-bold">Import preview</h2><p className="text-sm text-text-secondary">Verification is grouped by day. Nothing is saved until every row is valid and you approve it.</p></div>
+            <button type="button" disabled={busy || !rows.length} onClick={revalidatePreview} className="min-h-11 bg-accent-primary px-5 py-3 font-bold text-text-on-accent disabled:opacity-60">{busy ? 'Validating...' : 'Validate and save'}</button>
           </div>
-          {rows.map((entry, index) => (
-            <article key={entry.clientId || index} className={`border bg-surface-primary p-4 ${entry.status === 'error' ? 'border-status-danger' : 'border-border-default'}`}>
-              <EntryFields row={entry} onChange={(next) => setRows((current) => current.map((item, itemIndex) => itemIndex === index ? next : item))} />
-              <div className="mt-3 flex items-start justify-between gap-3 text-sm">
-                <div><strong>{entry.status === 'error' ? 'Error' : 'Valid'}</strong><LocationPreview location={entry.parsedLocation} />{entry.errors?.map((item) => <p className="text-status-danger" key={item}>{item}</p>)}</div>
-                <button type="button" aria-label={`Remove preview row ${index + 1}`} onClick={() => setRows((current) => current.filter((_, itemIndex) => itemIndex !== index))} className="flex h-11 w-11 items-center justify-center border border-border-default text-status-danger"><HiOutlineTrash /></button>
+          {rows.length ? <VerificationRows rows={rows} setRows={setRows} /> : <p className="border border-border-default bg-surface-primary p-5 text-text-secondary">Import a timetable to create a verification preview.</p>}
+        </section>
+      )}
+
+      {mode === 'shift' && (
+        <section className="space-y-5 border border-border-default bg-surface-primary p-4 shadow-admin sm:p-6">
+          <div>
+            <h2 className="font-display text-xl font-bold">Shift Classes</h2>
+            <p className="mt-1 text-text-secondary">Choose entries, preview their new times, then confirm. Leave every checkbox clear to shift all matching entries after the selected time.</p>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <label className="text-sm font-bold">Day<select className="input-field mt-2" value={shiftDay} onChange={(event) => { setShiftDay(event.target.value); setShiftSelection([]); setShiftPreview([]) }}>{DAYS.map((day) => <option key={day}>{day}</option>)}</select></label>
+            <label className="text-sm font-bold">Starting at or after<input type="time" className="input-field mt-2" value={shiftAfter} onChange={(event) => { setShiftAfter(event.target.value); setShiftPreview([]) }} /></label>
+            <label className="text-sm font-bold">Direction<select className="input-field mt-2" value={shiftDirection} onChange={(event) => { setShiftDirection(event.target.value); setShiftPreview([]) }}><option value="later">Move later</option><option value="earlier">Move earlier</option></select></label>
+            <label className="text-sm font-bold">Shift amount<select className="input-field mt-2" value={shiftAmount} onChange={(event) => { setShiftAmount(event.target.value); setShiftPreview([]) }}><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="15">15 minutes</option><option value="30">30 minutes</option><option value="custom">Custom minutes</option></select></label>
+            {shiftAmount === 'custom' ? <label className="text-sm font-bold">Custom minutes<input type="number" min="1" max="240" className="input-field mt-2" value={shiftCustomAmount} onChange={(event) => { setShiftCustomAmount(event.target.value); setShiftPreview([]) }} /></label> : null}
+          </div>
+          <fieldset className="border border-border-default p-4">
+            <legend className="px-2 font-bold">Entries to shift</legend>
+            <div className="grid gap-2">
+              {schedule.filter((entry) => entry.day === shiftDay && entry.startTime >= shiftAfter).map((entry) => (
+                <label key={entry.timetableEntryId} className="flex min-h-11 items-center gap-3 border-b border-border-default py-2 last:border-0">
+                  <input type="checkbox" checked={shiftSelection.includes(entry.timetableEntryId)} onChange={(event) => setShiftSelection((current) => event.target.checked ? [...current, entry.timetableEntryId] : current.filter((id) => id !== entry.timetableEntryId))} />
+                  <span><strong>{formatTime(entry.startTime)} – {formatTime(entry.endTime)}</strong> · {entry.subjectName}</span>
+                </label>
+              ))}
+              {!section ? <p className="text-text-secondary">Select a class above.</p> : scheduleLoading ? <p className="text-text-secondary">Loading timetable...</p> : !schedule.some((entry) => entry.day === shiftDay && entry.startTime >= shiftAfter) ? <p className="text-text-secondary">No matching entries for this day and time.</p> : null}
+            </div>
+          </fieldset>
+          <button type="button" disabled={busy || !section} onClick={previewShift} className="min-h-11 bg-accent-primary px-5 py-3 font-bold text-text-on-accent disabled:opacity-60">{busy ? 'Checking shift...' : 'Preview shifted timetable'}</button>
+          {shiftPreview.length ? (
+            <div className="border-t border-border-default pt-5">
+              <h3 className="font-display text-lg font-bold">Shift preview</h3>
+              <div className="mt-3 space-y-2">
+                {shiftPreview.map((entry) => <div key={entry.timetableEntryId || entry.clientId} className={`border p-3 ${entry.status === 'error' ? 'border-status-danger' : 'border-border-default'}`}><strong>{formatTime(entry.startTime)} – {formatTime(entry.endTime)}</strong> · {entry.subjectName}{entry.errors?.map((item) => <p key={item} className="mt-1 text-sm text-status-danger">{item}</p>)}</div>)}
               </div>
-            </article>
-          ))}
+              <button type="button" disabled={busy || shiftPreview.some((entry) => entry.status === 'error')} onClick={saveShift} className="mt-4 min-h-11 bg-accent-primary px-5 py-3 font-bold text-text-on-accent disabled:opacity-60">{busy ? 'Saving shift...' : 'Confirm and save shift'}</button>
+            </div>
+          ) : null}
         </section>
       )}
 
@@ -482,10 +636,11 @@ export default function AdminTimetablePage() {
             <details key={day} open={entries.length > 0} className="border border-border-default bg-surface-primary">
               <summary className="cursor-pointer px-4 py-4 font-display text-lg font-bold">{day} <span className="text-sm text-text-secondary">({classCount})</span></summary>
               <div className="space-y-4 border-t border-border-default p-4">
-                {entries.length === 0 ? <p className="text-sm text-text-secondary">No classes.</p> : entries.map((entry) => (
-                  <article key={entry.timetableEntryId} className={`border border-border-default p-4 ${entry.sessionType === 'Break' ? 'bg-surface-secondary' : ''}`}>
+                {entries.length === 0 ? <p className="text-sm text-text-secondary">No classes.</p> : entries.map((entry, index) => (
+                  <div key={entry.timetableEntryId} className="space-y-3">
+                  <article className={`border border-border-default p-4 ${isBreakEntry(entry) ? 'bg-surface-secondary' : ''}`}>
                     <EntryFields row={entry} onChange={(next) => setSchedule((current) => current.map((item) => item.timetableEntryId === entry.timetableEntryId ? next : item))} />
-                    {entry.sessionType === 'Break' ? <p className="mt-3 text-sm text-text-secondary">Breaks are not counted as classes.</p> : <div className="mt-3 text-sm"><LocationPreview location={entry.parsedLocation} /></div>}
+                    {isBreakEntry(entry) ? <p className="mt-3 text-sm text-text-secondary">No faculty or room is required. Breaks are not counted as classes.</p> : entry.parsedLocation ? <div className="mt-3 text-sm"><LocationPreview location={entry.parsedLocation} /></div> : null}
                     {entry.errors?.map((item) => <p className="mt-1 text-sm text-status-danger" key={item}>{item}</p>)}
                     <div className="mt-4 flex flex-wrap gap-2">
                       <button type="button" disabled={busy} onClick={() => editEntry(schedule.find((item) => item.timetableEntryId === entry.timetableEntryId))} className="min-h-11 border border-border-strong px-3 py-2 font-bold"><HiOutlinePencil className="mr-1 inline" />Save edit</button>
@@ -493,6 +648,14 @@ export default function AdminTimetablePage() {
                       <button type="button" onClick={(event) => { setDeleteError(''); setPendingDelete({ entry, trigger: event.currentTarget }) }} className="min-h-11 border border-border-default px-3 py-2 text-status-danger"><HiOutlineTrash className="mr-1 inline" />Delete</button>
                     </div>
                   </article>
+                  <button
+                    type="button"
+                    onClick={() => prepareInsert(day, entry.endTime, entries[index + 1]?.startTime || addMinutes(entry.endTime, 60))}
+                    className="min-h-11 w-full border border-dashed border-border-strong px-4 py-2 font-bold text-accent-primary"
+                  >
+                    <HiOutlinePlus className="mr-1 inline" />{entries[index + 1] ? 'Add class here' : 'Add class after this'}
+                  </button>
+                  </div>
                 ))}
               </div>
             </details>

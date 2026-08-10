@@ -1,79 +1,119 @@
 import { Suspense } from 'react'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
-import { makeEntry } from '../../test/fixtures'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import CampusMapView from './CampusMapView'
 
+const geolocation = vi.hoisted(() => ({ start: vi.fn(), stop: vi.fn() }))
+
 vi.mock('./CampusMap', () => ({
-  default: ({ route }) => <div data-testid="campus-map" data-route={route?.kind || 'none'}>Interactive map</div>,
+  default: ({ route, routeMode }) => <div data-testid="campus-map" data-route={route?.kind || 'none'} data-route-mode={route ? routeMode : 'none'}>Interactive map</div>,
 }))
 
 vi.mock('../../hooks/useGeolocation', () => ({
-  default: () => ({ message: '', position: null, start: vi.fn(), status: 'idle', stop: vi.fn() }),
+  default: () => ({ message: '', position: null, start: geolocation.start, status: 'idle', stop: geolocation.stop }),
 }))
 
-function renderMap(props = {}) {
-  const entry = makeEntry({ floorLabel: 'Floor 4', wing: 'A' })
+function renderMap() {
   return render(
     <Suspense>
-      <CampusMapView priorityEntry={entry} locationStatus="Next class" timetable={[entry]} {...props} />
+      <CampusMapView />
     </Suspense>,
   )
 }
 
+async function selectAccountsOffice(user) {
+  await user.type(screen.getByLabelText('Search destination'), 'ITM')
+  await user.click(screen.getByRole('button', { name: /Accounts Office/ }))
+}
+
 describe('CampusMapView', () => {
-  it('shows the real map surface, next class, privacy copy, and manual start', async () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('opens without requesting location or starting a route', async () => {
     renderMap()
 
-    expect(await screen.findByTestId('campus-map')).toBeVisible()
-    expect(screen.getByText('Next class')).toBeVisible()
-    expect(screen.getByText(/not stored or attached/i)).toBeVisible()
-    expect(screen.getByLabelText('Choose starting point')).toBeVisible()
-    expect(screen.queryByText('Quick destinations')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Campus' })).toBeVisible()
-    expect(screen.getByRole('button', { name: 'Recenter' })).toBeVisible()
+    expect(await screen.findByTestId('campus-map')).toHaveAttribute('data-route', 'none')
+    expect(geolocation.start).not.toHaveBeenCalled()
+    expect(screen.queryByText('Next class')).not.toBeInTheDocument()
+    expect(screen.getByText(/Choose a campus destination/i)).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Canteen' })).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Start Path' })).not.toBeInTheDocument()
   })
 
-  it('searches timetable rooms and selects a result with keyboard-accessible controls', async () => {
+  it('selects a quick destination without starting a path', async () => {
+    const user = userEvent.setup()
+    renderMap()
+
+    await user.click(screen.getByRole('button', { name: 'Canteen' }))
+    expect(screen.getByRole('heading', { name: 'Stadium Canteen' })).toBeVisible()
+    expect(screen.getByText('Choose your starting point')).toBeVisible()
+    expect(screen.getByTestId('campus-map')).toHaveAttribute('data-route', 'none')
+    expect(geolocation.start).not.toHaveBeenCalled()
+  })
+
+  it('shows a preview after manual start selection and activates only on Start Path', async () => {
+    const user = userEvent.setup()
+    renderMap()
+    await selectAccountsOffice(user)
+
+    await user.selectOptions(screen.getByLabelText('Choose starting point manually'), 'central-library')
+    expect(screen.getByTestId('campus-map')).toHaveAttribute('data-route-mode', 'preview')
+    expect(screen.getByRole('button', { name: 'Start Path' })).toBeEnabled()
+    expect(screen.queryByText('Path started')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Start Path' }))
+    expect(screen.getByTestId('campus-map')).toHaveAttribute('data-route-mode', 'active')
+    expect(screen.getByText('Path started')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Cancel Path' })).toBeVisible()
+
+    await user.click(screen.getByRole('button', { name: 'Cancel Path' }))
+    expect(screen.getByTestId('campus-map')).toHaveAttribute('data-route-mode', 'preview')
+    expect(screen.getByText(/Path cancelled/i)).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Start Path' })).toBeVisible()
+  })
+
+  it('requests location only after the user chooses current location', async () => {
+    const user = userEvent.setup()
+    renderMap()
+    await selectAccountsOffice(user)
+
+    expect(geolocation.start).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'Use my current location' }))
+    expect(geolocation.start).toHaveBeenCalledTimes(1)
+    expect(screen.getByTestId('campus-map')).toHaveAttribute('data-route', 'none')
+  })
+
+  it('blocks a route when start and destination are the same', async () => {
+    const user = userEvent.setup()
+    renderMap()
+    await selectAccountsOffice(user)
+
+    await user.selectOptions(screen.getByLabelText('Choose starting point manually'), 'itm')
+    expect(screen.getByRole('alert')).toHaveTextContent('Starting point and destination are the same.')
+    expect(screen.queryByRole('button', { name: 'Start Path' })).not.toBeInTheDocument()
+    expect(screen.getByTestId('campus-map')).toHaveAttribute('data-route', 'none')
+  })
+
+  it('does not expose timetable classes or rooms in map search', async () => {
     const user = userEvent.setup()
     renderMap()
 
     await user.type(screen.getByLabelText('Search destination'), '407')
-    await user.click(screen.getByRole('button', { name: /Room 407/ }))
-    expect(screen.getByRole('heading', { name: 'Room 407' })).toBeVisible()
+    expect(screen.getByText('No campus destination matches that search.')).toBeVisible()
+    await user.clear(screen.getByLabelText('Search destination'))
+    await user.type(screen.getByLabelText('Search destination'), '414')
+    expect(screen.getByText('No campus destination matches that search.')).toBeVisible()
   })
 
-  it('searches rooms outside the student timetable', async () => {
+  it('shows an error when a selected destination has no surveyed coordinates', async () => {
     const user = userEvent.setup()
     renderMap()
-
-    await user.type(screen.getByLabelText('Search destination'), '520')
-    await user.click(screen.getByRole('button', { name: /Room 520/ }))
-    expect(screen.getByRole('heading', { name: 'Room 520' })).toBeVisible()
-  })
-
-  it('explains when a campus destination still needs surveyed coordinates', async () => {
-    const user = userEvent.setup()
-    renderMap({ priorityEntry: null, locationStatus: null })
 
     await user.type(screen.getByLabelText('Search destination'), 'Academic Block I')
     await user.click(screen.getAllByRole('button', { name: /Academic Block I/ })[0])
-    expect(screen.getByText(/directions unavailable until this location is surveyed/i)).toBeVisible()
-  })
-
-  it('shows the local straight-line fallback when the path network does not reach the destination', async () => {
-    const user = userEvent.setup()
-    renderMap()
-
-    await user.selectOptions(screen.getByLabelText('Choose starting point'), 'central-library')
-    expect(screen.getByText(/Direct line/)).toBeVisible()
-    expect(screen.getByText(/surveyed walking path does not reach/i)).toBeVisible()
-    expect(screen.queryByRole('link', { name: /walking directions/i })).not.toBeInTheDocument()
-
-    await user.click(screen.getByRole('button', { name: 'Remove path' }))
-    expect(screen.getByTestId('campus-map')).toHaveAttribute('data-route', 'none')
-    await user.click(screen.getByRole('button', { name: 'Show path' }))
-    expect(screen.getByTestId('campus-map')).toHaveAttribute('data-route', 'straight')
+    await user.selectOptions(screen.getByLabelText('Choose starting point manually'), 'central-library')
+    expect(screen.getByRole('alert')).toHaveTextContent('No valid path found between these locations.')
+    expect(screen.queryByRole('button', { name: 'Start Path' })).not.toBeInTheDocument()
   })
 })

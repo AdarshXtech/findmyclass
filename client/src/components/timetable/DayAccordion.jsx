@@ -1,8 +1,9 @@
 import { HiOutlineChevronDown } from 'react-icons/hi'
 import ClassCard from './ClassCard'
+import { isBreakEntry } from '../../utils/timetableEntry'
 
 export default function DayAccordion({ day, entries, entryStatusById, expanded, locationStatus, onToggle }) {
-  const classCount = entries.filter((entry) => entry.sessionType !== 'Break').length
+  const classCount = entries.filter((entry) => !isBreakEntry(entry)).length
 
   return (
     <section className="min-w-0 overflow-hidden rounded-lg border border-border-default bg-surface-primary">

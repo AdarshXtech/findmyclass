@@ -39,11 +39,13 @@ describe('AdminTimetablePage', () => {
     mockSchedule()
   })
 
-  it('offers all four manager modes with persistent class and entry labels', async () => {
+  it('offers all manager modes with persistent class and entry labels', async () => {
     render(<AdminTimetablePage />)
     expect(await screen.findByRole('tab', { name: /Add Manually/i })).toBeVisible()
     expect(screen.getByRole('tab', { name: /Import Timetable/i })).toBeVisible()
     expect(screen.getByRole('tab', { name: /Edit Existing/i })).toBeVisible()
+    expect(screen.getByRole('tab', { name: /Shift Classes/i })).toBeVisible()
+    expect(screen.getByRole('tab', { name: /Verification/i })).toBeVisible()
     expect(screen.getByRole('tab', { name: /Delete Timetable/i })).toBeVisible()
     expect(screen.getByLabelText('Course')).toBeVisible()
     expect(screen.getByLabelText('Year')).toBeVisible()
@@ -74,6 +76,7 @@ describe('AdminTimetablePage', () => {
 
     expect(await screen.findByText('Import preview')).toBeVisible()
     expect(screen.getByDisplayValue('Digital Logic Design')).toBeVisible()
+    expect(screen.getByText('No entries detected for Saturday.')).toBeInTheDocument()
     expect(adminApi.post).toHaveBeenCalledTimes(1)
     expect(adminApi.post.mock.calls[0][0]).toBe('/timetables/import')
     await waitFor(() => expect(screen.getByText(/Nothing is saved/)).toBeVisible())
@@ -127,7 +130,8 @@ describe('AdminTimetablePage', () => {
     expect(screen.getByLabelText('Subject')).toHaveValue('Library')
 
     await user.selectOptions(screen.getByLabelText('Type'), 'Break')
-    expect(screen.getByLabelText('Faculty (not required)')).toBeDisabled()
+    expect(screen.queryByLabelText(/Faculty/)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/Classroom/)).not.toBeInTheDocument()
   })
 
   it('edits an existing timetable entry and preserves its selected class', async () => {
@@ -162,6 +166,26 @@ describe('AdminTimetablePage', () => {
     expect(await screen.findByText('Monday', { selector: 'summary' })).toHaveTextContent('Monday (1)')
     expect(screen.getByDisplayValue('Lunch break')).toBeVisible()
     expect(screen.getAllByRole('button', { name: /Save edit/i })).toHaveLength(2)
+  })
+
+  it('previews a server-validated class shift before saving it', async () => {
+    const user = userEvent.setup()
+    mockSchedule([timetableEntry])
+    adminApi.post.mockResolvedValue({
+      data: { data: { valid: true, saved: false, rows: [{ ...timetableEntry, startTime: '10:15', endTime: '11:15', status: 'valid' }] } },
+    })
+    render(<AdminTimetablePage />)
+    await selectClass(user)
+    await user.click(screen.getByRole('tab', { name: /Shift Classes/i }))
+    await user.click(screen.getByRole('button', { name: 'Preview shifted timetable' }))
+
+    await waitFor(() => expect(adminApi.post).toHaveBeenCalledWith('/timetables/shift', expect.objectContaining({
+      direction: 'later',
+      minutes: 15,
+      confirm: false,
+    })))
+    expect(await screen.findByText('Shift preview')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Confirm and save shift' })).toBeEnabled()
   })
 
   it('cancels a single-entry deletion without calling the API', async () => {

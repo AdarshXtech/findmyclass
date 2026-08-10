@@ -39,4 +39,18 @@ describe('ClassCard', () => {
     expect(screen.getByText('DLD Lab')).toBeVisible()
     expect(screen.getByText('Lower Ground Floor · Wing A · Room LGF001')).toBeVisible()
   })
+
+  it('shows lunch breaks without room or faculty placeholders', () => {
+    render(<ClassCard entry={makeEntry({
+      sessionType: 'Lunch Break',
+      subjectName: 'Lunch Break',
+      facultyName: '',
+      classroomNumber: '',
+    })} />)
+
+    expect(screen.getByText('Lunch Break', { selector: 'span' })).toBeVisible()
+    expect(screen.getByText('No room required')).toBeVisible()
+    expect(screen.queryByText(/Room/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Faculty not listed/)).not.toBeInTheDocument()
+  })
 })

@@ -3,7 +3,7 @@ export const CAMPUS_BOUNDS = [
   [26.8819871, 81.0562873],
   [26.8893745, 81.0600424],
 ]
-export const UNIVERSITY_BUILDING_COORDINATES = [26.88876405120485, 81.05899591670317]
+export const UNIVERSITY_BUILDING_COORDINATES = [26.88885787946639, 81.05900840676333]
 
 const VERIFIED_SOURCE = 'OpenStreetMap way 444400159'
 const USER_PIN_SOURCE = 'User-provided Google Maps coordinates'
@@ -49,11 +49,10 @@ export const CAMPUS_LOCATIONS = [
     coordinates: UNIVERSITY_BUILDING_COORDINATES,
     coordinatePrecision: 'university building',
     building: 'BBD University Building',
-    room: '414',
-    aliases: ['CIL', 'Room 414'],
+    aliases: ['CIL'],
     source: 'BBDU timetable and OpenStreetMap university footprint',
   },
-  campusPlace('itm', 'ITM', 'Academic', [26.888008265931433, 81.05680338651463], ['Institute of Technology and Management']),
+  campusPlace('itm', 'Accounts Office', 'Services', [26.888008265931433, 81.05680338651463], ['ITM', 'Accounts']),
   campusPlace('student-mall', 'Student Mall', 'Services', [26.887715266549318, 81.05791499211475]),
   campusPlace('bbdca', 'BBDCA', 'Academic', [26.887120391439122, 81.0576341427554]),
   campusPlace('nescafe', 'Nescafe', 'Food', [26.88713161405393, 81.05809180076612], ['Cafe']),
@@ -83,98 +82,8 @@ export const CAMPUS_LOCATIONS = [
   { id: 'parking', name: 'Parking', category: 'Services', coordinates: null, aliases: ['Campus Parking'] },
 ]
 
-function classroomDestination(room, floor, wing) {
-  return {
-    id: `classroom-${room.toLowerCase()}`,
-    name: `Room ${room}`,
-    category: 'Classroom',
-    coordinates: UNIVERSITY_BUILDING_COORDINATES,
-    coordinatePrecision: 'university building',
-    building: 'BBD University Building',
-    floor,
-    wing,
-    room,
-    aliases: [room, floor, `Wing ${wing}`],
-    source: 'Confirmed BBD University building map',
-  }
-}
-
-function wingForPosition(position, upperGround = false) {
-  if (position <= 7) return 'A'
-  if (upperGround) return position <= 13 ? 'B' : 'C'
-  return position <= 14 ? 'B' : 'C'
-}
-
-export const CLASSROOM_LOCATIONS = [
-  ...Array.from({ length: 20 }, (_, index) => {
-    const position = index + 1
-    const room = `UGF${String(position).padStart(3, '0')}`
-    return classroomDestination(room, 'Underground Floor', wingForPosition(position, true))
-  }),
-  ...Array.from({ length: 9 }, (_, index) => {
-    const position = index + 1
-    const room = `LGF${String(position).padStart(3, '0')}`
-    return classroomDestination(room, 'Lower Ground Floor', position <= 4 ? 'A' : 'B')
-  }),
-  ...Object.entries({ 1: 20, 2: 21, 3: 21, 4: 19, 5: 20 }).flatMap(([floor, maximum]) => (
-    Array.from({ length: maximum }, (_, index) => {
-      const position = index + 1
-      const room = `${floor}${String(position).padStart(2, '0')}`
-      return classroomDestination(room, `Floor ${floor}`, wingForPosition(position))
-    })
-  )),
-]
-
 function text(value) {
   return String(value || '').trim()
-}
-
-function entryFloor(entry) {
-  return text(entry.floorLabel || entry.shortFloor || entry.floor)
-}
-
-export function buildTimetableDestinations(timetable = []) {
-  const destinations = new Map()
-
-  for (const entry of timetable) {
-    if (entry.sessionType === 'Break') continue
-    const room = text(entry.classroomNumber || entry.room || entry.originalClassroom)
-    const locationName = text(entry.locationName)
-    if (!room && !locationName) continue
-
-    const key = `${locationName.toLowerCase()}|${room.toLowerCase()}`
-    if (destinations.has(key)) continue
-
-    const floor = entryFloor(entry)
-    const wing = text(entry.wing)
-    const hasValidLocation = !entry.locationError
-    destinations.set(key, {
-      id: `timetable-${room || locationName}`.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-      name: locationName || `Room ${room}`,
-      category: 'Classroom',
-      coordinates: hasValidLocation ? UNIVERSITY_BUILDING_COORDINATES : null,
-      coordinatePrecision: hasValidLocation ? 'university building' : null,
-      building: 'BBD University Building',
-      floor,
-      wing,
-      room,
-      aliases: [room, `Room ${room}`, entry.subjectName, floor, wing && `Wing ${wing}`].filter(Boolean),
-      source: 'Student timetable and OpenStreetMap university footprint',
-      locationError: entry.locationError || null,
-    })
-  }
-
-  return [...destinations.values()]
-}
-
-export function destinationForEntry(entry, timetableDestinations = []) {
-  if (!entry) return null
-  const room = text(entry.classroomNumber || entry.room || entry.originalClassroom).toLowerCase()
-  const locationName = text(entry.locationName).toLowerCase()
-  return timetableDestinations.find((destination) => (
-    (room && destination.room.toLowerCase() === room)
-    || (locationName && destination.name.toLowerCase() === locationName)
-  )) || null
 }
 
 export function searchCampusLocations(query, locations) {
@@ -186,7 +95,6 @@ export function searchCampusLocations(query, locations) {
     location.building,
     location.floor,
     location.wing && `Wing ${location.wing}`,
-    location.room,
     ...(location.aliases || []),
   ].some((value) => text(value).toLowerCase().includes(term)))
 }
@@ -197,6 +105,5 @@ export function destinationContext(destination) {
     destination.building,
     destination.floor,
     destination.wing && `Wing ${destination.wing}`,
-    destination.room && `Room ${destination.room}`,
   ].filter(Boolean).join(' · ')
 }

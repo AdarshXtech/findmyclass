@@ -189,6 +189,10 @@ function createSqliteSchema() {
     `);
     sqlite.run('DROP TABLE timetable_entries_legacy');
   }
+  const timetableColumns = sqliteQueryAll('PRAGMA table_info(timetable_entries)');
+  if (!timetableColumns.some((column) => column.name === 'notes')) {
+    sqlite.run('ALTER TABLE timetable_entries ADD COLUMN notes TEXT');
+  }
   sqlite.run('CREATE INDEX IF NOT EXISTS idx_students_university_roll ON students(university_roll_number)');
   sqlite.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_students_phone_lookup_hash ON students(phone_lookup_hash) WHERE phone_lookup_hash IS NOT NULL');
   sqlite.run('CREATE INDEX IF NOT EXISTS idx_students_identity ON students(normalized_name, phone_lookup_hash)');
@@ -271,6 +275,7 @@ async function createPostgresSchema() {
     ALTER TABLE timetable_entries DROP CONSTRAINT IF EXISTS timetable_entries_day_of_week_check;
     ALTER TABLE timetable_entries
       ADD CONSTRAINT timetable_entries_day_of_week_check CHECK (day_of_week BETWEEN 1 AND 6);
+    ALTER TABLE timetable_entries ADD COLUMN IF NOT EXISTS notes TEXT;
   `);
 }
 

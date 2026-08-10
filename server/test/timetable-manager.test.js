@@ -4,6 +4,7 @@ const {
   CONFLICT_ERROR,
   DUPLICATE_ERROR,
   parseTimetableText,
+  shiftRows,
   validateRows,
 } = require('../utils/timetable-manager');
 
@@ -102,4 +103,35 @@ test('accepts Library and Break entries without faculty', () => {
   assert.equal(library.parsedLocation.locationName, 'Central Library');
   assert.equal(breakEntry.status, 'valid');
   assert.equal(breakEntry.facultyName, '');
+});
+
+test('applies entry-type validation without requiring rooms for non-class periods', () => {
+  const [lunch, freePeriod, lab, externalExam] = validateRows([
+    row({ day: 'Monday', subject: 'Lunch', teacher: '', classroom: '', sessionType: 'Lunch Break' }),
+    row({ day: 'Tuesday', subject: 'Free Period', teacher: '', classroom: '', sessionType: 'Free Period' }),
+    row({ day: 'Wednesday', subject: 'DLD Lab', teacher: 'Mr. Sharma', classroom: '', sessionType: 'Lab' }),
+    row({ day: 'Thursday', subject: 'University Exam', teacher: '', classroom: '', sessionType: 'Exam', external: true }),
+  ]);
+
+  assert.equal(lunch.status, 'valid');
+  assert.equal(lunch.parsedLocation, null);
+  assert.equal(freePeriod.reviewStatus, 'Free Period - No Room Required');
+  assert.equal(lab.reviewStatus, 'Invalid Classroom');
+  assert.equal(externalExam.status, 'valid');
+});
+
+test('previews valid shifts and blocks shifts that overlap another class', () => {
+  const shifted = shiftRows([
+    row({ timetableEntryId: 1, startTime: '11:00', endTime: '12:00' }),
+  ], { direction: 'later', minutes: 20 });
+  assert.equal(shifted[0].startTime, '11:20');
+  assert.equal(shifted[0].endTime, '12:20');
+  assert.equal(shifted[0].status, 'valid');
+
+  const conflict = shiftRows([
+    row({ timetableEntryId: 1, startTime: '11:00', endTime: '12:00' }),
+  ], { direction: 'later', minutes: 20 }, [
+    row({ timetableEntryId: 2, startTime: '12:00', endTime: '13:00', subject: 'Physics' }),
+  ]);
+  assert.equal(conflict[0].reviewStatus, 'Conflict');
 });

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { HiOutlineDocumentAdd, HiOutlineUpload } from 'react-icons/hi'
+import { HiOutlineDocumentAdd, HiOutlineDownload, HiOutlineUpload } from 'react-icons/hi'
 import { useNavigate } from 'react-router-dom'
 import adminApi from '../admin/api'
 import { clearAdminSession } from '../admin/auth'
@@ -11,13 +11,43 @@ export default function AdminImportPage() {
   const [error, setError] = useState('')
   const [result, setResult] = useState(null)
 
+  const downloadTemplate = () => {
+    const headers = 'Name,Phone Number,University Roll Number,Class Roll Number,Course,Branch,Year,Section\n'
+    const url = URL.createObjectURL(new Blob([headers], { type: 'text/csv;charset=utf-8' }))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'student-import-template.csv'
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const handleFileChange = (event) => {
+    const selectedFile = event.target.files?.[0] || null
+    setError('')
+    setResult(null)
+
+    if (selectedFile && !/\.(csv|xls|xlsx)$/i.test(selectedFile.name)) {
+      setFile(null)
+      setError('Choose a CSV or Excel file (.csv, .xls, or .xlsx).')
+      event.target.value = ''
+      return
+    }
+    if (selectedFile && selectedFile.size > 5 * 1024 * 1024) {
+      setFile(null)
+      setError('The file exceeds the 5MB upload limit.')
+      event.target.value = ''
+      return
+    }
+    setFile(selectedFile)
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
     setResult(null)
 
     if (!file) {
-      setError('Please select an XLSX or CSV file.')
+      setError('Please select a CSV or Excel file.')
       return
     }
 
@@ -26,9 +56,7 @@ export default function AdminImportPage() {
 
     setUploading(true)
     try {
-      const response = await adminApi.post('/import/students', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      })
+      const response = await adminApi.post('/import/students', formData)
       setResult(response.data.data)
     } catch (err) {
       if (err.response?.status === 401 || err.response?.status === 403) {
@@ -46,16 +74,26 @@ export default function AdminImportPage() {
     <div className="space-y-6">
       <section className="rounded-2xl border border-border-default bg-surface-primary p-6 shadow-admin">
         <h1 className="mb-1 text-2xl font-bold text-text-primary">Import Students</h1>
-        <p className="text-text-secondary">Upload an XLSX or CSV file to add student records.</p>
+        <p className="text-text-secondary">Add many students at once from a CSV or Excel spreadsheet.</p>
       </section>
 
       <section className="rounded-2xl border border-border-default bg-surface-primary p-6 shadow-admin">
-        <h2 className="mb-4 text-lg font-semibold text-text-primary">Required Columns</h2>
-        <p className="mb-2 text-sm text-text-secondary">Name, University Roll Number, Course, Branch, Year, Section</p>
-        <p className="mb-2 text-xs text-text-secondary">Optional column: Class Roll Number</p>
-        <p className="text-xs text-text-secondary">
-          Accepted formats: .xlsx, .csv (max 5MB)
-        </p>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h2 className="mb-2 text-lg font-semibold text-text-primary">Spreadsheet columns</h2>
+            <p className="text-sm text-text-secondary">Required: Name, University Roll Number, Course, Branch, Year, Section</p>
+            <p className="mt-1 text-sm text-text-secondary">Optional: Phone Number, Class Roll Number</p>
+            <p className="mt-2 text-xs text-text-secondary">Use the first worksheet. Maximum file size: 5MB.</p>
+          </div>
+          <button
+            type="button"
+            onClick={downloadTemplate}
+            className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-lg border border-border-accent px-4 py-2 font-semibold text-accent-primary transition hover:bg-surface-highlight"
+          >
+            <HiOutlineDownload />
+            Download CSV template
+          </button>
+        </div>
       </section>
 
       <section className="rounded-2xl border border-border-default bg-surface-primary p-6 shadow-admin">
@@ -67,13 +105,15 @@ export default function AdminImportPage() {
           <input
             id="student-import-file"
             type="file"
-            accept=".xlsx,.csv"
-            onChange={(e) => setFile(e.target.files?.[0] || null)}
+            accept=".csv,.xls,.xlsx"
+            onChange={handleFileChange}
             className="block w-full text-sm text-text-secondary file:mr-4 file:rounded-lg file:border-0 file:bg-accent-primary file:px-4 file:py-2 file:text-text-on-accent hover:file:bg-accent-strong"
             required
           />
 
-          <button type="submit" disabled={uploading} className="btn-primary inline-flex items-center gap-2">
+          <p className="text-xs text-text-secondary">Accepted formats: CSV, XLS, XLSX</p>
+
+          <button type="submit" disabled={uploading} aria-busy={uploading} className="btn-primary inline-flex items-center gap-2">
             <HiOutlineUpload />
             {uploading ? 'Importing...' : 'Import Students'}
           </button>
@@ -103,9 +143,9 @@ export default function AdminImportPage() {
           {result.errors?.length ? (
             <div>
               <h3 className="mb-2 text-sm font-semibold text-status-danger">Skipped Row Details</h3>
-              <ul className="space-y-1 text-sm text-text-secondary">
+              <ul className="list-disc space-y-1 pl-5 text-sm text-text-secondary">
                 {result.errors.map((item, index) => (
-                  <li key={`${item}-${index}`}>• {item}</li>
+                  <li key={`${item}-${index}`}>{item}</li>
                 ))}
               </ul>
               {result.omittedErrors ? (

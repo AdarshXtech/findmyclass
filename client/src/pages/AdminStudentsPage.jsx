@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { HiOutlinePencil, HiOutlinePlus, HiOutlineSearch, HiOutlineTrash } from 'react-icons/hi'
-import { useNavigate } from 'react-router-dom'
+import { HiOutlinePencil, HiOutlinePlus, HiOutlineSearch, HiOutlineTrash, HiOutlineUpload } from 'react-icons/hi'
+import { Link, useNavigate } from 'react-router-dom'
 import adminApi from '../admin/api'
 import { clearAdminSession } from '../admin/auth'
 import ConfirmDialog from '../admin/components/ConfirmDialog'
@@ -248,9 +248,20 @@ export default function AdminStudentsPage() {
       </section>
 
       <section className="rounded-2xl border border-border-default bg-surface-primary p-6 shadow-admin">
-        <h2 className="mb-4 text-lg font-semibold text-text-primary">
-          {editingId ? 'Edit Student' : 'Add Student'}
-        </h2>
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="text-lg font-semibold text-text-primary">
+            {editingId ? 'Edit Student' : 'Add Student'}
+          </h2>
+          {!editingId ? (
+            <Link
+              to="/admin/import"
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-border-accent px-4 py-2 font-semibold text-accent-primary transition hover:bg-surface-highlight"
+            >
+              <HiOutlineUpload />
+              Import CSV or Excel
+            </Link>
+          ) : null}
+        </div>
         <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label htmlFor="student-full-name" className="mb-2 block text-sm font-bold text-text-secondary">Full name</label>

@@ -3,9 +3,7 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const multer = require('multer');
-const path = require('path');
-const { Readable } = require('stream');
-const ExcelJS = require('exceljs');
+const XLSX = require('@e965/xlsx');
 const { queryAll, queryOne, execute, withTransaction } = require('../config/db');
 const { authenticateToken, JWT_SECRET } = require('../middleware/auth');
 const {
@@ -714,10 +712,10 @@ const upload = multer({
   storage,
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    if (file.originalname.match(/\.(xlsx|csv)$/i)) {
+    if (file.originalname.match(/\.(xlsx|xls|csv)$/i)) {
       cb(null, true);
     } else {
-      cb(new Error('Only Excel (.xlsx) and CSV files are allowed.'));
+      cb(new Error('Only CSV or Excel (.xls, .xlsx) files are allowed.'));
     }
   }
 });
@@ -750,29 +748,24 @@ function getCellText(value) {
 }
 
 async function readStudentRows(file) {
-  const workbook = new ExcelJS.Workbook();
-  const extension = path.extname(file.originalname).toLowerCase();
-  let worksheet;
+  const workbook = XLSX.read(file.buffer, { type: 'buffer', cellDates: true });
+  const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+  if (!worksheet) return [];
 
-  if (extension === '.xlsx') {
-    await workbook.xlsx.load(file.buffer);
-    worksheet = workbook.worksheets[0];
-  } else {
-    worksheet = await workbook.csv.read(Readable.from([file.buffer]));
-  }
+  const sheetRows = XLSX.utils.sheet_to_json(worksheet, {
+    header: 1,
+    defval: '',
+    raw: false,
+    blankrows: false,
+  });
+  if (sheetRows.length < 2) return [];
 
-  if (!worksheet || worksheet.actualRowCount < 2) return [];
-
-  const headerRow = worksheet.getRow(1);
-  const headers = [];
-  for (let column = 1; column <= worksheet.actualColumnCount; column++) {
-    headers.push(
-      getCellText(headerRow.getCell(column).value)
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '_')
-        .replace(/^_|_$/g, '')
-    );
-  }
+  const headers = sheetRows[0].map((value) => (
+    getCellText(value)
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_|_$/g, '')
+  ));
 
   const requiredHeaders = ['name', 'course', 'branch', 'year', 'section'];
   const missingHeaders = requiredHeaders.filter((header) => !headers.includes(header));
@@ -784,11 +777,12 @@ async function readStudentRows(file) {
   }
 
   const rows = [];
-  for (let rowNumber = 2; rowNumber <= worksheet.rowCount; rowNumber++) {
-    const worksheetRow = worksheet.getRow(rowNumber);
+  for (let index = 1; index < sheetRows.length; index++) {
+    const rowNumber = index + 1;
+    const worksheetRow = sheetRows[index];
     const row = { rowNumber };
-    headers.forEach((header, index) => {
-      if (header) row[header] = getCellText(worksheetRow.getCell(index + 1).value);
+    headers.forEach((header, columnIndex) => {
+      if (header) row[header] = getCellText(worksheetRow[columnIndex]);
     });
 
     if (headers.some((header) => header && row[header] !== '')) {
@@ -823,6 +817,7 @@ router.post('/import/students', authenticateToken, uploadStudentFile, async (req
     const errors = [];
     const candidates = [];
     const seenRolls = new Set();
+    const seenPhones = new Set();
 
     for (let i = 0; i < data.length; i++) {
       const row = data[i];
@@ -835,6 +830,8 @@ router.post('/import/students', authenticateToken, uploadStudentFile, async (req
       const branch = String(row.branch || '').trim();
       const year = normalizeYear(row.year);
       const section = normalizeSection(row.section);
+      const suppliedPhone = String(row.phone_number || '').trim();
+      const phoneNumber = suppliedPhone ? normalizePhoneNumber(suppliedPhone) : null;
 
       if (!name || !course || !branch || !year || !section) {
         errors.push(`Row ${row.rowNumber}: Missing required fields`);
@@ -866,22 +863,50 @@ router.post('/import/students', authenticateToken, uploadStudentFile, async (req
         skipped++;
         continue;
       }
+      if (suppliedPhone && !phoneNumber) {
+        errors.push(`Row ${row.rowNumber}: Invalid phone number`);
+        skipped++;
+        continue;
+      }
 
       if (seenRolls.has(universityRoll)) {
         errors.push(`Row ${row.rowNumber}: Duplicate university roll number in import file`);
         skipped++;
         continue;
       }
+      const phoneHash = phoneNumber ? hashPhoneNumber(phoneNumber) : null;
+      if (phoneNumber && !phoneHash) {
+        throw new Error('PHONE_LOOKUP_SECRET is not configured.');
+      }
+      if (phoneHash && seenPhones.has(phoneHash)) {
+        errors.push(`Row ${row.rowNumber}: Duplicate phone number in import file`);
+        skipped++;
+        continue;
+      }
       seenRolls.add(universityRoll);
+      if (phoneHash) seenPhones.add(phoneHash);
       candidates.push({
         rowNumber: row.rowNumber,
         universityRoll,
-        values: [name, normalizeStudentName(name), universityRoll, classRoll, course, branch, year, section],
+        phoneHash,
+        values: [
+          name,
+          normalizeStudentName(name),
+          phoneHash,
+          phoneNumber ? phoneNumber.slice(-4) : null,
+          universityRoll,
+          classRoll,
+          course,
+          branch,
+          year,
+          section,
+        ],
       });
     }
 
     const importResult = await withTransaction(async (transaction) => {
       const registeredRolls = new Set();
+      const registeredPhones = new Set();
 
       for (let offset = 0; offset < candidates.length; offset += 400) {
         const chunk = candidates.slice(offset, offset + 400);
@@ -893,10 +918,24 @@ router.post('/import/students', authenticateToken, uploadStudentFile, async (req
         for (const row of rows) registeredRolls.add(row.university_roll_number);
       }
 
+      const phoneCandidates = candidates.filter((candidate) => candidate.phoneHash);
+      for (let offset = 0; offset < phoneCandidates.length; offset += 400) {
+        const chunk = phoneCandidates.slice(offset, offset + 400);
+        const placeholders = chunk.map(() => '?').join(', ');
+        const rows = await transaction.queryAll(
+          `SELECT phone_lookup_hash FROM students WHERE phone_lookup_hash IN (${placeholders})`,
+          chunk.map((candidate) => candidate.phoneHash)
+        );
+        for (const row of rows) registeredPhones.add(row.phone_lookup_hash);
+      }
+
       const pending = [];
       for (const candidate of candidates) {
         if (registeredRolls.has(candidate.universityRoll)) {
           errors.push(`Row ${candidate.rowNumber}: University roll number already registered`);
+          skipped++;
+        } else if (candidate.phoneHash && registeredPhones.has(candidate.phoneHash)) {
+          errors.push(`Row ${candidate.rowNumber}: Phone number already registered`);
           skipped++;
         } else {
           pending.push(candidate);
@@ -905,7 +944,18 @@ router.post('/import/students', authenticateToken, uploadStudentFile, async (req
 
       const result = await transaction.insertMany(
         'students',
-        ['name', 'normalized_name', 'university_roll_number', 'class_roll_number', 'course', 'branch', 'year', 'section'],
+        [
+          'name',
+          'normalized_name',
+          'phone_lookup_hash',
+          'phone_last_four',
+          'university_roll_number',
+          'class_roll_number',
+          'course',
+          'branch',
+          'year',
+          'section',
+        ],
         pending.map((candidate) => candidate.values),
         { suffix: 'ON CONFLICT (university_roll_number) DO NOTHING', chunkSize: 200 }
       );

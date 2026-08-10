@@ -15,7 +15,7 @@ process.env.CLIENT_ORIGIN = 'http://localhost:3000';
 process.env.PHONE_LOOKUP_SECRET = 'test-only-phone-lookup-secret';
 
 const bcrypt = require('bcryptjs');
-const ExcelJS = require('exceljs');
+const XLSX = require('@e965/xlsx');
 const { startServer } = require('../server');
 const { initDatabase, execute, queryAll } = require('../config/db');
 const { loadScheduleData } = require('../config/load-schedule-data');
@@ -648,12 +648,14 @@ test('health, lookup, authentication, CRUD, and import workflows', async (t) => 
     assert.match(result.body.data.errors[0], /already registered/);
   });
 
-  await t.test('imports XLSX and rejects unsupported or malformed files', async () => {
-    const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet('Students');
-    worksheet.addRow(['Name', 'University Roll Number', 'Class Roll Number', 'Course', 'Branch', 'Year', 'Section']);
-    worksheet.addRow(['XLSX Student', '1250439003', 4, 'B.Tech', 'ECE', 1, 'ECE-A']);
-    const xlsxBuffer = await workbook.xlsx.writeBuffer();
+  await t.test('imports XLSX and XLS files and rejects unsupported or malformed files', async () => {
+    const rows = [
+      ['Name', 'Phone Number', 'University Roll Number', 'Class Roll Number', 'Course', 'Branch', 'Year', 'Section'],
+      ['XLSX Student', '7000000093', '1250439003', 4, 'B.Tech', 'ECE', 1, 'ECE-A'],
+    ];
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(rows), 'Students');
+    const xlsxBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
     const xlsxForm = new FormData();
     xlsxForm.append('file', new Blob([xlsxBuffer]), 'students.xlsx');
 
@@ -665,8 +667,24 @@ test('health, lookup, authentication, CRUD, and import workflows', async (t) => 
     assert.equal(imported.status, 200);
     assert.equal(imported.body.data.imported, 1);
 
+    const xlsWorkbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(xlsWorkbook, XLSX.utils.aoa_to_sheet([
+      rows[0],
+      ['XLS Student', '7000000094', '1250439004', 5, 'B.Tech', 'ME', 1, 'ME-A'],
+    ]), 'Students');
+    const xlsBuffer = XLSX.write(xlsWorkbook, { type: 'buffer', bookType: 'xls' });
+    const xlsForm = new FormData();
+    xlsForm.append('file', new Blob([xlsBuffer]), 'students.xls');
+    const importedXls = await apiRequest('/api/admin/import/students', {
+      method: 'POST',
+      token,
+      body: xlsForm,
+    });
+    assert.equal(importedXls.status, 200);
+    assert.equal(importedXls.body.data.imported, 1);
+
     const unsupportedForm = new FormData();
-    unsupportedForm.append('file', new Blob(['legacy']), 'students.xls');
+    unsupportedForm.append('file', new Blob(['unsupported']), 'students.ods');
     const unsupported = await apiRequest('/api/admin/import/students', {
       method: 'POST',
       token,

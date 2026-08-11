@@ -204,3 +204,50 @@ None. Browser `localStorage` and the existing Blob download are sufficient.
 
 - `client/src/components/map/CampusPathEditor.jsx`
 - `client/src/components/map/CampusPathEditor.test.jsx`
+
+## Decision: Keep destination pins separate from the pedestrian path graph
+
+Date: 2026-08-12
+Session: Campus path alignment
+Status: Active
+
+### Problem
+
+The first exported path graph contained valid walkway coordinates, but destination pins were not visible while tracing and repeated chain starts created 19 disconnected graph components. Moving walkway nodes onto building-centre pins would misrepresent where students can actually walk.
+
+### Considered Approaches
+
+1. Move path nodes onto every destination coordinate.
+2. Increase the routing snap distance until every destination uses the graph.
+3. Keep path and destination coordinates separate, show destination pins in the editor, and connect trace junctions that land within three metres of each other.
+
+### Chosen Approach
+
+Keep the surveyed path geometry unchanged. Display defined campus destinations as yellow reference pins, reuse an existing node when a new click lands within three metres, and add missing edges between nearby trace junctions during export.
+
+### Why This Approach?
+
+Walkway nodes represent where a student can walk, while map pins often represent a building centre. Keeping those concepts separate preserves honest route geometry. The three-metre tolerance repairs accidental duplicate junctions without inventing long paths.
+
+### Why Not the Alternatives?
+
+Moving nodes to building centres can route through walls. Raising the snap distance would hide missing path coverage and create long straight connectors that look like surveyed routes.
+
+### Libraries / Dependencies Used
+
+None. The existing haversine distance helper and React Leaflet markers are reused.
+
+### Trade-offs
+
+- Advantages: visible alignment references, one connected imported graph, and fewer disconnected tracing mistakes.
+- Disadvantages: destinations still need a traced entrance within the existing 60-metre routing threshold.
+- Technical debt: Management Building and the stadium entrance still require additional surveyed segments.
+- Performance implications: nearby-node checks are quadratic during export, but the campus graph is small and export is an explicit admin action.
+- Security implications: none; only public campus coordinates are processed.
+- Maintainability implications: destination coordinates remain owned by `campusLocations.js`, while walkable geometry remains owned by `campusPaths.js`.
+
+### Files Affected
+
+- `client/src/components/map/CampusPathEditor.jsx`
+- `client/src/services/campusPathGraph.js`
+- `client/src/services/campusPaths.js`

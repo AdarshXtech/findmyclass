@@ -214,7 +214,7 @@ ResultPage selects ?view=map
 -> routeSteps() + getIndoorGuidance() render text directions
 ```
 
-Map rendering uses React Leaflet with Esri satellite and OpenStreetMap street tiles. Routing does not call a directions API. `CAMPUS_PATH_NODES` and `CAMPUS_PATH_EDGES` are currently empty, so the current user-facing route is the straight-line fallback until surveyed paths are exported from the admin path editor.
+Map rendering uses React Leaflet with Esri satellite and OpenStreetMap street tiles. Routing does not call a directions API. `CAMPUS_PATH_NODES` and `CAMPUS_PATH_EDGES` contain the surveyed campus walkway graph. The path editor displays destination pins separately, reuses nodes within three metres, and connects nearby trace junctions during export. Destinations farther than 60 metres from the graph retain the straight-line fallback until their entrances are surveyed.
 
 ## 4. Major Modules
 
@@ -621,3 +621,55 @@ The Save path file button now uses the same visible admin theme tokens as the su
 
 - Open `/admin/paths` and verify Save path file is visible between the segment counter and Stop chain.
 - Click Save path file after tracing a path and verify `campusPaths.js` downloads.
+
+## AI Session: 2026-08-12 00:22 +05:30
+
+### Files Created
+
+- None.
+
+### Files Modified
+
+- `client/src/components/map/CampusPathEditor.jsx`
+- `client/src/components/map/CampusPathEditor.test.jsx`
+- `client/src/services/campusPathGraph.js`
+- `client/src/services/campusPathGraph.test.js`
+- `client/src/services/campusPaths.js`
+- `decisions.md`
+- `flow.md`
+
+### Files Deleted
+
+- None.
+
+### Functions Added
+
+- `connectNearbyPathNodes()` in `campusPathGraph.js`.
+
+### Functions Modified
+
+- `CampusPathEditor` now displays destination references and reuses nearby path nodes.
+- `serializeCampusPaths()` now adds missing edges between nodes within three metres.
+
+### Execution Flow Changed
+
+The student map now loads the imported 104-node campus graph. Path export repairs near-duplicate tracing junctions before generating `campusPaths.js`; routing continues to use the existing 60-metre endpoint snap threshold and straight-line fallback.
+
+### Behaviour Changed
+
+The editor shows yellow destination pins from `campusLocations.js`, near-identical clicks no longer create disconnected nodes, and the imported graph is one connected component. Management Building and the stadium still use the fallback until paths are extended to their entrances.
+
+### Decisions Added
+
+- `Keep destination pins separate from the pedestrian path graph` in `decisions.md`.
+
+### Potential Risks
+
+- Two physically separate paths within three metres could be connected during export; the threshold is intentionally small.
+- A browser draft created before deployment remains preferred over the imported source graph until the admin presses Reset.
+
+### Recommended Tests
+
+- Press Reset once in `/admin/paths` to load the deployed graph instead of an older browser draft.
+- Confirm yellow pins match destination markers and extend paths to Management Building and the stadium entrance.
+- Test a route between distant covered destinations and confirm it follows the wine-red path rather than the straight fallback.

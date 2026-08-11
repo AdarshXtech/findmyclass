@@ -1,5 +1,6 @@
 import { act, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { CAMPUS_PATH_NODES } from '../../services/campusPaths'
 import CampusPathEditor from './CampusPathEditor'
 
 const mapEvents = vi.hoisted(() => ({ current: null }))
@@ -29,8 +30,25 @@ describe('CampusPathEditor', () => {
 
     await waitFor(() => {
       const draft = JSON.parse(localStorage.getItem('findmyclass-campus-path-draft'))
+      expect(draft.nodes).toHaveLength(CAMPUS_PATH_NODES.length + 1)
+      expect(draft.nodes.at(-1).coordinates).toEqual([26.88, 81.05])
+    })
+  })
+
+  it('shows defined destination pins and reuses a nearby path node', async () => {
+    localStorage.setItem('findmyclass-campus-path-draft', JSON.stringify({
+      nodes: [{ id: 'n0001', coordinates: [26.88, 81.05] }],
+      edges: [],
+    }))
+
+    render(<CampusPathEditor />)
+
+    expect(screen.getByText('BBD University Building')).toBeVisible()
+    act(() => mapEvents.current.click({ latlng: { lat: 26.88001, lng: 81.05 } }))
+
+    await waitFor(() => {
+      const draft = JSON.parse(localStorage.getItem('findmyclass-campus-path-draft'))
       expect(draft.nodes).toHaveLength(1)
-      expect(draft.nodes[0].coordinates).toEqual([26.88, 81.05])
     })
   })
 })

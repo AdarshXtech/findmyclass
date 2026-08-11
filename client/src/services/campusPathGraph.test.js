@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { findCampusRoute, serializeCampusPaths } from './campusPathGraph'
+import { connectNearbyPathNodes, findCampusRoute, serializeCampusPaths } from './campusPathGraph'
 
 const nodes = [
   { id: 'n1', coordinates: [26.885, 81.058] },
@@ -35,5 +35,14 @@ describe('campus path graph', () => {
 
   it('exports a ready-to-use JavaScript module', () => {
     expect(serializeCampusPaths(nodes, [['n1', 'n2']])).toContain('export const CAMPUS_PATH_EDGES')
+  })
+
+  it('connects nearby nodes when separate tracing chains meet', () => {
+    const closeNodes = [
+      { id: 'a', coordinates: [26.885, 81.058] },
+      { id: 'b', coordinates: [26.88501, 81.058] },
+    ]
+
+    expect(connectNearbyPathNodes(closeNodes, [])).toEqual([['a', 'b']])
   })
 })

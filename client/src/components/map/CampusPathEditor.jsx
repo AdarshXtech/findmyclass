@@ -1,11 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import { CircleMarker, MapContainer, Polyline, Popup, TileLayer, useMapEvents } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
-import { CAMPUS_BOUNDS, CAMPUS_CENTER } from '../../services/campusLocations'
+import { CAMPUS_BOUNDS, CAMPUS_CENTER, CAMPUS_LOCATIONS } from '../../services/campusLocations'
 import { CAMPUS_PATH_EDGES, CAMPUS_PATH_NODES } from '../../services/campusPaths'
-import { serializeCampusPaths } from '../../services/campusPathGraph'
+import { distanceMeters, serializeCampusPaths } from '../../services/campusPathGraph'
 
 const PATH_DRAFT_KEY = 'findmyclass-campus-path-draft'
+const NODE_SNAP_DISTANCE_METERS = 3
+const LOCATION_PINS = CAMPUS_LOCATIONS.filter((location, index, locations) => (
+  location.coordinates
+  && locations.findIndex((candidate) => candidate.coordinates?.join() === location.coordinates.join()) === index
+))
 
 function readDraft() {
   try {
@@ -54,6 +59,16 @@ export default function CampusPathEditor() {
   const remember = () => setHistory((current) => [...current, { nodes, edges }])
 
   const addNode = (coordinates) => {
+    const nearbyNode = nodes.find((node) => distanceMeters(coordinates, node.coordinates) <= NODE_SNAP_DISTANCE_METERS)
+    if (nearbyNode) {
+      if (activeNodeId && activeNodeId !== nearbyNode.id && !edgeExists(edges, activeNodeId, nearbyNode.id)) {
+        remember()
+        setEdges((current) => [...current, [activeNodeId, nearbyNode.id]])
+      }
+      setActiveNodeId(nearbyNode.id)
+      return
+    }
+
     remember()
     const id = nextNodeId(nodes)
     setNodes((current) => [...current, { id, coordinates }])
@@ -110,6 +125,8 @@ export default function CampusPathEditor() {
         {activeNodeId ? `Tracing from ${activeNodeId}` : 'Ready for a new path'} · Draft saved in this browser
       </p>
 
+      <p className="text-sm text-text-secondary"><span className="font-bold text-accent-primary">Yellow pins</span> show the destinations defined on the student map.</p>
+
       <div className="campus-map min-h-[520px] overflow-hidden border border-border-default bg-surface-muted">
         <MapContainer center={CAMPUS_CENTER} zoom={17} minZoom={14} maxZoom={20} maxBounds={CAMPUS_BOUNDS} className="h-full min-h-[520px] w-full">
           <TileLayer
@@ -119,6 +136,17 @@ export default function CampusPathEditor() {
             maxZoom={20}
           />
           <MapClickHandler onAdd={addNode} />
+          {LOCATION_PINS.map((location) => (
+            <CircleMarker
+              key={`location-${location.id}`}
+              center={location.coordinates}
+              radius={7}
+              bubblingMouseEvents={false}
+              pathOptions={{ color: '#272621', fillColor: '#e5b932', fillOpacity: 1, weight: 2 }}
+            >
+              <Popup>{location.name}</Popup>
+            </CircleMarker>
+          ))}
           {edgeLines.flatMap((coordinates, index) => [
             <Polyline key={`${index}-outline`} positions={coordinates} pathOptions={{ color: '#fffdf7', weight: 10, opacity: 0.96, lineCap: 'round' }} />,
             <Polyline key={`${index}-path`} positions={coordinates} pathOptions={{ color: '#843f43', weight: 5, opacity: 1, lineCap: 'round' }} />,

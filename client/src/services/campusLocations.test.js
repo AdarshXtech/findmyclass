@@ -26,4 +26,10 @@ describe('campus locations', () => {
       wing: 'B',
     })
   })
+
+  it('does not expose classes, rooms, or labs as map destinations', () => {
+    expect(searchCampusLocations('classroom', CAMPUS_LOCATIONS)).toEqual([])
+    expect(searchCampusLocations('UGF', CAMPUS_LOCATIONS)).toEqual([])
+    expect(searchCampusLocations('lab', CAMPUS_LOCATIONS)).toEqual([])
+  })
 })

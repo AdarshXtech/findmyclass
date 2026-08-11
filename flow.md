@@ -673,3 +673,48 @@ The editor shows yellow destination pins from `campusLocations.js`, near-identic
 - Press Reset once in `/admin/paths` to load the deployed graph instead of an older browser draft.
 - Confirm yellow pins match destination markers and extend paths to Management Building and the stadium entrance.
 - Test a route between distant covered destinations and confirm it follows the wine-red path rather than the straight fallback.
+
+## AI Session: 2026-08-12 00:42 +05:30
+
+### Files Created
+
+- None.
+
+### Files Modified
+
+- `client/src/services/campusLocations.js`
+- `client/src/services/campusLocations.test.js`
+- `flow.md`
+
+### Files Deleted
+
+- None.
+
+### Functions Added
+
+- None.
+
+### Functions Modified
+
+- None; the shared campus location dataset and its coverage tests changed.
+
+### Execution Flow Changed
+
+Map search, destination markers, manual starting points, and Path Editor reference pins continue to consume `CAMPUS_LOCATIONS`, which no longer contains the Central Instrument Lab or classroom-related university-building aliases.
+
+### Behaviour Changed
+
+Labs, classroom terms, UGF, and LGF are no longer exposed as map destinations. Campus buildings and facilities remain available.
+
+### Decisions Added
+
+- None; this is a narrowly scoped destination-list cleanup.
+
+### Potential Risks
+
+- Searching for UGF, LGF, or Central Instrument Lab now intentionally returns no destination.
+
+### Recommended Tests
+
+- Search the Map view for `lab`, `classroom`, `UGF`, and a room number and confirm no destination appears.
+- Confirm buildings, hostels, canteens, the library, and other campus facilities remain searchable.

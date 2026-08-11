@@ -763,3 +763,48 @@ Students can search for and navigate to both named gates using the supplied coor
 
 - Search for each gate and confirm its marker lands at the supplied coordinate.
 - Trace a walkway to University Main Gate before expecting network routing instead of direct guidance.
+
+## AI Session: 2026-08-12 01:05 +05:30
+
+### Files Created
+
+- None.
+
+### Files Modified
+
+- `client/src/services/campusLocations.js`
+- `client/src/services/campusLocations.test.js`
+- `flow.md`
+
+### Files Deleted
+
+- None.
+
+### Functions Added
+
+- None.
+
+### Functions Modified
+
+- None; the shared university-building destination data changed.
+
+### Execution Flow Changed
+
+Map search, map markers, routing destinations, and Path Editor references continue to consume the shared university-building record and coordinate.
+
+### Behaviour Changed
+
+The BBD University Building pin now uses the corrected coordinate. Searches for `Babu Banarasi Das University` resolve to that destination.
+
+### Decisions Added
+
+- None; this is a corrected coordinate and search-alias update within the existing data model.
+
+### Potential Risks
+
+- Central Library shares the university-building coordinate and therefore moves with the corrected building pin.
+
+### Recommended Tests
+
+- Search for the full university name and confirm BBD University Building is returned.
+- Confirm the university and Central Library markers use the corrected coordinate.

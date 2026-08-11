@@ -21,11 +21,15 @@ describe('campus locations', () => {
       .toEqual([26.889244156233268, 81.05881056195926])
     expect(searchCampusLocations('Campus Main Gate', CAMPUS_LOCATIONS)[0]?.coordinates)
       .toEqual([26.888447617773483, 81.0568836517443])
+    expect(searchCampusLocations('Babu Banarasi Das University', CAMPUS_LOCATIONS)[0]).toMatchObject({
+      name: 'BBD University Building',
+      coordinates: [26.8889230728831, 81.05898180972179],
+    })
   })
 
   it('places Central Library across Wing B on Floor 6', () => {
     expect(searchCampusLocations('Central Library', CAMPUS_LOCATIONS)[0]).toMatchObject({
-      coordinates: [26.88885787946639, 81.05900840676333],
+      coordinates: [26.8889230728831, 81.05898180972179],
       floor: 'Floor 6',
       wing: 'B',
     })

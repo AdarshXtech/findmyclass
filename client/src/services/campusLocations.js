@@ -3,7 +3,7 @@ export const CAMPUS_BOUNDS = [
   [26.8819871, 81.0562873],
   [26.8893745, 81.0600424],
 ]
-export const UNIVERSITY_BUILDING_COORDINATES = [26.88885787946639, 81.05900840676333]
+export const UNIVERSITY_BUILDING_COORDINATES = [26.8889230728831, 81.05898180972179]
 
 const VERIFIED_SOURCE = 'OpenStreetMap way 444400159'
 const USER_PIN_SOURCE = 'User-provided Google Maps coordinates'
@@ -27,7 +27,7 @@ export const CAMPUS_LOCATIONS = [
     category: 'Academic',
     coordinates: UNIVERSITY_BUILDING_COORDINATES,
     coordinatePrecision: 'building footprint',
-    aliases: ['Engineering Block', 'Administration', 'Exam Cell'],
+    aliases: ['Babu Banarasi Das University', 'Engineering Block', 'Administration', 'Exam Cell'],
     source: VERIFIED_SOURCE,
   },
   {

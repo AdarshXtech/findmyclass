@@ -808,3 +808,48 @@ The BBD University Building pin now uses the corrected coordinate. Searches for 
 
 - Search for the full university name and confirm BBD University Building is returned.
 - Confirm the university and Central Library markers use the corrected coordinate.
+
+## AI Session: 2026-08-12 01:45 +05:30
+
+### Files Created
+
+- None.
+
+### Files Modified
+
+- `client/src/services/campusLocations.js`
+- `client/src/services/campusLocations.test.js`
+- `flow.md`
+
+### Files Deleted
+
+- None.
+
+### Functions Added
+
+- None.
+
+### Functions Modified
+
+- None; the shared BBDU building coordinate changed.
+
+### Execution Flow Changed
+
+The map marker, destination search, routing endpoint, Central Library location, and Path Editor reference pin continue to read `UNIVERSITY_BUILDING_COORDINATES`.
+
+### Behaviour Changed
+
+The BBDU building and Central Library pin now use the latest user-supplied coordinate.
+
+### Decisions Added
+
+- None; this is a coordinate correction within the existing map data model.
+
+### Potential Risks
+
+- Central Library intentionally follows the shared BBDU building coordinate.
+
+### Recommended Tests
+
+- Search for Babu Banarasi Das University and confirm the marker uses the corrected coordinate.
+- Confirm routes to both main gates use the surveyed graph where a nearby connected path exists.

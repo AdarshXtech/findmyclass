@@ -35,6 +35,7 @@ describe('ResultPage', () => {
     expect(within(mobileMenu).getByRole('button', { name: 'Daily Classes' })).toBeVisible()
     expect(within(mobileMenu).getByRole('button', { name: 'Weekly Classes' })).toBeVisible()
     expect(within(mobileMenu).getByRole('button', { name: 'Map' })).toBeVisible()
+    expect(within(mobileMenu).getByRole('button', { name: 'Faculty' })).toBeVisible()
 
     await user.keyboard('{Escape}')
     expect(menuButton).toHaveAttribute('aria-expanded', 'false')
@@ -70,6 +71,14 @@ describe('ResultPage', () => {
     renderResultPage()
 
     expect(document.body).not.toHaveTextContent('8429479825')
+  })
+
+  it('shows the published class coordinator in the student context', () => {
+    renderResultPage()
+
+    expect(screen.getByText('Class Coordinator')).toBeVisible()
+    expect(screen.getByText('Ms. Jyoti Yadav')).toBeVisible()
+    expect(screen.getByRole('link', { name: 'Call class coordinator Ms. Jyoti Yadav' })).toHaveAttribute('href', 'tel:9876543210')
   })
 
   it.each([
@@ -114,5 +123,28 @@ describe('ResultPage', () => {
 
     expect(screen.getByRole('button', { name: 'Open schedule menu' })).toHaveAttribute('aria-expanded', 'false')
     expect(await screen.findByRole('heading', { name: 'Campus Map View' })).toBeVisible()
+  })
+
+  it('shows class-specific faculty contacts with the coordinator first', async () => {
+    const user = userEvent.setup()
+    renderResultPage()
+    await user.click(screen.getByRole('button', { name: 'Open schedule menu' }))
+    await user.click(within(document.getElementById('schedule-menu')).getByRole('button', { name: 'Faculty' }))
+
+    expect(screen.getByRole('button', { name: 'Open schedule menu' })).toHaveAttribute('aria-expanded', 'false')
+    expect(await screen.findByRole('heading', { name: 'Faculty' })).toBeVisible()
+    expect(screen.getAllByText('Class Coordinator')).toHaveLength(2)
+    expect(screen.getByRole('link', { name: 'Call Ms. Jyoti Yadav' })).toHaveAttribute('href', 'tel:9876543210')
+    expect(screen.getByText('Dr. Pooja Verma')).toBeVisible()
+  })
+
+  it('shows faculty empty states without inventing contacts', async () => {
+    const user = userEvent.setup()
+    renderResultPage(makeLookupData({ facultyContacts: [] }))
+    await user.click(screen.getByRole('button', { name: 'Open schedule menu' }))
+    await user.click(within(document.getElementById('schedule-menu')).getByRole('button', { name: 'Faculty' }))
+
+    expect(await screen.findByText('Coordinator information has not been added yet.')).toBeVisible()
+    expect(screen.getByText('No additional faculty contacts are available for your class.')).toBeVisible()
   })
 })

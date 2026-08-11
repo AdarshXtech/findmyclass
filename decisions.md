@@ -1,0 +1,160 @@
+# Engineering Decision Log
+
+This file records meaningful technical and workflow decisions. Add new entries; do not rewrite earlier entries. If a decision changes, mark the old entry as superseded and reference the replacement.
+
+## Decision: Maintain repository decision and execution-flow records
+
+Date: 2026-08-11
+Session: Repository governance initialization
+Status: Active
+
+### Problem
+
+The repository had no durable record explaining why technical choices were made or how the current frontend and backend execute. That makes future AI-assisted changes harder to review and easier to misunderstand.
+
+### Considered Approaches
+
+1. Keep decisions and execution details only in chat history.
+2. Put all architecture and session notes in the existing `README.md`.
+3. Maintain separate root-level `decisions.md` and `flow.md` files.
+
+### Chosen Approach
+
+Maintain `decisions.md` for meaningful engineering choices and `flow.md` for verified execution paths and AI session records.
+
+### Why This Approach?
+
+The two documents have different purposes: decisions explain why, while execution flow explains how. Keeping them in the repository makes them versioned, reviewable, and available to every developer and coding agent.
+
+### Why Not the Alternatives?
+
+Chat history is not a reliable repository artifact and may not be available in later sessions. Adding all information to `README.md` would mix operational setup, product documentation, architecture, and session history into one file.
+
+### Libraries / Dependencies Used
+
+None.
+
+### Why This Library?
+
+No library is required. Markdown files are supported directly by GitHub and local development tools.
+
+### Trade-offs
+
+- Advantages: durable context, clearer reviews, and reduced architectural guesswork.
+- Disadvantages: documentation must be updated during substantial coding sessions.
+- Technical debt: stale entries become misleading if the workflow is not followed.
+- Performance implications: none at runtime.
+- Security implications: secrets and personal data must never be copied into these files.
+- Maintainability implications: changes affecting architecture or behavior now require a small documentation update.
+
+### Files Affected
+
+- `AGENTS.md`
+- `decisions.md`
+- `flow.md`
+
+## Decision: Use one parser for CSV, XLS, and XLSX student imports
+
+Date: 2026-08-10
+Session: Student spreadsheet import improvement
+Status: Active
+
+### Problem
+
+The admin student importer supported CSV and XLSX through ExcelJS but rejected legacy XLS files. Imported phone numbers also needed to enter the same hashed lookup system used by manually created students.
+
+### Considered Approaches
+
+1. Keep ExcelJS and continue rejecting XLS files.
+2. Keep ExcelJS and add a second dependency only for XLS files.
+3. Replace ExcelJS in the student import path with one parser that reads CSV, XLS, and XLSX.
+
+### Chosen Approach
+
+Use `@e965/xlsx` as the single student spreadsheet parser and immediately normalize and hash optional phone numbers before database insertion.
+
+### Why This Approach?
+
+One parser keeps the upload path and row conversion consistent across all requested formats. It also removed the old ExcelJS dependency tree from the server and reduced the server audit result to zero known vulnerabilities at the time of the change.
+
+### Why Not the Alternatives?
+
+Rejecting XLS did not meet the required workflow. Running two spreadsheet parsers would increase package size, maintenance, and format-specific branching without improving the user experience.
+
+### Libraries / Dependencies Used
+
+- `@e965/xlsx` 0.20.x
+- Existing Multer upload middleware
+- Existing Node.js crypto-based student identity helper
+
+### Why This Library?
+
+`@e965/xlsx` reads CSV, binary XLS, and XLSX buffers through one API. Node.js has no built-in Excel workbook parser. ExcelJS did not read XLS, and adding a separate XLS-only parser would duplicate responsibilities.
+
+### Trade-offs
+
+- Advantages: all requested formats, one parsing path, fewer installed server packages, and batched database writes remain unchanged.
+- Disadvantages: spreadsheet parsing still depends on a third-party package and only the first worksheet is imported.
+- Technical debt: header aliases are not inferred; files must use the documented column names.
+- Performance implications: files are parsed in memory and limited to 5 MB.
+- Security implications: uploads are extension- and size-limited; phone numbers are stored only as a keyed hash and last four digits.
+- Maintainability implications: parser upgrades must be tested against CSV, XLS, malformed XLSX, duplicate rows, and batch imports.
+
+### Files Affected
+
+- `server/routes/admin.js`
+- `server/package.json`
+- `server/package-lock.json`
+- `server/test/api.test.js`
+- `client/src/pages/AdminImportPage.jsx`
+- `client/src/pages/AdminStudentsPage.jsx`
+
+## Decision: Publish class-scoped faculty contacts through verified lookup
+
+Date: 2026-08-11
+Session: Faculty contacts
+Status: Active
+
+### Problem
+
+Students need public faculty phone numbers for their own class, while timetable entries contain only names and must not be treated as permission to publish private contact details.
+
+### Considered Approaches
+
+1. Infer the faculty directory from timetable teacher names and hard-code phone numbers in React.
+2. Add a public endpoint that accepts any requested section.
+3. Store intentionally published contacts by section and include only the verified student's section contacts in the existing lookup response.
+
+### Chosen Approach
+
+Add `faculty_contacts`, manage it through authenticated admin routes, and return matching contacts inside `POST /api/student/lookup` after student verification.
+
+### Why This Approach?
+
+The existing lookup is already the verified boundary and determines the student's section. Reusing it keeps contacts class-specific without a second student token or an arbitrary public section query.
+
+### Why Not the Alternatives?
+
+Timetable names do not prove a phone number is public, and hard-coded contacts cannot be maintained safely. A public section parameter would permit contact-list enumeration and duplicate class-selection logic.
+
+### Libraries / Dependencies Used
+
+None. Existing Express, database helpers, React Router state, React Icons, and confirmation dialog are reused.
+
+### Trade-offs
+
+- Advantages: explicit publication, section isolation, one coordinator per class, and no new dependency.
+- Disadvantages: contacts are available only after verified lookup and must be entered by an admin.
+- Technical debt: there is no bulk faculty import.
+- Performance implications: one indexed section query is added to successful lookups.
+- Security implications: only numbers saved in `faculty_contacts` are returned; student and admin numbers remain excluded.
+- Maintainability implications: coordinator replacement and validation remain centralized in the admin API.
+
+### Files Affected
+
+- `server/config/db.js`
+- `server/routes/admin.js`
+- `server/routes/student.js`
+- `client/src/components/faculty/FacultyView.jsx`
+- `client/src/pages/AdminFacultyPage.jsx`
+- `client/src/pages/ResultPage.jsx`

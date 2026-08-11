@@ -27,6 +27,10 @@ export function makeLookupData(overrides = {}) {
       phoneNumber: '8429479825',
     },
     classrooms: [],
+    facultyContacts: [
+      { id: 1, name: 'Ms. Jyoti Yadav', phoneNumber: '9876543210', designation: 'Class Coordinator', role: 'Coordinator' },
+      { id: 2, name: 'Dr. Pooja Verma', phoneNumber: '9123456789', designation: null, role: 'Faculty' },
+    ],
     timetable: [makeEntry()],
     ...overrides,
   }

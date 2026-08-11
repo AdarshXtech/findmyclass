@@ -5,6 +5,7 @@ export default function ScheduleNavigation({ activeView, onSelect, tabIndex }) {
         ['daily', 'Daily Classes'],
         ['weekly', 'Weekly Classes'],
         ['map', 'Map'],
+        ['faculty', 'Faculty'],
       ].map(([view, label]) => (
         <button
           key={view}

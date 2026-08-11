@@ -74,6 +74,13 @@ router.post('/lookup', async (req, res) => {
        ORDER BY day_of_week, start_time`,
       [student.section]
     );
+    const facultyContacts = await queryAll(
+      `SELECT faculty_contact_id, name, phone_number, designation, role
+       FROM faculty_contacts
+       WHERE section = ?
+       ORDER BY CASE WHEN role = 'Coordinator' THEN 0 ELSE 1 END, name`,
+      [student.section]
+    );
 
     if (timetable.length === 0) {
       return res.status(404).json({
@@ -104,6 +111,13 @@ router.post('/lookup', async (req, res) => {
           floor: classroom.floor,
           wing: classroom.wing,
           room: classroom.room,
+        })),
+        facultyContacts: facultyContacts.map((contact) => ({
+          id: contact.faculty_contact_id,
+          name: contact.name,
+          phoneNumber: contact.phone_number,
+          designation: contact.designation,
+          role: contact.role,
         })),
         timetable: timetable.map((entry) => {
           const classroom = classroomBySubject.get(String(entry.subject_name || '').trim().toLowerCase());

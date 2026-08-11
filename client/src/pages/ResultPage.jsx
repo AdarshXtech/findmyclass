@@ -12,6 +12,7 @@ import useTimetableStatus from '../hooks/useTimetableStatus'
 
 const EMPTY_TIMETABLE = []
 const CampusMapView = lazy(() => import('../components/map/CampusMapView'))
+const FacultyView = lazy(() => import('../components/faculty/FacultyView'))
 
 export default function ResultPage() {
   const navigate = useNavigate()
@@ -25,7 +26,7 @@ export default function ResultPage() {
   const status = useTimetableStatus(timetable, now)
   const expansion = useScheduleExpansion()
   const requestedView = searchParams.get('view')
-  const activeView = ['weekly', 'map'].includes(requestedView) ? requestedView : 'daily'
+  const activeView = ['weekly', 'map', 'faculty'].includes(requestedView) ? requestedView : 'daily'
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'auto' })
@@ -63,6 +64,7 @@ export default function ResultPage() {
   }
 
   const { student, classrooms = [] } = data
+  const coordinator = data.facultyContacts?.find((contact) => contact.role === 'Coordinator')
 
   return (
     <div className="student-result-theme min-h-screen bg-surface-secondary text-text-primary">
@@ -104,9 +106,9 @@ export default function ResultPage() {
       </header>
 
       <main className="mx-auto max-w-[1280px] px-5 py-8 sm:px-8 sm:py-10 lg:px-12 lg:py-12">
-        <div className={`grid min-w-0 gap-8 md:items-start ${activeView === 'map' ? 'lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-8' : 'md:grid-cols-[minmax(220px,0.8fr)_minmax(0,1.4fr)] lg:grid-cols-[minmax(280px,340px)_minmax(0,1fr)] lg:gap-12 xl:gap-16'}`}>
+        <div className={`grid min-w-0 gap-8 md:items-start ${['map', 'faculty'].includes(activeView) ? 'lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-8' : 'md:grid-cols-[minmax(220px,0.8fr)_minmax(0,1.4fr)] lg:grid-cols-[minmax(280px,340px)_minmax(0,1fr)] lg:gap-12 xl:gap-16'}`}>
           <aside className="min-w-0 md:sticky md:top-8">
-            <StudentContext student={student} />
+            <StudentContext student={student} coordinator={coordinator} />
             <div className="mt-8 hidden md:block">
               <p className="mb-3 font-mono text-xs font-bold uppercase tracking-wide text-text-secondary">Student tools</p>
               <ScheduleNavigation activeView={activeView} onSelect={selectView} />
@@ -114,7 +116,7 @@ export default function ResultPage() {
           </aside>
 
           <section className="min-w-0">
-            {activeView !== 'map' ? (
+            {!['map', 'faculty'].includes(activeView) ? (
               <NextClassHero
                 entry={status.priorityEntry}
                 status={status.locationStatus}
@@ -126,6 +128,10 @@ export default function ResultPage() {
             {activeView === 'map' ? (
               <Suspense fallback={<div className="rounded-lg border border-border-default bg-surface-primary p-6" role="status">Loading campus map...</div>}>
                 <CampusMapView />
+              </Suspense>
+            ) : activeView === 'faculty' ? (
+              <Suspense fallback={<div className="space-y-4" role="status" aria-label="Loading faculty contacts"><div className="h-48 animate-pulse rounded-lg bg-result-slate-soft" /><div className="h-24 animate-pulse rounded-lg bg-surface-primary" /><div className="h-24 animate-pulse rounded-lg bg-surface-primary" /><div className="h-24 animate-pulse rounded-lg bg-surface-primary" /></div>}>
+                <FacultyView contacts={data.facultyContacts} section={student.section} />
               </Suspense>
             ) : activeView === 'daily' ? (
               <DailySchedule

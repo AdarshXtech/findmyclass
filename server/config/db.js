@@ -139,6 +139,17 @@ function createSqliteSchema() {
   sqlite.run('CREATE TABLE IF NOT EXISTS admins (admin_id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL UNIQUE, password TEXT NOT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)');
   sqlite.run('CREATE TABLE IF NOT EXISTS timetable_seed_state (section TEXT NOT NULL, academic_session TEXT NOT NULL, seeded_at DATETIME DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (section, academic_session))');
   sqlite.run(`
+    CREATE TABLE IF NOT EXISTS faculty_contacts (
+      faculty_contact_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      section TEXT NOT NULL,
+      name TEXT NOT NULL,
+      phone_number TEXT NOT NULL,
+      designation TEXT,
+      role TEXT NOT NULL CHECK (role IN ('Coordinator', 'Faculty')),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  sqlite.run(`
     CREATE TABLE IF NOT EXISTS timetable_entries (
       timetable_entry_id INTEGER PRIMARY KEY AUTOINCREMENT,
       section TEXT NOT NULL,
@@ -199,6 +210,8 @@ function createSqliteSchema() {
   sqlite.run('CREATE INDEX IF NOT EXISTS idx_students_section ON students(section)');
   sqlite.run('CREATE INDEX IF NOT EXISTS idx_classrooms_section ON classrooms(section)');
   sqlite.run('CREATE INDEX IF NOT EXISTS idx_timetable_section_day ON timetable_entries(section, day_of_week, start_time)');
+  sqlite.run('CREATE INDEX IF NOT EXISTS idx_faculty_contacts_section ON faculty_contacts(section)');
+  sqlite.run("CREATE UNIQUE INDEX IF NOT EXISTS idx_faculty_one_coordinator ON faculty_contacts(section) WHERE role = 'Coordinator'");
 }
 
 async function createPostgresSchema() {
@@ -264,12 +277,23 @@ async function createPostgresSchema() {
       created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
       UNIQUE (section, day_of_week, start_time, academic_session)
     );
+    CREATE TABLE IF NOT EXISTS faculty_contacts (
+      faculty_contact_id SERIAL PRIMARY KEY,
+      section TEXT NOT NULL,
+      name TEXT NOT NULL,
+      phone_number TEXT NOT NULL,
+      designation TEXT,
+      role TEXT NOT NULL CHECK (role IN ('Coordinator', 'Faculty')),
+      created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+    );
     CREATE INDEX IF NOT EXISTS idx_students_university_roll ON students(university_roll_number);
     CREATE UNIQUE INDEX IF NOT EXISTS idx_students_phone_lookup_hash ON students(phone_lookup_hash) WHERE phone_lookup_hash IS NOT NULL;
     CREATE INDEX IF NOT EXISTS idx_students_identity ON students(normalized_name, phone_lookup_hash);
     CREATE INDEX IF NOT EXISTS idx_students_section ON students(section);
     CREATE INDEX IF NOT EXISTS idx_classrooms_section ON classrooms(section);
     CREATE INDEX IF NOT EXISTS idx_timetable_section_day ON timetable_entries(section, day_of_week, start_time);
+    CREATE INDEX IF NOT EXISTS idx_faculty_contacts_section ON faculty_contacts(section);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_faculty_one_coordinator ON faculty_contacts(section) WHERE role = 'Coordinator';
   `);
   await pool.query(`
     ALTER TABLE timetable_entries DROP CONSTRAINT IF EXISTS timetable_entries_day_of_week_check;

@@ -20,6 +20,7 @@ const navItems = [
   { to: '/admin/subjects', label: 'Subjects', icon: HiOutlineBookOpen },
   { to: '/admin/classrooms', label: 'Classrooms', icon: HiOutlineOfficeBuilding },
   { to: '/admin/timetables', label: 'Timetables', icon: HiOutlineCalendar },
+  { to: '/admin/faculty', label: 'Faculty', icon: HiOutlineUsers },
   { to: '/admin/paths', label: 'Campus Paths', icon: HiOutlineLocationMarker },
   { to: '/admin/import', label: 'Import Students', icon: HiOutlineUpload },
 ]

@@ -74,7 +74,7 @@ export default function LandingPage() {
               <p className="mt-1 font-mono text-xs uppercase tracking-wide text-text-secondary">BBD University</p>
             </div>
           </div>
-          <p className="hidden font-mono text-xs font-bold uppercase tracking-wide text-accent-primary sm:block">Semester III / 2026-27</p>
+          <p className="hidden font-mono text-xs font-bold uppercase tracking-wide text-accent-primary sm:block">Academic session 2026-27</p>
         </div>
       </header>
 
@@ -169,7 +169,7 @@ export default function LandingPage() {
               </p>
             </figcaption>
           </figure>
-          <p className="mt-8 border-t border-border-inverse pt-4 font-mono text-xs uppercase tracking-wide text-result-subtle">Academic session 2026-27 / Semester III</p>
+          <p className="mt-8 border-t border-border-inverse pt-4 font-mono text-xs uppercase tracking-wide text-result-subtle">Academic session 2026-27</p>
         </aside>
       </main>
     </div>

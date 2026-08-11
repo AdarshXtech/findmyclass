@@ -51,6 +51,30 @@ function formatStudentForAdmin(student) {
   };
 }
 
+function normalizeFacultyContact(body) {
+  const name = String(body.name || '').trim().replace(/\s+/g, ' ');
+  const phoneNumber = normalizePhoneNumber(body.phoneNumber ?? body.phone_number);
+  const designation = String(body.designation || '').trim().replace(/\s+/g, ' ') || null;
+  const role = body.role === 'Coordinator' ? 'Coordinator' : 'Faculty';
+  const section = normalizeSection(body.section);
+  const errors = [];
+  if (!name) errors.push('Faculty name is required.');
+  if (!phoneNumber) errors.push('Enter a valid 10-digit Indian phone number.');
+  if (!isValidSection(section)) errors.push('Select a valid class or section.');
+  return { name, phoneNumber, designation, role, section, errors };
+}
+
+function formatFacultyContact(contact) {
+  return {
+    id: contact.faculty_contact_id,
+    section: contact.section,
+    name: contact.name,
+    phoneNumber: contact.phone_number,
+    designation: contact.designation,
+    role: contact.role,
+  };
+}
+
 // ════════════════════════════════════════════════════════════
 //  AUTH
 // ════════════════════════════════════════════════════════════
@@ -405,6 +429,109 @@ router.delete('/students/:id', authenticateToken, async (req, res) => {
 // ════════════════════════════════════════════════════════════
 //  SUBJECTS CRUD
 // ════════════════════════════════════════════════════════════
+
+/** GET /api/admin/faculty */
+router.get('/faculty', authenticateToken, async (req, res) => {
+  try {
+    const classes = await queryAll(
+      `SELECT course, branch, year, section
+       FROM students GROUP BY course, branch, year, section
+       ORDER BY course, branch, year, section`
+    );
+    const section = req.query.section ? normalizeSection(req.query.section) : null;
+    const contacts = section
+      ? await queryAll(
+          `SELECT * FROM faculty_contacts WHERE section = ?
+           ORDER BY CASE WHEN role = 'Coordinator' THEN 0 ELSE 1 END, name`,
+          [section]
+        )
+      : [];
+    res.json({ success: true, data: { classes, contacts: contacts.map(formatFacultyContact) } });
+  } catch (error) {
+    console.error('Get faculty contacts error:', error.message);
+    res.status(500).json({ success: false, message: 'Could not load faculty contacts.' });
+  }
+});
+
+/** POST /api/admin/faculty */
+router.post('/faculty', authenticateToken, async (req, res) => {
+  try {
+    const contact = normalizeFacultyContact(req.body);
+    if (contact.errors.length) return res.status(400).json({ success: false, message: contact.errors[0] });
+    const context = await getTimetableContext(contact.section);
+    if (!context) return res.status(404).json({ success: false, message: 'Class not found.' });
+    const currentCoordinator = contact.role === 'Coordinator'
+      ? await queryOne("SELECT faculty_contact_id, name FROM faculty_contacts WHERE section = ? AND role = 'Coordinator'", [contact.section])
+      : null;
+    if (currentCoordinator && !req.body.replaceCoordinator) {
+      return res.status(409).json({ success: false, message: `${currentCoordinator.name} is the current coordinator. Confirm replacement to continue.` });
+    }
+    const result = await withTransaction(async (transaction) => {
+      if (currentCoordinator) {
+        await transaction.execute("UPDATE faculty_contacts SET role = 'Faculty' WHERE faculty_contact_id = ?", [currentCoordinator.faculty_contact_id]);
+      }
+      return transaction.execute(
+        'INSERT INTO faculty_contacts (section, name, phone_number, designation, role) VALUES (?, ?, ?, ?, ?)',
+        [contact.section, contact.name, contact.phoneNumber, contact.designation, contact.role]
+      );
+    });
+    const saved = await queryOne('SELECT * FROM faculty_contacts WHERE faculty_contact_id = ?', [result.lastInsertRowid]);
+    res.status(201).json({ success: true, data: formatFacultyContact(saved) });
+  } catch (error) {
+    console.error('Create faculty contact error:', error.message);
+    res.status(500).json({ success: false, message: 'Could not add faculty contact.' });
+  }
+});
+
+/** PUT /api/admin/faculty/:id */
+router.put('/faculty/:id', authenticateToken, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const current = Number.isInteger(id) && id > 0
+      ? await queryOne('SELECT * FROM faculty_contacts WHERE faculty_contact_id = ?', [id])
+      : null;
+    if (!current) return res.status(404).json({ success: false, message: 'Faculty contact not found.' });
+    const contact = normalizeFacultyContact({ ...req.body, section: req.body.section || current.section });
+    if (contact.errors.length) return res.status(400).json({ success: false, message: contact.errors[0] });
+    const currentCoordinator = contact.role === 'Coordinator'
+      ? await queryOne(
+          "SELECT faculty_contact_id, name FROM faculty_contacts WHERE section = ? AND role = 'Coordinator' AND faculty_contact_id <> ?",
+          [contact.section, id]
+        )
+      : null;
+    if (currentCoordinator && !req.body.replaceCoordinator) {
+      return res.status(409).json({ success: false, message: `${currentCoordinator.name} is the current coordinator. Confirm replacement to continue.` });
+    }
+    await withTransaction(async (transaction) => {
+      if (currentCoordinator) {
+        await transaction.execute("UPDATE faculty_contacts SET role = 'Faculty' WHERE faculty_contact_id = ?", [currentCoordinator.faculty_contact_id]);
+      }
+      await transaction.execute(
+        'UPDATE faculty_contacts SET section = ?, name = ?, phone_number = ?, designation = ?, role = ? WHERE faculty_contact_id = ?',
+        [contact.section, contact.name, contact.phoneNumber, contact.designation, contact.role, id]
+      );
+    });
+    const saved = await queryOne('SELECT * FROM faculty_contacts WHERE faculty_contact_id = ?', [id]);
+    res.json({ success: true, data: formatFacultyContact(saved) });
+  } catch (error) {
+    console.error('Update faculty contact error:', error.message);
+    res.status(500).json({ success: false, message: 'Could not update faculty contact.' });
+  }
+});
+
+/** DELETE /api/admin/faculty/:id */
+router.delete('/faculty/:id', authenticateToken, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id < 1) return res.status(400).json({ success: false, message: 'Invalid faculty contact ID.' });
+    const result = await execute('DELETE FROM faculty_contacts WHERE faculty_contact_id = ?', [id]);
+    if (!result.changes) return res.status(404).json({ success: false, message: 'Faculty contact not found.' });
+    res.json({ success: true, message: 'Faculty contact removed.' });
+  } catch (error) {
+    console.error('Delete faculty contact error:', error.message);
+    res.status(500).json({ success: false, message: 'Could not remove faculty contact.' });
+  }
+});
 
 /** GET /api/admin/subjects */
 router.get('/subjects', authenticateToken, async (req, res) => {

@@ -386,6 +386,55 @@ test('health, lookup, authentication, CRUD, and import workflows', async (t) => 
     assert.equal(rollLookup.status, 400);
   });
 
+  await t.test('manages class-specific faculty contacts and exposes them only after verified lookup', async () => {
+    const invalid = await apiRequest('/api/admin/faculty', {
+      method: 'POST', token,
+      body: { section: 'CSAI2B', name: 'Dr. Invalid', phoneNumber: '123', role: 'Faculty' },
+    });
+    assert.equal(invalid.status, 400);
+
+    const coordinator = await apiRequest('/api/admin/faculty', {
+      method: 'POST', token,
+      body: { section: 'CSAI2B', name: 'Ms. Jyoti Yadav', phoneNumber: '+91 98765 43210', designation: 'Class Coordinator', role: 'Coordinator' },
+    });
+    assert.equal(coordinator.status, 201);
+    assert.equal(coordinator.body.data.phoneNumber, '9876543210');
+
+    const faculty = await apiRequest('/api/admin/faculty', {
+      method: 'POST', token,
+      body: { section: 'CSAI2B', name: 'Dr. Pooja Verma', phoneNumber: '91234 56789', role: 'Faculty' },
+    });
+    assert.equal(faculty.status, 201);
+
+    const needsConfirmation = await apiRequest('/api/admin/faculty', {
+      method: 'POST', token,
+      body: { section: 'CSAI2B', name: 'Mr. Ravi Yadav', phoneNumber: '9988776655', role: 'Coordinator' },
+    });
+    assert.equal(needsConfirmation.status, 409);
+
+    const replacement = await apiRequest('/api/admin/faculty', {
+      method: 'POST', token,
+      body: { section: 'CSAI2B', name: 'Mr. Ravi Yadav', phoneNumber: '9988776655', role: 'Coordinator', replaceCoordinator: true },
+    });
+    assert.equal(replacement.status, 201);
+
+    const lookup2B = await apiRequest('/api/student/lookup', {
+      method: 'POST', body: { name: 'Rudansh Kumar Singh', phone_number: '7000000101' },
+    });
+    assert.equal(lookup2B.status, 200);
+    assert.equal(lookup2B.body.data.facultyContacts[0].name, 'Mr. Ravi Yadav');
+    assert.equal(lookup2B.body.data.facultyContacts[0].role, 'Coordinator');
+    assert.equal(lookup2B.body.data.facultyContacts.length, 3);
+
+    const lookup2G = await apiRequest('/api/student/lookup', {
+      method: 'POST', body: { name: 'Adarsh Yadav', phone_number: '7000000102' },
+    });
+    assert.deepEqual(lookup2G.body.data.facultyContacts, []);
+
+    const removed = await apiRequest(`/api/admin/faculty/${faculty.body.data.id}`, { method: 'DELETE', token });
+    assert.equal(removed.status, 200);
+  });
+
   await t.test('persists subject and classroom CRUD operations', async () => {
     const subject = await apiRequest('/api/admin/subjects', {
       method: 'POST',

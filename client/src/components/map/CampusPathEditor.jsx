@@ -100,7 +100,7 @@ export default function CampusPathEditor() {
       <div className="flex flex-wrap items-center gap-2">
         <span className="min-h-11 border border-border-default bg-surface-primary px-3 py-2 font-mono text-sm font-bold">{nodes.length} nodes</span>
         <span className="min-h-11 border border-border-default bg-surface-primary px-3 py-2 font-mono text-sm font-bold">{edges.length} segments</span>
-        <button type="button" onClick={download} className="min-h-11 bg-result-slate px-4 py-2 font-bold text-text-on-dark">Save path file</button>
+        <button type="button" onClick={download} className="min-h-11 border border-border-strong bg-accent-highlight px-4 py-2 font-bold text-text-primary">Save path file</button>
         <button type="button" onClick={() => setActiveNodeId(null)} disabled={!activeNodeId} className="min-h-11 border border-border-strong bg-surface-primary px-4 py-2 font-bold disabled:opacity-50">Stop chain</button>
         <button type="button" onClick={undo} disabled={!history.length} className="min-h-11 border border-border-strong bg-surface-primary px-4 py-2 font-bold disabled:opacity-50">Undo</button>
         <button type="button" onClick={reset} className="min-h-11 border border-border-strong bg-surface-primary px-4 py-2 font-bold">Reset</button>

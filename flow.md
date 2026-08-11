@@ -573,3 +573,51 @@ Path edits survive page refreshes in the same browser, and the source-file save 
 
 - Add nodes, refresh, and verify the draft reappears.
 - Download the path file and verify it exports both node and edge arrays.
+
+## AI Session: 2026-08-11 23:52 +05:30
+
+### Files Created
+
+- None.
+
+### Files Modified
+
+- `client/src/components/map/CampusPathEditor.jsx`
+- `flow.md`
+
+### Files Deleted
+
+- None.
+
+### Functions Added
+
+- None.
+
+### Functions Modified
+
+- `CampusPathEditor` presentation markup for the path export button.
+
+### Functions Removed
+
+- None.
+
+### Execution Flow Changed
+
+No execution path changed. The path export still downloads `campusPaths.js` from the current editor nodes and edges.
+
+### Behaviour Changed
+
+The Save path file button now uses the same visible admin theme tokens as the surrounding controls, so it does not blend into the toolbar.
+
+### Decisions Added
+
+- None; this was a small visual fix to an existing control.
+
+### Potential Risks
+
+- None beyond confirming the button remains visible after Vercel cache refresh.
+
+### Recommended Tests
+
+- Open `/admin/paths` and verify Save path file is visible between the segment counter and Stop chain.
+- Click Save path file after tracing a path and verify `campusPaths.js` downloads.

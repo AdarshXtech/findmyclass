@@ -1,18 +1,17 @@
 import axios from 'axios'
-import { getAdminToken } from './auth'
+import { getAdminCsrfToken } from './auth'
 
 const apiRoot = (import.meta.env.VITE_API_BASE_URL || '').trim()
 const baseURL = apiRoot ? `${apiRoot.replace(/\/$/, '')}/api/admin` : '/api/admin'
 
 const adminApi = axios.create({
   baseURL,
+  withCredentials: true,
 })
 
 adminApi.interceptors.request.use((config) => {
-  const token = getAdminToken()
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`
-  }
+  const csrfToken = getAdminCsrfToken()
+  if (csrfToken && !['get', 'head', 'options'].includes(String(config.method || 'get').toLowerCase())) config.headers['X-CSRF-Token'] = csrfToken
   return config
 })
 

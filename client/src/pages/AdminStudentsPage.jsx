@@ -25,6 +25,8 @@ function sortStudents(entries) {
 export default function AdminStudentsPage() {
   const navigate = useNavigate()
   const [students, setStudents] = useState([])
+  const [page, setPage] = useState(1)
+  const [pagination, setPagination] = useState({ page: 1, pages: 1, total: 0 })
   const [sections, setSections] = useState([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -39,14 +41,14 @@ export default function AdminStudentsPage() {
 
   useEffect(() => {
     fetchData()
-  }, [sectionFilter])
+  }, [sectionFilter, page])
 
   const handleUnauthorized = () => {
     clearAdminSession()
     navigate('/admin/login', { replace: true })
   }
 
-  const fetchData = async (searchValue = search) => {
+  const fetchData = async (searchValue = search, requestedPage = page) => {
     setLoading(true)
     setError('')
 
@@ -56,11 +58,14 @@ export default function AdminStudentsPage() {
           params: {
             search: searchValue || undefined,
             section: sectionFilter || undefined,
+            page: requestedPage,
+            limit: 50,
           },
         }),
         adminApi.get('/sections'),
       ])
       setStudents(studentsRes.data.data || [])
+      setPagination(studentsRes.data.pagination || { page: 1, pages: 1, total: studentsRes.data.data?.length || 0 })
       setSections(sectionsRes.data.data || [])
     } catch (err) {
       if (err.response?.status === 401 || err.response?.status === 403) {
@@ -237,7 +242,8 @@ export default function AdminStudentsPage() {
 
   const onSearchSubmit = async (e) => {
     e.preventDefault()
-    await fetchData(search)
+    setPage(1)
+    await fetchData(search, 1)
   }
 
   return (
@@ -355,7 +361,7 @@ export default function AdminStudentsPage() {
               id="student-section-filter"
               className="input-field py-3"
               value={sectionFilter}
-              onChange={(e) => setSectionFilter(e.target.value)}
+              onChange={(e) => { setPage(1); setSectionFilter(e.target.value) }}
             >
               <option value="">All Sections</option>
               {sections.map((section) => (
@@ -421,6 +427,15 @@ export default function AdminStudentsPage() {
             </table>
           </div>
         )}
+        {!loading && pagination.pages > 1 ? (
+          <nav className="mt-5 flex items-center justify-between gap-3 border-t border-border-default pt-4" aria-label="Student pages">
+            <p className="text-sm text-text-secondary">Page {pagination.page} of {pagination.pages} · {pagination.total} students</p>
+            <div className="flex gap-2">
+              <button type="button" className="min-h-11 border border-border-strong px-4 disabled:opacity-50" disabled={page <= 1} onClick={() => setPage((current) => current - 1)}>Previous</button>
+              <button type="button" className="min-h-11 border border-border-strong px-4 disabled:opacity-50" disabled={page >= pagination.pages} onClick={() => setPage((current) => current + 1)}>Next</button>
+            </div>
+          </nav>
+        ) : null}
       </section>
 
       {pendingDelete ? (

@@ -1,6 +1,7 @@
 import { HiOutlinePhone, HiOutlineUserGroup } from 'react-icons/hi'
 
 function ContactCall({ contact, coordinator = false }) {
+  if (!contact.phoneNumber) return null
   return (
     <a
       href={`tel:${contact.phoneNumber}`}
@@ -22,9 +23,11 @@ function FacultyContact({ contact }) {
       <div className="min-w-0">
         <h3 className="font-display text-lg font-bold [overflow-wrap:anywhere]">{contact.name}</h3>
         {contact.designation ? <p className="mt-1 text-sm text-text-secondary">{contact.designation}</p> : null}
-        <a href={`tel:${contact.phoneNumber}`} className="mt-2 inline-block font-mono text-sm font-semibold text-result-slate-dark" aria-label={`Call ${contact.name} at ${contact.phoneNumber}`}>
-          {contact.phoneNumber}
-        </a>
+        {contact.phoneNumber ? (
+          <a href={`tel:${contact.phoneNumber}`} className="mt-2 inline-block font-mono text-sm font-semibold text-result-slate-dark" aria-label={`Call ${contact.name} at ${contact.phoneNumber}`}>
+            {contact.phoneNumber}
+          </a>
+        ) : <p className="mt-2 text-sm text-text-secondary">Contact information not available.</p>}
       </div>
       <ContactCall contact={contact} />
     </article>
@@ -55,9 +58,11 @@ export default function FacultyView({ contacts = [], section }) {
             <div className="min-w-0">
               <h2 className="font-display text-2xl font-bold [overflow-wrap:anywhere]">{coordinator.name}</h2>
               {coordinatorDesignation ? <p className="mt-2 text-sm text-result-subtle">{coordinatorDesignation}</p> : null}
-              <a href={`tel:${coordinator.phoneNumber}`} className="mt-3 inline-block font-mono font-semibold text-text-on-dark" aria-label={`Call ${coordinator.name} at ${coordinator.phoneNumber}`}>
-                {coordinator.phoneNumber}
-              </a>
+              {coordinator.phoneNumber ? (
+                <a href={`tel:${coordinator.phoneNumber}`} className="mt-3 inline-block font-mono font-semibold text-text-on-dark" aria-label={`Call ${coordinator.name} at ${coordinator.phoneNumber}`}>
+                  {coordinator.phoneNumber}
+                </a>
+              ) : <p className="mt-3 text-sm text-result-subtle">Contact information not available.</p>}
             </div>
             <ContactCall contact={coordinator} coordinator />
           </div>
@@ -76,7 +81,7 @@ export default function FacultyView({ contacts = [], section }) {
           </div>
         ) : (
           <div className="rounded-lg border border-border-default bg-surface-primary p-6 text-text-secondary">
-            No additional faculty contacts are available for your class.
+            No faculty names are listed in this class timetable.
           </div>
         )}
       </section>

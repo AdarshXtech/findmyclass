@@ -13,16 +13,17 @@ import {
   HiOutlineX,
 } from 'react-icons/hi'
 import { clearAdminSession, getAdminUser } from '../auth'
+import adminApi from '../api'
 
 const navItems = [
   { to: '/admin', label: 'Dashboard', icon: HiOutlineViewGrid },
-  { to: '/admin/students', label: 'Students', icon: HiOutlineUsers },
+  { to: '/admin/students', label: 'Students', icon: HiOutlineUsers, roles: ['SUPER_ADMIN'] },
   { to: '/admin/subjects', label: 'Subjects', icon: HiOutlineBookOpen },
   { to: '/admin/classrooms', label: 'Classrooms', icon: HiOutlineOfficeBuilding },
   { to: '/admin/timetables', label: 'Timetables', icon: HiOutlineCalendar },
   { to: '/admin/faculty', label: 'Faculty', icon: HiOutlineUsers },
   { to: '/admin/paths', label: 'Campus Paths', icon: HiOutlineLocationMarker },
-  { to: '/admin/import', label: 'Import Students', icon: HiOutlineUpload },
+  { to: '/admin/import', label: 'Import Students', icon: HiOutlineUpload, roles: ['SUPER_ADMIN'] },
 ]
 
 export default function AdminLayout() {
@@ -42,7 +43,8 @@ export default function AdminLayout() {
     return () => window.removeEventListener('keydown', closeOnEscape)
   }, [navigationOpen])
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await adminApi.post('/logout').catch(() => {})
     clearAdminSession()
     navigate('/admin/login', { replace: true })
   }
@@ -95,7 +97,7 @@ export default function AdminLayout() {
           <div className="overflow-hidden lg:overflow-visible">
             <aside className="h-max border border-border-default bg-surface-primary p-3 shadow-admin">
               <nav aria-label="Admin navigation" className="space-y-1">
-                {navItems.map((item) => (
+                {navItems.filter((item) => !item.roles || item.roles.includes(admin?.role || 'SUPER_ADMIN')).map((item) => (
                   <NavLink
                     key={item.to}
                     to={item.to}

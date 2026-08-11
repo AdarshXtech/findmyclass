@@ -2,10 +2,11 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('node:crypto');
 const multer = require('multer');
 const XLSX = require('@e965/xlsx');
 const { queryAll, queryOne, execute, withTransaction } = require('../config/db');
-const { authenticateToken, JWT_SECRET } = require('../middleware/auth');
+const { ADMIN_SESSION_COOKIE, adminCookieOptions, authenticateToken, authorizeRoles, JWT_SECRET } = require('../middleware/auth');
 const {
   normalizeUniversityRollNumber,
   isValidUniversityRollNumber,
@@ -36,42 +37,25 @@ const {
 } = require('../utils/timetable-manager');
 const { extractTimetableImage } = require('../utils/timetable-ocr');
 const { createFailedAttemptLimiter } = require('../middleware/rate-limit');
+const facultyRepository = require('../repositories/faculty-repository');
+const { facultyForStudent, saveFaculty } = require('../services/faculty-service');
+const { normalizeFacultyName } = require('../utils/faculty-identity');
+const logger = require('../utils/logger');
 
 const adminLoginLimiter = createFailedAttemptLimiter({
   windowMs: 15 * 60 * 1000,
   maxAttempts: 5,
   message: 'Too many unsuccessful login attempts. Please wait 15 minutes and try again.',
+  keyFor: (req) => `${req.ip || req.socket?.remoteAddress || 'unknown'}:${String(req.body?.username || '').trim().toLowerCase()}`,
 });
+const superAdminOnly = authorizeRoles('SUPER_ADMIN');
+const uploadLimitBytes = Number(process.env.UPLOAD_LIMIT_BYTES) || 5 * 1024 * 1024;
 
 function formatStudentForAdmin(student) {
   const { phone_last_four: phoneLastFour, phone_lookup_hash: _phoneHash, ...safeStudent } = student;
   return {
     ...safeStudent,
     masked_phone_number: phoneLastFour ? maskPhoneNumber(phoneLastFour) : null,
-  };
-}
-
-function normalizeFacultyContact(body) {
-  const name = String(body.name || '').trim().replace(/\s+/g, ' ');
-  const phoneNumber = normalizePhoneNumber(body.phoneNumber ?? body.phone_number);
-  const designation = String(body.designation || '').trim().replace(/\s+/g, ' ') || null;
-  const role = body.role === 'Coordinator' ? 'Coordinator' : 'Faculty';
-  const section = normalizeSection(body.section);
-  const errors = [];
-  if (!name) errors.push('Faculty name is required.');
-  if (!phoneNumber) errors.push('Enter a valid 10-digit Indian phone number.');
-  if (!isValidSection(section)) errors.push('Select a valid class or section.');
-  return { name, phoneNumber, designation, role, section, errors };
-}
-
-function formatFacultyContact(contact) {
-  return {
-    id: contact.faculty_contact_id,
-    section: contact.section,
-    name: contact.name,
-    phoneNumber: contact.phone_number,
-    designation: contact.designation,
-    role: contact.role,
   };
 }
 
@@ -98,31 +82,36 @@ router.post('/login', async (req, res) => {
 
     if (!admin) {
       adminLoginLimiter.recordFailure(req);
+      logger.warn('Admin login rejected', { requestId: req.requestId, reason: 'invalid_credentials' });
       return res.status(401).json({ success: false, message: 'Invalid credentials.' });
     }
 
     const isValid = await bcrypt.compare(password, admin.password);
     if (!isValid) {
       adminLoginLimiter.recordFailure(req);
+      logger.warn('Admin login rejected', { requestId: req.requestId, reason: 'invalid_credentials' });
       return res.status(401).json({ success: false, message: 'Invalid credentials.' });
     }
 
     adminLoginLimiter.clear(req);
+    const csrfToken = crypto.randomBytes(24).toString('base64url');
     const token = jwt.sign(
-      { id: admin.admin_id, username: admin.username },
+      { id: admin.admin_id, username: admin.username, role: admin.role || 'SUPER_ADMIN', csrf: csrfToken },
       JWT_SECRET,
       { expiresIn: '24h' }
     );
+    res.cookie(ADMIN_SESSION_COOKIE, token, adminCookieOptions());
 
     res.json({
       success: true,
       data: {
-        token,
-        admin: { id: admin.admin_id, username: admin.username }
+        ...(process.env.NODE_ENV === 'production' ? {} : { token }),
+        csrfToken,
+        admin: { id: admin.admin_id, username: admin.username, role: admin.role || 'SUPER_ADMIN' }
       }
     });
   } catch (error) {
-    console.error('Login error:', error);
+    logger.error('Admin login failed', { requestId: req.requestId, error: error.message });
     res.status(500).json({ success: false, message: 'Something went wrong.' });
   }
 });
@@ -154,7 +143,7 @@ router.get('/stats', authenticateToken, async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Stats error:', error);
+    logger.error('Admin statistics failed', { requestId: req.requestId, error: error.message });
     res.status(500).json({ success: false, message: 'Something went wrong.' });
   }
 });
@@ -164,9 +153,11 @@ router.get('/stats', authenticateToken, async (req, res) => {
 // ════════════════════════════════════════════════════════════
 
 /** GET /api/admin/students */
-router.get('/students', authenticateToken, async (req, res) => {
+router.get('/students', authenticateToken, superAdminOnly, async (req, res) => {
   try {
     const { search, section } = req.query;
+    const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, Number.parseInt(req.query.limit, 10) || 50));
 
     let query = `SELECT student_id, name, phone_last_four, university_roll_number, class_roll_number,
                         course, branch, year, section, created_at
@@ -183,17 +174,24 @@ router.get('/students', authenticateToken, async (req, res) => {
       params.push(normalizedSection);
     }
 
-    query += ' ORDER BY name';
+    const countRow = await queryOne(`SELECT COUNT(*) AS count FROM (${query}) AS filtered_students`, params);
+    query += ' ORDER BY name LIMIT ? OFFSET ?';
+    params.push(limit, (page - 1) * limit);
     const students = await queryAll(query, params);
-    res.json({ success: true, data: students.map(formatStudentForAdmin) });
+    const total = Number(countRow.count);
+    res.json({
+      success: true,
+      data: students.map(formatStudentForAdmin),
+      pagination: { page, limit, total, pages: Math.max(1, Math.ceil(total / limit)) },
+    });
   } catch (error) {
-    console.error('Get students error:', error);
+    logger.error('Student listing failed', { requestId: req.requestId, error: error.message });
     res.status(500).json({ success: false, message: 'Something went wrong.' });
   }
 });
 
 /** POST /api/admin/students */
-router.post('/students', authenticateToken, async (req, res) => {
+router.post('/students', authenticateToken, superAdminOnly, async (req, res) => {
   try {
     const { name, phone_number, university_roll_number, class_roll_number, course, branch, year, section } = req.body;
     const cleanedName = String(name || '').trim().replace(/\s+/g, ' ');
@@ -281,13 +279,13 @@ router.post('/students', authenticateToken, async (req, res) => {
       })
     });
   } catch (error) {
-    console.error('Add student error:', error);
+    logger.error('Student creation failed', { requestId: req.requestId, error: error.message });
     res.status(500).json({ success: false, message: 'Something went wrong.' });
   }
 });
 
 /** PUT /api/admin/students/:id */
-router.put('/students/:id', authenticateToken, async (req, res) => {
+router.put('/students/:id', authenticateToken, superAdminOnly, async (req, res) => {
   try {
     const { id } = req.params;
     const { name, phone_number, university_roll_number, class_roll_number, course, branch, year, section } = req.body;
@@ -403,13 +401,13 @@ router.put('/students/:id', authenticateToken, async (req, res) => {
       })
     });
   } catch (error) {
-    console.error('Update student error:', error);
+    logger.error('Student update failed', { requestId: req.requestId, error: error.message });
     res.status(500).json({ success: false, message: 'Something went wrong.' });
   }
 });
 
 /** DELETE /api/admin/students/:id */
-router.delete('/students/:id', authenticateToken, async (req, res) => {
+router.delete('/students/:id', authenticateToken, superAdminOnly, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -421,7 +419,7 @@ router.delete('/students/:id', authenticateToken, async (req, res) => {
     await execute('DELETE FROM students WHERE student_id = ?', [Number(id)]);
     res.json({ success: true, message: 'Student deleted successfully.' });
   } catch (error) {
-    console.error('Delete student error:', error);
+    logger.error('Student deletion failed', { requestId: req.requestId, error: error.message });
     res.status(500).json({ success: false, message: 'Something went wrong.' });
   }
 });
@@ -429,6 +427,21 @@ router.delete('/students/:id', authenticateToken, async (req, res) => {
 // ════════════════════════════════════════════════════════════
 //  SUBJECTS CRUD
 // ════════════════════════════════════════════════════════════
+
+async function detectedFacultyForRows(rows) {
+  const directory = await facultyRepository.listDirectory();
+  const byName = new Map(directory.map((item) => [item.normalized_name, item]));
+  return [...new Map(rows
+    .map((row) => String(row.facultyName || '').trim())
+    .filter(Boolean)
+    .map((name) => [normalizeFacultyName(name), name])).entries()]
+    .filter(([normalizedName]) => normalizedName)
+    .map(([normalizedName, name]) => ({
+      name: byName.get(normalizedName)?.name || name,
+      matched: byName.has(normalizedName),
+      contactAvailable: Boolean(byName.get(normalizedName)?.phone_number),
+    }));
+}
 
 /** GET /api/admin/faculty */
 router.get('/faculty', authenticateToken, async (req, res) => {
@@ -439,46 +452,45 @@ router.get('/faculty', authenticateToken, async (req, res) => {
        ORDER BY course, branch, year, section`
     );
     const section = req.query.section ? normalizeSection(req.query.section) : null;
-    const contacts = section
-      ? await queryAll(
-          `SELECT * FROM faculty_contacts WHERE section = ?
-           ORDER BY CASE WHEN role = 'Coordinator' THEN 0 ELSE 1 END, name`,
-          [section]
-        )
-      : [];
-    res.json({ success: true, data: { classes, contacts: contacts.map(formatFacultyContact) } });
+    if (section) await facultyRepository.syncTimetableFaculty(section);
+    const contacts = section ? await facultyForStudent(section) : [];
+    const directory = (await facultyRepository.listDirectory()).map((item) => ({
+      id: item.faculty_id,
+      name: item.name,
+      phoneNumber: item.phone_number || null,
+      designation: item.designation || null,
+      department: item.department || null,
+      isActive: Boolean(item.is_active),
+      classCount: Number(item.class_count),
+    }));
+    res.json({ success: true, data: { classes, contacts, directory } });
   } catch (error) {
-    console.error('Get faculty contacts error:', error.message);
+    logger.error('Faculty listing failed', { requestId: req.requestId, error: error.message });
     res.status(500).json({ success: false, message: 'Could not load faculty contacts.' });
   }
+});
+
+router.get('/session', authenticateToken, (req, res) => {
+  res.json({ success: true, data: {
+    csrfToken: req.admin.csrf,
+    admin: { id: req.admin.id, username: req.admin.username, role: req.admin.role },
+  } });
+});
+
+router.post('/logout', authenticateToken, (req, res) => {
+  res.clearCookie(ADMIN_SESSION_COOKIE, adminCookieOptions({ clear: true }));
+  res.json({ success: true, message: 'Logged out.' });
 });
 
 /** POST /api/admin/faculty */
 router.post('/faculty', authenticateToken, async (req, res) => {
   try {
-    const contact = normalizeFacultyContact(req.body);
-    if (contact.errors.length) return res.status(400).json({ success: false, message: contact.errors[0] });
-    const context = await getTimetableContext(contact.section);
-    if (!context) return res.status(404).json({ success: false, message: 'Class not found.' });
-    const currentCoordinator = contact.role === 'Coordinator'
-      ? await queryOne("SELECT faculty_contact_id, name FROM faculty_contacts WHERE section = ? AND role = 'Coordinator'", [contact.section])
-      : null;
-    if (currentCoordinator && !req.body.replaceCoordinator) {
-      return res.status(409).json({ success: false, message: `${currentCoordinator.name} is the current coordinator. Confirm replacement to continue.` });
-    }
-    const result = await withTransaction(async (transaction) => {
-      if (currentCoordinator) {
-        await transaction.execute("UPDATE faculty_contacts SET role = 'Faculty' WHERE faculty_contact_id = ?", [currentCoordinator.faculty_contact_id]);
-      }
-      return transaction.execute(
-        'INSERT INTO faculty_contacts (section, name, phone_number, designation, role) VALUES (?, ?, ?, ?, ?)',
-        [contact.section, contact.name, contact.phoneNumber, contact.designation, contact.role]
-      );
-    });
-    const saved = await queryOne('SELECT * FROM faculty_contacts WHERE faculty_contact_id = ?', [result.lastInsertRowid]);
-    res.status(201).json({ success: true, data: formatFacultyContact(saved) });
+    const saved = await saveFaculty(req.body, req.admin.id);
+    if (saved.errors) return res.status(400).json({ success: false, message: saved.errors[0] });
+    if (saved.conflict) return res.status(409).json({ success: false, message: saved.conflict });
+    res.status(201).json({ success: true, data: saved.faculty });
   } catch (error) {
-    console.error('Create faculty contact error:', error.message);
+    logger.error('Faculty creation failed', { requestId: req.requestId, error: error.message });
     res.status(500).json({ success: false, message: 'Could not add faculty contact.' });
   }
 });
@@ -487,34 +499,14 @@ router.post('/faculty', authenticateToken, async (req, res) => {
 router.put('/faculty/:id', authenticateToken, async (req, res) => {
   try {
     const id = Number(req.params.id);
-    const current = Number.isInteger(id) && id > 0
-      ? await queryOne('SELECT * FROM faculty_contacts WHERE faculty_contact_id = ?', [id])
-      : null;
+    const current = Number.isInteger(id) && id > 0 ? await facultyRepository.findById(id) : null;
     if (!current) return res.status(404).json({ success: false, message: 'Faculty contact not found.' });
-    const contact = normalizeFacultyContact({ ...req.body, section: req.body.section || current.section });
-    if (contact.errors.length) return res.status(400).json({ success: false, message: contact.errors[0] });
-    const currentCoordinator = contact.role === 'Coordinator'
-      ? await queryOne(
-          "SELECT faculty_contact_id, name FROM faculty_contacts WHERE section = ? AND role = 'Coordinator' AND faculty_contact_id <> ?",
-          [contact.section, id]
-        )
-      : null;
-    if (currentCoordinator && !req.body.replaceCoordinator) {
-      return res.status(409).json({ success: false, message: `${currentCoordinator.name} is the current coordinator. Confirm replacement to continue.` });
-    }
-    await withTransaction(async (transaction) => {
-      if (currentCoordinator) {
-        await transaction.execute("UPDATE faculty_contacts SET role = 'Faculty' WHERE faculty_contact_id = ?", [currentCoordinator.faculty_contact_id]);
-      }
-      await transaction.execute(
-        'UPDATE faculty_contacts SET section = ?, name = ?, phone_number = ?, designation = ?, role = ? WHERE faculty_contact_id = ?',
-        [contact.section, contact.name, contact.phoneNumber, contact.designation, contact.role, id]
-      );
-    });
-    const saved = await queryOne('SELECT * FROM faculty_contacts WHERE faculty_contact_id = ?', [id]);
-    res.json({ success: true, data: formatFacultyContact(saved) });
+    const saved = await saveFaculty({ ...req.body, id, name: req.body.name || current.name }, req.admin.id);
+    if (saved.errors) return res.status(400).json({ success: false, message: saved.errors[0] });
+    if (saved.conflict) return res.status(409).json({ success: false, message: saved.conflict });
+    res.json({ success: true, data: saved.faculty });
   } catch (error) {
-    console.error('Update faculty contact error:', error.message);
+    logger.error('Faculty update failed', { requestId: req.requestId, error: error.message });
     res.status(500).json({ success: false, message: 'Could not update faculty contact.' });
   }
 });
@@ -524,11 +516,23 @@ router.delete('/faculty/:id', authenticateToken, async (req, res) => {
   try {
     const id = Number(req.params.id);
     if (!Number.isInteger(id) || id < 1) return res.status(400).json({ success: false, message: 'Invalid faculty contact ID.' });
-    const result = await execute('DELETE FROM faculty_contacts WHERE faculty_contact_id = ?', [id]);
-    if (!result.changes) return res.status(404).json({ success: false, message: 'Faculty contact not found.' });
-    res.json({ success: true, message: 'Faculty contact removed.' });
+    const current = await facultyRepository.findById(id);
+    if (!current) return res.status(404).json({ success: false, message: 'Faculty contact not found.' });
+    await withTransaction(async (transaction) => {
+      await transaction.execute('DELETE FROM section_coordinators WHERE faculty_id = ?', [id]);
+      await transaction.execute(
+        'UPDATE faculty SET phone_number=NULL, designation=NULL, department=NULL, updated_at=CURRENT_TIMESTAMP WHERE faculty_id=?',
+        [id]
+      );
+      await transaction.execute(
+        `INSERT INTO admin_audit_log (admin_id, action, entity_type, entity_id, details)
+         VALUES (?, 'CLEAR_CONTACT', 'FACULTY', ?, ?)`,
+        [req.admin.id, String(id), JSON.stringify({ name: current.name })]
+      );
+    });
+    res.json({ success: true, message: 'Faculty contact details removed. The timetable name remains available.' });
   } catch (error) {
-    console.error('Delete faculty contact error:', error.message);
+    logger.error('Faculty contact removal failed', { requestId: req.requestId, error: error.message });
     res.status(500).json({ success: false, message: 'Could not remove faculty contact.' });
   }
 });
@@ -837,7 +841,7 @@ router.get('/sections', authenticateToken, async (req, res) => {
 const storage = multer.memoryStorage();
 const upload = multer({
   storage,
-  limits: { fileSize: 5 * 1024 * 1024 },
+  limits: { fileSize: uploadLimitBytes },
   fileFilter: (req, file, cb) => {
     if (file.originalname.match(/\.(xlsx|xls|csv)$/i)) {
       cb(null, true);
@@ -875,6 +879,14 @@ function getCellText(value) {
 }
 
 async function readStudentRows(file) {
+  const extension = String(file.originalname || '').toLowerCase().split('.').pop();
+  const bytes = file.buffer;
+  const validWorkbook = extension === 'xlsx'
+    ? bytes[0] === 0x50 && bytes[1] === 0x4b
+    : extension === 'xls'
+      ? bytes.subarray(0, 4).equals(Buffer.from([0xd0, 0xcf, 0x11, 0xe0]))
+      : extension === 'csv' && !bytes.subarray(0, 1024).includes(0);
+  if (!validWorkbook) throw new Error('The uploaded file content does not match its extension.');
   const workbook = XLSX.read(file.buffer, { type: 'buffer', cellDates: true });
   const worksheet = workbook.Sheets[workbook.SheetNames[0]];
   if (!worksheet) return [];
@@ -920,7 +932,7 @@ async function readStudentRows(file) {
 }
 
 /** POST /api/admin/import/students */
-router.post('/import/students', authenticateToken, uploadStudentFile, async (req, res) => {
+router.post('/import/students', authenticateToken, superAdminOnly, uploadStudentFile, async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ success: false, message: 'No file uploaded.' });
@@ -1108,14 +1120,14 @@ router.post('/import/students', authenticateToken, uploadStudentFile, async (req
       }
     });
   } catch (error) {
-    console.error('Import error:', error);
+    logger.error('Student import failed', { requestId: req.requestId, error: error.message });
     res.status(500).json({ success: false, message: 'Failed to import file.' });
   }
 });
 
 const timetableImageUpload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024, files: 1 },
+  limits: { fileSize: uploadLimitBytes, files: 1 },
   fileFilter: (req, file, callback) => {
     const allowedMime = new Set(['image/png', 'image/jpeg', 'image/webp']);
     const allowedExtension = /\.(png|jpe?g|webp)$/i.test(file.originalname);
@@ -1277,9 +1289,10 @@ router.post('/timetables/shift', authenticateToken, async (req, res) => {
         );
       }
     });
+    logger.info('Admin shifted timetable entries', { requestId: req.requestId, adminId: req.admin.id, section, entries: rows.length });
     res.json({ success: true, message: `${rows.length} timetable ${rows.length === 1 ? 'entry' : 'entries'} shifted successfully.`, data: { rows, valid: true, saved: true } });
   } catch (error) {
-    console.error('Timetable shift failed:', error.message);
+    logger.error('Timetable shift failed', { requestId: req.requestId, error: error.message });
     res.status(500).json({ success: false, message: 'Could not shift timetable entries.' });
   }
 });
@@ -1297,6 +1310,13 @@ router.post('/timetables/import', authenticateToken, uploadTimetableImage, async
     }
     if (!req.file && !String(req.body.text || '').trim()) {
       return res.status(400).json({ success: false, message: 'Upload an image or paste timetable text.' });
+    }
+    if (req.file) {
+      const bytes = req.file.buffer;
+      const validImage = (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff)
+        || bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+        || (bytes.subarray(0, 4).toString('ascii') === 'RIFF' && bytes.subarray(8, 12).toString('ascii') === 'WEBP');
+      if (!validImage) return res.status(400).json({ success: false, message: 'The uploaded file is not a valid PNG, JPEG, or WEBP image.' });
     }
     const extraction = req.file
       ? await extractTimetableImage(req.file.buffer)
@@ -1318,10 +1338,11 @@ router.post('/timetables/import', authenticateToken, uploadTimetableImage, async
         rows,
         extractedText: req.file ? extractedText : undefined,
         saved: false,
+        detectedFaculty: await detectedFacultyForRows(rows),
       },
     });
   } catch (error) {
-    console.error('Timetable import failed:', error.message);
+    logger.error('Timetable import failed', { requestId: req.requestId, error: error.message });
     res.status(error.status || 500).json({
       success: false,
       message: error.status === 429 ? error.message : 'Could not extract timetable entries. Review the image or text and try again.',
@@ -1355,9 +1376,11 @@ router.post('/timetables', authenticateToken, async (req, res) => {
         ])
       );
     });
+    await facultyRepository.syncTimetableFaculty(section);
+    logger.info('Admin saved timetable', { requestId: req.requestId, adminId: req.admin.id, section, mode, entries: validation.rows.length });
     res.status(201).json({ success: true, message: 'Timetable saved successfully.' });
   } catch (error) {
-    console.error('Timetable save failed:', error.message);
+    logger.error('Timetable save failed', { requestId: req.requestId, error: error.message });
     if (isTimetableConflict(error)) {
       return res.status(409).json({ success: false, message: 'This change conflicts with an existing timetable entry.' });
     }
@@ -1395,8 +1418,11 @@ router.put('/timetables/:id', authenticateToken, async (req, res) => {
         row.sessionType, row.facultyCode || null, row.facultyName || null, row.room || null, 'ADMIN', row.notes || null, id,
       ]
     );
+    await facultyRepository.syncTimetableFaculty(current.section);
+    logger.info('Admin updated timetable entry', { requestId: req.requestId, adminId: req.admin.id, section: current.section, timetableEntryId: id });
     res.json({ success: true, message: 'Timetable entry updated successfully.' });
   } catch (error) {
+    logger.error('Timetable entry update failed', { requestId: req.requestId, error: error.message });
     if (isTimetableConflict(error)) {
       return res.status(409).json({ success: false, message: 'This change conflicts with an existing timetable entry.' });
     }
@@ -1410,7 +1436,7 @@ router.delete('/timetables/class/:classId', authenticateToken, async (req, res) 
     const context = await getTimetableContext(req.params.classId);
     if (!context) return res.status(404).json({ success: false, message: 'Class not found.' });
     const result = await execute('DELETE FROM timetable_entries WHERE section = ?', [context.section]);
-    console.info(`Admin deleted timetable for ${context.section}: ${result.changes} entries.`);
+    logger.info('Admin deleted timetable', { requestId: req.requestId, adminId: req.admin.id, section: context.section, entries: result.changes });
     res.json({
       success: true,
       deletedCount: result.changes,
@@ -1419,6 +1445,7 @@ router.delete('/timetables/class/:classId', authenticateToken, async (req, res) 
         : 'No timetable entries existed for this class.',
     });
   } catch (error) {
+    logger.error('Complete timetable deletion failed', { requestId: req.requestId, error: error.message });
     res.status(500).json({ success: false, message: 'Could not delete the complete timetable.' });
   }
 });
@@ -1431,9 +1458,10 @@ router.delete('/timetables/:id', authenticateToken, async (req, res) => {
     const current = await queryOne('SELECT timetable_entry_id FROM timetable_entries WHERE timetable_entry_id = ?', [id]);
     if (!current) return res.status(404).json({ success: false, message: 'Timetable entry not found.' });
     await execute('DELETE FROM timetable_entries WHERE timetable_entry_id = ?', [id]);
-    console.info(`Admin deleted timetable entry ${id}.`);
+    logger.info('Admin deleted timetable entry', { requestId: req.requestId, adminId: req.admin.id, timetableEntryId: id });
     res.json({ success: true, message: 'Timetable entry deleted successfully.' });
   } catch (error) {
+    logger.error('Timetable entry deletion failed', { requestId: req.requestId, error: error.message });
     res.status(500).json({ success: false, message: 'Could not delete the timetable entry.' });
   }
 });

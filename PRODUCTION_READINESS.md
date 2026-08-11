@@ -1,92 +1,79 @@
 # Production Readiness Report
 
-Audit date: 2026-07-21
+Audit date: 2026-08-12
+
+## Scope
+
+This report describes the current repository after its production-foundation refactor. It does not certify an external hosting environment. College launch still requires a staging deployment, load test, backup restore exercise, privacy review, and operator sign-off.
 
 ## Feature Connection Table
 
-| UI Feature | Frontend Component | API Endpoint | Backend Handler | Data Source | Status |
-| --- | --- | --- | --- | --- | --- |
-| Student name and phone lookup | `LandingPage`, `ResultPage` | `POST /api/student/lookup` | `server/routes/student.js` | `students`, `timetable_entries`, `classrooms` fallback | Fully functional |
-| Admin login | `AdminLoginPage` | `POST /api/admin/login` | `server/routes/admin.js` | `admins`, bcrypt, JWT | Fully functional |
-| Admin logout | `AdminLayout` | None (stateless JWT) | None | Browser session storage | Fully functional |
-| Dashboard statistics | `AdminDashboardPage` | `GET /api/admin/stats` | `server/routes/admin.js` | Aggregate SQL queries | Fully functional |
-| Student management | `AdminStudentsPage` | `GET/POST/PUT/DELETE /api/admin/students` | `server/routes/admin.js` | `students` | Fully functional |
-| Subject management | `AdminSubjectsPage` | `GET/POST/PUT/DELETE /api/admin/subjects` | `server/routes/admin.js` | `subjects` | Partially functional |
-| Classroom assignments | `AdminClassroomsPage` | `GET/POST/PUT/DELETE /api/admin/classrooms` | `server/routes/admin.js` | `classrooms`, subject/section suggestions | Fully functional |
-| Student import | `AdminImportPage` | `POST /api/admin/import/students` | `server/routes/admin.js` | XLSX/CSV parser, `students` | Fully functional |
-| QR entry point | Landing-page instructions | None | None | Externally generated QR/link | Unconfirmed |
+| Feature | Frontend | API / service | Primary data | Status |
+| --- | --- | --- | --- | --- |
+| Student name + phone lookup | `LandingPage`, `ResultPage` | `POST /api/student/lookup` | `students`, `timetable_entries`, `faculty`, `section_coordinators` | Verified |
+| Admin session | `AdminLoginPage`, `ProtectedRoute` | login/session/logout + cookie/CSRF middleware | `admins` | Verified |
+| Student administration | `AdminStudentsPage` | paginated student CRUD/import | `students` | Verified; SUPER_ADMIN only |
+| Timetable management | `AdminTimetablePage` | preview/validate/save/edit/delete/shift | `timetable_entries` | Verified |
+| Faculty directory | `AdminFacultyPage`, `FacultyView` | timetable derivation + optional contacts | `faculty`, `section_coordinators` | Verified |
+| Classroom and subject administration | Admin pages | CRUD endpoints | `classrooms`, `subjects` | Verified |
+| Campus map and local routing | `CampusMapView`, `CampusPathEditor` | client-side graph | campus location/path source files | Verified by unit/build tests |
 
-Subject CRUD is marked partially functional because classroom assignments store subject names as text. Renaming or deleting a subject does not update or reject existing classroom assignments. The repository contains no product rule establishing cascade, restriction, or historical-name behavior.
+## Implemented Production Controls
 
-## Findings
+- Additive, idempotent migrations tracked in `schema_migrations`.
+- PostgreSQL production configuration validation before startup.
+- Repository boundaries for student lookup, timetable retrieval, classroom retrieval, and faculty persistence.
+- Timetable-derived faculty identities with optional contact metadata and direct section coordinators.
+- HttpOnly admin session cookie, CSRF protection, role checks, bcrypt passwords, and failed-login throttling.
+- Per-student-identity failed lookup limiting so a shared campus IP does not lock out unrelated students.
+- Exact-origin credentialed CORS, request IDs, security headers, body limits, upload limits, and file-signature checks.
+- Student response `no-store`, response compression, paginated admin student listing, transactions, and chunked imports.
+- Liveness and database readiness endpoints.
+- Graceful shutdown for process supervisors and container orchestrators.
+- SQLite and PostgreSQL-adapter integration tests, frontend behavior tests, production build, and CI workflow.
+- Runtime dependency audits currently report zero known vulnerabilities.
 
-### Confirmed
+## Verified Results
 
-- Admin credentials are checked against bcrypt hashes in the database.
-- Every admin data route verifies the JWT on the server.
-- Dashboard values come from live aggregate database queries.
-- Student name/phone lookup, daily and weekly timetable display, CRUD, imports, loading states, errors, empty states, and duplicate-request disabling are connected to real handlers.
-- The supplied CSAI 2B source data is represented by 58 roster records and 24 timetable entries, with the non-matching CSAI 2D row excluded and the section-label discrepancy documented.
-- `.env` is loaded before runtime configuration and route modules are initialized.
-- Production startup rejects a missing `JWT_SECRET` or `CLIENT_ORIGIN`.
-- Normal startup creates an empty database schema; it does not create sample users or records.
-- Demo seeding is explicitly invoked, destructive, and blocked in production.
-- Unsupported, oversized, and malformed import files receive explicit client errors.
-- The visible Settings placeholder was removed.
+| Check | Result |
+| --- | --- |
+| Server tests, SQLite | 44 passed |
+| Server tests, PostgreSQL adapter | 44 passed |
+| Frontend tests | 81 passed |
+| Frontend production build | Passed with Vite 6.4.3 |
+| Server runtime audit | 0 vulnerabilities |
+| Client runtime audit | 0 vulnerabilities |
+| Compression integration check | About 92.5% smaller for the tested JSON payload |
 
-### Inferred From Code
+## Remaining Launch Gates
 
-- "QR-based" appears to mean that an external QR code opens the public locator URL. There is no scanner, QR generator, or QR persistence logic in this repository.
+- Replace transitional runtime base-schema creation with a migration-only bootstrap after the first controlled college cutover.
+- Decide whether the college will synchronize through read-only views, scheduled ETL, or its own upstream integration service.
+- Put failed-attempt counters and revocable admin sessions in shared storage before running multiple API instances.
+- Configure centralized logs, metrics, alerting, retention, and personally identifiable information redaction.
+- Run realistic staging load tests at the college's expected peak login burst and database latency.
+- Define backup retention, point-in-time recovery, recovery objectives, and complete a documented restore drill.
+- Review all published faculty/coordinator phone numbers and student privacy notices with college owners.
+- Create individual admin accounts; never share one production credential.
+- Establish a subject/classroom historical-data rule before adding foreign-key cascades or rename propagation.
+- Verify accessibility and browser behavior with the college-supported browser/device matrix.
 
-### Unconfirmed
+## Explicit Boundary
 
-- Reverse-proxy behavior, TLS termination, backups, restore procedures, process supervision, and filesystem durability depend on the deployment platform.
-- Browser coverage outside the locally controlled Chromium session was not run.
+Name plus phone number is the college-required timetable access method. It is suitable only for low-sensitivity schedule and explicitly published contact data. It must not authorize access to attendance, grades, fees, documents, addresses, or other private records.
 
-### Missing
+## Release Commands
 
-- Distributed rate limiting across more than one API instance.
-- Server-side JWT revocation before the 24-hour expiry.
-- A schema-level relationship between `subjects` and `classrooms`.
-- CI configuration and automated frontend component tests.
+```sh
+npm ci --prefix server
+npm test --prefix server
+npm run test:postgres --prefix server
+npm audit --omit=dev --prefix server
 
-### Requires Credentials
+npm ci --prefix client
+npm test --prefix client
+npm run build --prefix client
+npm audit --omit=dev --prefix client
+```
 
-- No third-party integration credentials are used by the current codebase.
-- Production requires operator-provided `JWT_SECRET`, `CLIENT_ORIGIN`, `ADMIN_USERNAME`, and `ADMIN_PASSWORD` values.
-
-### Requires External Verification
-
-- Production uses external PostgreSQL so roster, admin accounts, and admin changes survive Render restarts.
-- The deployed QR code must be tested against the final public URL.
-- CORS must be checked against the exact deployed frontend origin.
-
-`DO NOT MODIFY - REQUIRES FURTHER VERIFICATION`: Name and phone verification selects a schedule but is not strong authentication for private student data. Subject rename/delete propagation also requires an explicit data-retention rule.
-
-## Verification Table
-
-| Feature | Verification Performed | Result | Limitations |
-| --- | --- | --- | --- |
-| Student lookup | API integration tests for invalid, missing, and registered name/phone pairs plus timetable response; browser submission | Pass | Uses local database |
-| Admin authentication | Invalid login, valid login, unauthenticated rejection, browser dashboard navigation | Pass | No distributed token revocation test |
-| Student CRUD | Create, validation, update, filter, delete against temporary SQLite | Pass | No concurrent-writer load test |
-| Subject/classroom CRUD | Create, filter, update, delete against temporary SQLite | Pass | Subject/classroom referential rule remains undefined |
-| CSV import | Valid and duplicate rows, persisted result and skipped-row detail | Pass | Maximum-volume performance not load-tested |
-| XLSX import | Generated workbook import, malformed workbook, unsupported `.xls` | Pass | Complex styled/formula workbooks not required by the import contract |
-| API fallback | Unknown `/api` route | Pass | None |
-| Frontend build | `npm run build` with Vite 6.4.3 | Pass | Build is not a browser compatibility matrix |
-| Dependency security | `npm audit --omit=dev` in client and server | Pass: zero reported vulnerabilities | Audit databases can change |
-| Responsive layout | Browser checks at 390x844 and default desktop width; overflow and clipped-text measurements | Pass | Chromium only |
-| Browser console | Error log inspection during dashboard flow | Pass: no errors | Chromium only |
-
-## Dependency Research
-
-The original upload route used `xlsx@0.18.5`. Internet research was required because uploads parse administrator-supplied files and npm reported security advisories.
-
-- GitHub's reviewed advisory states that `xlsx` versions before 0.19.3 are vulnerable to prototype pollution while reading crafted files, and that no patched npm version exists: [GHSA-4r6h-8v6p-xvw6](https://github.com/advisories/GHSA-4r6h-8v6p-xvw6).
-- GitHub also records a SheetJS regular-expression denial-of-service advisory for the same npm package line: [GHSA-5pgg-2g8v-p4x9](https://github.com/advisories/GHSA-5pgg-2g8v-p4x9).
-- ExcelJS 4.4.0 documentation covers XLSX and CSV reading and does not document legacy binary XLS support: [ExcelJS v4.4.0 documentation](https://github.com/exceljs/exceljs/tree/v4.4.0).
-
-Conclusion: the importer now uses `exceljs@4.4.0`, accepts `.xlsx` and `.csv`, rejects `.xls`, and pins patched `uuid@11.1.1` for the transitive UUID advisory. Runtime tests cover both supported formats. The current implementation and documentation are aligned; no unresolved conflict with the checked version-specific documentation was found.
-
-The runtime requirement was also checked because `.env` loading now uses a Node built-in. The official Node.js documentation records `process.loadEnvFile(path)` as added in Node 20.12.0, matching the `engines.node` minimum: [Node.js process API](https://nodejs.org/api/process.html#processloadenvfilepath).
+For deployment, migration, database mapping, backup, rollback, and troubleshooting procedures, use `docs/college-deployment-guide.md` and the generated `college-deployment-and-database-integration-guide.pdf`.

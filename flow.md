@@ -42,16 +42,19 @@ npm run dev
 
 ```text
 npm run start:production
+-> server/config/validate-production.js
+-> reject unsafe or incomplete production configuration
 -> server/config/start-production.js
 -> loadEnvironment()
--> loadScheduleData()
--> initDatabase()
--> roster, subjects, timetable seed state, and access records synchronized
+-> LOAD_BUNDLED_DATA=true?
+   -> yes: loadScheduleData() for an explicit transition import
+   -> no: initDatabase()
+-> create base schema and run versioned migrations
 -> startServer()
 -> app.listen()
 ```
 
-Production data loading runs before the server accepts requests. `timetable_seed_state` prevents a timetable deliberately changed or deleted by an admin from being silently restored on every restart unless replacement is explicitly requested.
+Normal production startup never reloads repository student or timetable data. `LOAD_BUNDLED_DATA=true` is an explicit transition option, and `timetable_seed_state` prevents that loader from restoring a timetable deliberately changed or deleted by an admin unless replacement is requested.
 
 ## 2. Application Startup Flow
 
@@ -67,11 +70,11 @@ Production data loading runs before the server accepts requests. `timetable_seed
 
 1. `server/config/env.js` loads `server/.env` through `process.loadEnvFile`.
 2. `server/server.js` creates the Express application.
-3. Optional proxy trust, CORS, compression, JSON parsing, and URL-encoded parsing are configured.
-4. `/api/student` and `/api/admin` routers are registered.
-5. Health and API 404 handlers are registered.
+3. Optional proxy trust, exact-origin credentialed CORS, compression, request IDs, security headers, and bounded body parsers are configured.
+4. `/api/student` is marked `no-store`; student and admin routers are registered.
+5. `/api/health`, database-backed `/api/ready`, and API 404 handlers are registered.
 6. A built client is served from `client/dist` when that directory exists.
-7. `startServer()` initializes the database before listening.
+7. `startServer()` initializes the database and applies pending migrations before listening.
 
 ### Database selection
 
@@ -80,7 +83,8 @@ initDatabase()
 -> DATABASE_URL present?
    -> yes: PostgreSQL Pool (or pg-mem for tests)
    -> no: sql.js database loaded from DATABASE_PATH or server/database.sqlite
--> create/migrate schema and indexes
+-> create the compatibility base schema
+-> run each missing migration recorded in schema_migrations
 -> expose queryAll(), queryOne(), execute(), insertMany(), and withTransaction()
 ```
 
@@ -97,11 +101,13 @@ LandingPage.handleSubmit()
 -> POST /api/student/lookup
 -> server/routes/student.js
 -> normalize identity again at the trust boundary
+-> hash normalized name + phone for a per-identity failed-attempt key
 -> hashPhoneNumber()
--> query students by normalized_name + phone_lookup_hash
--> query classrooms, timetable_entries, and published faculty_contacts by section
+-> studentRepository.findVerifiedStudent()
+-> query classrooms, timetable entries, and timetable-derived faculty in parallel
+-> facultyForStudent() joins faculty directory contacts and section coordinator
 -> parseClassroomLocation() for every timetable entry
--> response returns student, classrooms, facultyContacts, and timetable
+-> response returns student, classrooms, derived facultyContacts, coordinator, and timetable
 -> navigate('/result', { state: { lookupData } })
 -> ResultPage
 -> useCurrentTime()
@@ -123,8 +129,10 @@ AdminLoginPage.handleSubmit()
 -> query admin by username
 -> bcrypt.compare()
 -> adminLoginLimiter.clear() on success
--> jwt.sign(..., expiresIn: '24h')
--> setAdminSession() stores token and admin summary in localStorage
+-> jwt.sign(admin id, role, and CSRF claim; expires in 24h)
+-> set an HttpOnly, Secure production session cookie
+-> return the admin summary and CSRF token
+-> setAdminSession() stores only non-secret UI state in sessionStorage
 -> navigate to requested protected route or /admin
 ```
 
@@ -132,14 +140,16 @@ For protected admin API calls:
 
 ```text
 adminApi request interceptor
--> reads token from localStorage
--> Authorization: Bearer <token>
+-> sends cookies with credentials
+-> adds X-CSRF-Token for state-changing requests
 -> authenticateToken middleware
--> jwt.verify()
+-> reads and verifies the signed session cookie
+-> validates the CSRF header for cookie-authenticated writes
+-> authorizeRoles() enforces SUPER_ADMIN-only student operations
 -> protected route handler
 ```
 
-`ProtectedRoute` only checks that a token exists before rendering the admin UI. The server remains the security boundary and verifies the token on every protected API request.
+`ProtectedRoute` restores the server session through `GET /api/admin/session` before rendering. The server remains the security boundary and verifies the signed cookie, CSRF token, and role on protected requests. Bearer tokens remain accepted temporarily for staged compatibility and tests, but production login does not return one.
 
 ### Faculty contact management
 
@@ -148,14 +158,16 @@ AdminFacultyPage
 -> GET /api/admin/faculty?section=<class>
 -> POST or PUT /api/admin/faculty
 -> authenticateToken
--> normalize name, section, and Indian phone number
--> if coordinator changes, require explicit replacement confirmation
--> withTransaction() demotes the previous coordinator and saves the replacement
--> unique partial index enforces one coordinator per section
--> DELETE /api/admin/faculty/:id removes a published contact
+-> syncTimetableFaculty(section) derives unique identities from timetable teacher names
+-> facultyForStudent(section) combines derived identities with optional directory contacts
+-> normalizeFacultyName() matches only conservative formatting variants
+-> saveFaculty() updates optional phone, designation, and department
+-> section_coordinators stores the one explicit coordinator assignment per section
+-> admin_audit_log records faculty and coordinator changes
+-> DELETE clears optional contact metadata without deleting timetable-derived identity
 ```
 
-Faculty contacts are not inferred from timetable entries. Only records explicitly entered by an admin are exposed, and successful lookup returns only contacts matching the verified student's section.
+Faculty names are derived from the selected section's timetable. Contact details are optional, separately managed, and shown only after a verified student lookup for that section. The coordinator is a direct section assignment rather than a special faculty-contact role.
 
 ### Student spreadsheet import
 
@@ -164,7 +176,9 @@ AdminImportPage.handleSubmit()
 -> FormData(file)
 -> POST /api/admin/import/students
 -> authenticateToken
--> Multer memory upload (5 MB limit; CSV/XLS/XLSX only)
+-> SUPER_ADMIN authorization
+-> Multer memory upload bounded by UPLOAD_LIMIT_BYTES
+-> extension, MIME, and file-signature checks for CSV/XLS/XLSX
 -> readStudentRows() using @e965/xlsx
 -> normalize and validate each row
 -> hash optional phone numbers
@@ -186,7 +200,8 @@ AdminTimetablePage.importTimetable()
 -> image: extractTimetableImage() via Tesseract
    or text: parseTimetableText()
 -> validateRows()
--> return editable preview; nothing saved
+-> detect unique faculty names and match the faculty directory
+-> return editable preview and faculty verification list; nothing saved
 -> AdminTimetablePage.revalidatePreview()
 -> POST /api/admin/timetables/validate
 -> user confirms save mode
@@ -195,6 +210,7 @@ AdminTimetablePage.importTimetable()
 -> withTransaction()
 -> optional replace delete + chunked insertMany()
 -> timetable_entries updated
+-> syncTimetableFaculty(section) updates derived faculty links
 ```
 
 Manual add, edit, delete, full-class delete, and timetable shifting use separate protected endpoints. Shifts are previewed and validated before `confirm: true` writes updated times.
@@ -224,14 +240,16 @@ Map rendering uses React Leaflet with Esri satellite and OpenStreetMap street ti
 | `client/src/pages/LandingPage.jsx` | Student verification form | Name and phone | Router state for `/result` or error | Calls `lookupStudentSchedule()` |
 | `client/src/pages/ResultPage.jsx` | Coordinates student context, schedule views, menu, and map | Lookup payload in router state | Daily, weekly, or map UI | Calls timetable hooks and shared components |
 | `client/src/hooks/useTimetableStatus.js` | Time-dependent timetable priority and status | Timetable and current `Date` | Current/next entries, grouped days, status map | Called by `ResultPage`; calls timetable utilities |
-| `client/src/admin/api.js` | Authenticated admin HTTP client | Request config and local token | Axios responses | Called by admin pages; calls `/api/admin` |
+| `client/src/admin/api.js` | Credentialed admin HTTP client | Request config and CSRF token | Axios responses | Called by admin pages; calls `/api/admin` |
 | `client/src/pages/AdminTimetablePage.jsx` | Timetable CRUD, validation, import preview, and shifts | Admin form/image/text input | Preview state and saved timetable | Calls protected timetable endpoints |
 | `client/src/components/map/CampusMapView.jsx` | Destination/start workflow and route state | Search, GPS/manual start | Route summary and map props | Calls location search, geolocation, and route graph |
 | `server/server.js` | Express composition and process startup | Environment and port | HTTP server | Calls database initialization and route modules |
-| `server/routes/student.js` | Student identity verification and schedule response | Name and phone request | Normalized student/timetable payload | Calls DB, identity helper, classroom parser |
-| `server/routes/admin.js` | Admin auth and management APIs | JWT-protected requests and uploads | CRUD/import/validation responses | Calls DB, validators, OCR, spreadsheet parser |
-| `server/config/db.js` | SQLite/PostgreSQL adapter, schema, transactions, circuit breaker | SQL and parameters | Rows or write metadata | Called by startup and route modules |
-| `server/config/load-schedule-data.js` | Production roster/timetable/access synchronization | JSON datasets and environment access records | Seeded database state | Called by production startup or CLI |
+| `server/routes/student.js` | Student identity verification and schedule response | Name and phone request | Normalized student/timetable/faculty payload | Calls repositories, faculty service, identity helper, classroom parser |
+| `server/routes/admin.js` | Admin auth and management APIs | Cookie/CSRF-protected requests and uploads | CRUD/import/validation responses | Calls repositories, services, validators, OCR, spreadsheet parser |
+| `server/config/db.js` | SQLite/PostgreSQL adapter, migrations, transactions, circuit breaker | SQL and parameters | Rows or write metadata | Called by startup, repositories, and routes |
+| `server/repositories/` | Stable application data-access boundaries | Normalized identifiers and filters | Domain rows | Called by student routes and faculty services |
+| `server/services/faculty-service.js` | Timetable-derived faculty and coordinator composition | Section or faculty form | Student-facing faculty and saved directory data | Calls faculty repository |
+| `server/config/load-schedule-data.js` | Transitional roster/timetable/access synchronization | JSON datasets and environment access records | Seeded database state | Called by CLI or explicit production flag |
 | `server/utils/classroom-location.js` | One source of truth for room/floor/wing parsing | Room value and entry context | Normalized location or validation error | Called by student and admin routes |
 | `server/utils/timetable-manager.js` | Timetable normalization, validation, parsing, and shifting | Imported or edited rows | Validated/formatted rows | Called by admin timetable endpoints |
 
@@ -266,8 +284,8 @@ JSON seed, admin form, pasted text, or timetable image
 ```text
 Admin form state
 -> frontend validation
--> JWT-authenticated API request
--> server validation
+-> credentialed request with CSRF header
+-> cookie, CSRF, role, and payload validation
 -> transaction or single database operation
 -> API response
 -> frontend refresh/reconciliation
@@ -955,3 +973,91 @@ University Main Gate routes to BBDU through `n0108`, Campus Main Gate routes to 
 - Route from each gate to BBDU and verify the expected entrance node is used.
 - Route between both gates and confirm the path follows the exterior network.
 - Search for BBDU and confirm the destination remains selectable.
+
+## AI Session: 2026-08-12 03:55 +05:30
+
+### Files Created
+
+- `.github/workflows/ci.yml`
+- `server/config/migrate.js`
+- `server/config/validate-production.js`
+- `server/migrations/001-production-foundation.js`
+- `server/repositories/student-repository.js`
+- `server/repositories/timetable-repository.js`
+- `server/repositories/classroom-repository.js`
+- `server/repositories/faculty-repository.js`
+- `server/services/faculty-service.js`
+- `server/utils/faculty-identity.js`
+- `server/utils/logger.js`
+- `server/test/faculty-identity.test.js`
+- `server/test/production-config.test.js`
+- `client/src/components/faculty/FacultyView.test.jsx`
+- `client/src/pages/AdminFacultyPage.test.jsx`
+- `docs/college-deployment-guide.md`
+- `tmp/pdfs/build_college_guide.py`
+- `college-deployment-and-database-integration-guide.pdf`
+
+### Files Modified
+
+- `README.md`, `PRODUCTION_READINESS.md`, `decisions.md`, `flow.md`, `render.yaml`, `vercel.json`, and `client/vercel.json`
+- `server/.env.example`, `server/package.json`, `server/config/db.js`, `server/config/create-admin.js`, and `server/config/start-production.js`
+- `server/server.js`, `server/middleware/auth.js`, `server/middleware/rate-limit.js`, `server/routes/student.js`, and `server/routes/admin.js`
+- `server/utils/student-identity.js` and `server/test/api.test.js`
+- `client/package.json`, `client/package-lock.json`, admin session/API/layout components, faculty/student context components, relevant admin pages, and test setup/expectations
+
+### Functions and Boundaries Added or Modified
+
+- Versioned migration execution through `runMigrations()` and migration `001-production-foundation`.
+- Faculty normalization, repository synchronization, `facultyForStudent()`, and `saveFaculty()`.
+- Student, timetable, classroom, and faculty repository boundaries.
+- Per-identity `hashStudentLookupIdentity()` and keyed failed-attempt limiting.
+- Cookie/CSRF authentication, `authorizeRoles()`, session restore, and logout.
+- Production configuration validation, readiness checks, request IDs, security headers, structured logging, and graceful shutdown.
+- Student pagination, upload content checks, detected-faculty import preview, and timetable faculty synchronization.
+
+### Execution Flow Changed
+
+Normal production startup validates environment safety, initializes PostgreSQL, and applies pending migrations without loading bundled class data. Student lookup now uses repositories and parallel section queries, derives faculty from timetable entries, and joins optional contacts/coordinator data. Admin sessions use an HttpOnly cookie plus CSRF token and role checks. Timetable imports expose detected faculty before save, and timetable mutations resynchronize faculty links. CI runs both server adapters, frontend tests/build, and runtime dependency audits.
+
+### Behaviour Changed
+
+- Faculty names appear once from timetable data even when no phone is configured; contacts remain optional.
+- Coordinators are assigned directly to sections and displayed separately without duplication.
+- One failed student identity cannot lock out other students on a shared network.
+- Production login no longer returns a browser-stored bearer token.
+- Student lists are paginated, unsafe uploads are rejected earlier, and bundled data is opt-in.
+- Liveness and database readiness are separate, and production errors are logged with request IDs without public stack traces.
+
+### Decisions Added
+
+- Derive faculty identities from timetable data.
+- Use additive migrations and repository boundaries for college integration.
+- Move production admin authentication to cookies with CSRF and roles.
+- Fail production startup on unsafe configuration and bundled data loading.
+- Limit failed student lookups by hashed identity.
+
+### Potential Risks and Remaining Work
+
+- Failed-attempt counters and admin sessions need shared storage/revocation before horizontal API scaling.
+- The legacy admin route still contains SQL and should be extracted behind repositories incrementally.
+- A college staging load test, privacy review, backup restore drill, and browser/device matrix remain external launch gates.
+- Existing hosts must configure the new production variables before restarting.
+
+### Tests Run
+
+- Server Node tests on SQLite: 44 passed.
+- Server Node tests on PostgreSQL adapter: 44 passed.
+- Frontend Vitest suite: 81 passed across 16 files.
+- Vite production build: passed.
+- Fresh migration validation and production configuration validation: passed.
+- Client and server runtime dependency audits: zero reported vulnerabilities.
+- PDF rendered to 15 A4 pages and visually reviewed at representative cover, contents, diagram, table, command, and troubleshooting pages.
+
+### Recommended Manual Tests
+
+- In staging, verify Student A can fail lookup repeatedly without blocking Student B on the same public IP.
+- Log in as each admin role and confirm student operations are visible only to `SUPER_ADMIN`.
+- Import a timetable with an existing and a new faculty name, save it, add only one phone number, and verify the student Faculty page.
+- Replace a coordinator and confirm the old coordinator remains as faculty without duplicate display.
+- Test cookie login/logout and CSRF from the exact production frontend origin over HTTPS.
+- Restore a production-like backup into staging and verify lookup, timetable, faculty, coordinator, and admin flows.

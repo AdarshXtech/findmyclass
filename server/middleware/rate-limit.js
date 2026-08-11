@@ -4,15 +4,18 @@ class FailedAttemptLimiter {
     maxAttempts,
     maxEntries = 5000,
     message = 'Too many unsuccessful attempts. Please try again later.',
+    keyFor,
   }) {
     this.windowMs = windowMs;
     this.maxAttempts = maxAttempts;
     this.maxEntries = maxEntries;
     this.message = message;
+    this.keyFactory = keyFor;
     this.attempts = new Map();
   }
 
   keyFor(req) {
+    if (this.keyFactory) return this.keyFactory(req);
     return req.ip || req.socket?.remoteAddress || 'unknown';
   }
 

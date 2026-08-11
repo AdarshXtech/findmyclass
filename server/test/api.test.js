@@ -13,6 +13,7 @@ process.env.DATABASE_URL = process.env.TEST_DATABASE_ADAPTER === 'postgres' ? 'p
 process.env.JWT_SECRET = 'test-only-secret-with-sufficient-length';
 process.env.CLIENT_ORIGIN = 'http://localhost:3000';
 process.env.PHONE_LOOKUP_SECRET = 'test-only-phone-lookup-secret';
+process.env.ENABLE_TEST_LOGIN = 'true';
 
 const bcrypt = require('bcryptjs');
 const XLSX = require('@e965/xlsx');
@@ -70,7 +71,7 @@ async function apiRequest(urlPath, options = {}) {
     body,
   });
   const responseBody = await response.json();
-  return { status: response.status, body: responseBody };
+  return { status: response.status, body: responseBody, headers: response.headers };
 }
 
 function rawApiRequest(urlPath, headers = {}) {
@@ -295,10 +296,34 @@ test('health, lookup, authentication, CRUD, and import workflows', async (t) => 
     assert.equal(login.status, 200);
     token = login.body.data.token;
     assert.ok(token);
+    const sessionCookie = String(login.headers.get('set-cookie')).split(';')[0];
+    assert.match(sessionCookie, /^findmyclass_admin_session=/);
+
+    const cookieSession = await apiRequest('/api/admin/session', { headers: { Cookie: sessionCookie } });
+    assert.equal(cookieSession.status, 200);
+    assert.equal(cookieSession.body.data.admin.username, 'admin');
+
+    const missingCsrf = await apiRequest('/api/admin/faculty', {
+      method: 'POST', headers: { Cookie: sessionCookie }, body: { name: 'No CSRF' },
+    });
+    assert.equal(missingCsrf.status, 403);
+    const cookieWrite = await apiRequest('/api/admin/faculty', {
+      method: 'POST',
+      headers: { Cookie: sessionCookie, 'X-CSRF-Token': login.body.data.csrfToken },
+      body: { name: 'Cookie Faculty' },
+    });
+    assert.equal(cookieWrite.status, 201);
 
     const stats = await apiRequest('/api/admin/stats', { token });
     assert.equal(stats.status, 200);
     assert.equal(stats.body.data.totalStudents, 5);
+
+    const logout = await apiRequest('/api/admin/logout', {
+      method: 'POST',
+      headers: { Cookie: sessionCookie, 'X-CSRF-Token': login.body.data.csrfToken },
+    });
+    assert.equal(logout.status, 200);
+    assert.match(String(logout.headers.get('set-cookie')), /Expires=Thu, 01 Jan 1970/i);
   });
 
   await t.test('persists student create, update, filter, and delete operations', async () => {
@@ -424,12 +449,14 @@ test('health, lookup, authentication, CRUD, and import workflows', async (t) => 
     assert.equal(lookup2B.status, 200);
     assert.equal(lookup2B.body.data.facultyContacts[0].name, 'Mr. Ravi Yadav');
     assert.equal(lookup2B.body.data.facultyContacts[0].role, 'Coordinator');
-    assert.equal(lookup2B.body.data.facultyContacts.length, 3);
+    assert.ok(lookup2B.body.data.facultyContacts.some((contact) => contact.name === 'Ms. Jyoti Yadav' && contact.phoneNumber === '9876543210'));
+    assert.equal(lookup2B.body.data.facultyContacts.some((contact) => contact.name === 'Dr. Pooja Verma'), false);
 
     const lookup2G = await apiRequest('/api/student/lookup', {
       method: 'POST', body: { name: 'Adarsh Yadav', phone_number: '7000000102' },
     });
-    assert.deepEqual(lookup2G.body.data.facultyContacts, []);
+    assert.ok(lookup2G.body.data.facultyContacts.length > 0);
+    assert.ok(lookup2G.body.data.facultyContacts.every((contact) => contact.role === 'Faculty'));
 
     const removed = await apiRequest(`/api/admin/faculty/${faculty.body.data.id}`, { method: 'DELETE', token });
     assert.equal(removed.status, 200);
@@ -793,7 +820,8 @@ test('health, lookup, authentication, CRUD, and import workflows', async (t) => 
     );
     const parsed = JSON.parse(zlib.gunzipSync(compressed.body).toString('utf8'));
     assert.equal(parsed.success, true);
-    assert.ok(parsed.data.length >= 250);
+    assert.equal(parsed.data.length, 50);
+    assert.ok(parsed.pagination.total >= 250);
   });
 
   await t.test('does not restore a deliberately deleted seeded timetable on restart loading', async () => {
@@ -834,14 +862,25 @@ test('health, lookup, authentication, CRUD, and import workflows', async (t) => 
     ]);
   });
 
-  await t.test('does not rate limit failed student lookups', async () => {
-    for (let attempt = 0; attempt < 6; attempt += 1) {
+  await t.test('rate limits only the failing student identity', async () => {
+    for (let attempt = 0; attempt < 8; attempt += 1) {
       const response = await apiRequest('/api/student/lookup', {
         method: 'POST',
         body: { name: ' Unknown   Student ', phone_number: '+91 8000000001' },
       });
       assert.equal(response.status, 404);
     }
+    const blocked = await apiRequest('/api/student/lookup', {
+      method: 'POST',
+      body: { name: 'Unknown Student', phone_number: '8000000001' },
+    });
+    assert.equal(blocked.status, 429);
+
+    const otherStudent = await apiRequest('/api/student/lookup', {
+      method: 'POST',
+      body: { name: 'Adarsh Yadav', phone_number: '7000000102' },
+    });
+    assert.equal(otherStudent.status, 404);
   });
 
   await t.test('temporarily rate limits repeated failed admin logins', async () => {

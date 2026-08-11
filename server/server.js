@@ -5,9 +5,11 @@ loadEnvironment();
 const express = require('express');
 const cors = require('cors');
 const compression = require('compression');
+const crypto = require('node:crypto');
 const fs = require('fs');
 const path = require('path');
-const { initDatabase, getDatabaseDependencyState } = require('./config/db');
+const { initDatabase, queryOne } = require('./config/db');
+const logger = require('./utils/logger');
 const studentRoutes = require('./routes/student');
 const adminRoutes = require('./routes/admin');
 
@@ -30,6 +32,8 @@ function buildCorsOptions() {
     .filter(Boolean);
 
   return {
+    credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token'],
     origin(origin, callback) {
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
@@ -42,19 +46,34 @@ function buildCorsOptions() {
 
 app.use(cors(buildCorsOptions()));
 app.use(compression({ threshold: 1024 }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use((req, res, next) => {
+  req.requestId = String(req.headers['x-request-id'] || crypto.randomUUID());
+  res.set('X-Request-Id', req.requestId);
+  res.set('X-Content-Type-Options', 'nosniff');
+  res.set('Referrer-Policy', 'no-referrer');
+  res.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(self)');
+  if (process.env.NODE_ENV === 'production') res.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  next();
+});
+app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || '256kb' }));
+app.use(express.urlencoded({ extended: true, limit: process.env.JSON_BODY_LIMIT || '256kb' }));
 
+app.use('/api/student', (req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
 app.use('/api/student', studentRoutes);
 app.use('/api/admin', adminRoutes);
 
 app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    message: 'Smart Classroom Locator API is running',
-    timestamp: new Date().toISOString(),
-    database: getDatabaseDependencyState()
-  });
+  res.json({ status: 'ok' });
+});
+
+app.get('/api/ready', async (req, res) => {
+  try {
+    await queryOne('SELECT 1 AS ready');
+    res.json({ status: 'ready' });
+  } catch (error) {
+    logger.error('Database readiness check failed', { requestId: req.requestId, error: error.message });
+    res.status(503).json({ status: 'not_ready' });
+  }
 });
 
 app.use('/api', (req, res) => {
@@ -73,10 +92,11 @@ if (fs.existsSync(clientDistPath)) {
 }
 
 app.use((err, req, res, next) => {
-  console.error('Unhandled Error:', err.stack);
-  res.status(500).json({
+  const corsDenied = err.message === 'Not allowed by CORS';
+  logger.error('Unhandled request error', { requestId: req.requestId, error: err.message, stack: err.stack });
+  res.status(corsDenied ? 403 : 500).json({
     success: false,
-    message: 'Something went wrong. Please try again later.'
+    message: corsDenied ? 'Origin is not allowed.' : 'Something went wrong. Please try again later.'
   });
 });
 
@@ -87,7 +107,7 @@ async function startServer(port = PORT) {
     const server = app.listen(port, () => {
       const address = server.address();
       const activePort = typeof address === 'object' ? address.port : port;
-      console.log(`Smart Classroom Locator API running on http://localhost:${activePort}`);
+      logger.info('API started', { port: activePort });
       resolve(server);
     });
     server.on('error', reject);
@@ -96,7 +116,7 @@ async function startServer(port = PORT) {
 
 if (require.main === module) {
   startServer().catch((err) => {
-    console.error('Failed to start server:', err);
+    logger.error('Failed to start server', { error: err.message, stack: err.stack });
     process.exit(1);
   });
 }

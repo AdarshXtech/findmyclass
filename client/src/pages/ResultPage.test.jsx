@@ -145,6 +145,6 @@ describe('ResultPage', () => {
     await user.click(within(document.getElementById('schedule-menu')).getByRole('button', { name: 'Faculty' }))
 
     expect(await screen.findByText('Coordinator information has not been added yet.')).toBeVisible()
-    expect(screen.getByText('No additional faculty contacts are available for your class.')).toBeVisible()
+    expect(screen.getByText('No faculty names are listed in this class timetable.')).toBeVisible()
   })
 })

@@ -20,13 +20,15 @@ export default function StudentContext({ student, coordinator }) {
         <div className="mt-5 min-w-0 border-t border-border-default pt-4">
           <p className="font-mono text-xs font-bold uppercase tracking-wide text-accent-primary">Class Coordinator</p>
           <p className="mt-2 font-display text-base font-bold [overflow-wrap:anywhere] sm:text-lg">{coordinator.name}</p>
-          <a
-            href={`tel:${coordinator.phoneNumber}`}
-            aria-label={`Call class coordinator ${coordinator.name}`}
-            className="mt-1 inline-flex min-h-11 max-w-full items-center font-mono text-sm font-semibold text-result-slate-dark [overflow-wrap:anywhere] sm:text-base"
-          >
-            {coordinator.phoneNumber}
-          </a>
+          {coordinator.phoneNumber ? (
+            <a
+              href={`tel:${coordinator.phoneNumber}`}
+              aria-label={`Call class coordinator ${coordinator.name}`}
+              className="mt-1 inline-flex min-h-11 max-w-full items-center font-mono text-sm font-semibold text-result-slate-dark [overflow-wrap:anywhere] sm:text-base"
+            >
+              {coordinator.phoneNumber}
+            </a>
+          ) : <p className="mt-2 text-sm text-text-secondary">Contact information not available.</p>}
         </div>
       ) : null}
     </section>

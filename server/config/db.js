@@ -3,6 +3,9 @@ const { Pool } = require('pg');
 const fs = require('fs');
 const path = require('path');
 const { CircuitBreaker } = require('../utils/circuit-breaker');
+const migrations = [
+  require('../migrations/001-production-foundation'),
+];
 
 const configuredDatabasePath = String(process.env.DATABASE_PATH || '').trim();
 const DB_PATH = configuredDatabasePath
@@ -328,23 +331,44 @@ function initDatabase() {
         statement_timeout: 5000,
       });
     }
-    dbReady = createPostgresSchema().then(() => {
+    dbReady = createPostgresSchema().then(async () => {
+      await runMigrations();
       console.log('PostgreSQL database initialized successfully');
       return pool;
     });
     return dbReady;
   }
 
-  dbReady = initSqlJs().then((SQL) => {
+  dbReady = initSqlJs().then(async (SQL) => {
     sqlite = fs.existsSync(DB_PATH)
       ? new SQL.Database(fs.readFileSync(DB_PATH))
       : new SQL.Database();
     createSqliteSchema();
+    await runMigrations();
     saveDatabase();
     console.log('SQLite database initialized successfully');
     return sqlite;
   });
   return dbReady;
+}
+
+async function runMigrations() {
+  const timestamp = pool ? 'TIMESTAMPTZ' : 'DATETIME';
+  await execute(`
+    CREATE TABLE IF NOT EXISTS schema_migrations (
+      migration_id TEXT PRIMARY KEY,
+      applied_at ${timestamp} DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  const applied = new Set((await queryAll('SELECT migration_id FROM schema_migrations')).map((row) => row.migration_id));
+
+  for (const migration of migrations) {
+    if (applied.has(migration.id)) continue;
+    await withTransaction(async (transaction) => {
+      await migration.up(transaction, pool ? 'postgres' : 'sqlite');
+      await transaction.execute('INSERT INTO schema_migrations (migration_id) VALUES (?)', [migration.id]);
+    });
+  }
 }
 
 function getDatabase() {
@@ -490,5 +514,6 @@ module.exports = {
   execute,
   insertMany,
   withTransaction,
+  runMigrations,
   getDatabaseDependencyState,
 };

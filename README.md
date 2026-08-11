@@ -1,4 +1,4 @@
-# Smart Classroom Locator (findmyclass)
+# Find My Class
 
 Class schedule locator for students with an authenticated admin panel for managing students, subjects, room assignments, and student imports. Students verify their timetable with their full name and phone number.
 
@@ -7,10 +7,14 @@ Class schedule locator for students with an authenticated admin panel for managi
 - Frontend: React 18, React Router 7, Vite 6, Tailwind CSS 3
 - Backend: Node.js 20.12+, Express 4
 - Database: PostgreSQL in production, with file-backed SQLite for local development
-- Authentication: server-verified JWTs for admin routes
-- Imports: ExcelJS for `.xlsx` and `.csv` files
+- Authentication: HttpOnly signed admin session cookies with CSRF and role checks
+- Imports: `@e965/xlsx` for `.csv`, `.xls`, and `.xlsx` files; Tesseract.js for timetable images
 
-## Local Setup
+## Documentation
+
+The college deployment, database mapping, security, migration, backup, faculty, and operations guide is available at [docs/college-deployment-guide.md](docs/college-deployment-guide.md). The generated PDF is `college-deployment-and-database-integration-guide.pdf`.
+
+## Quick Start and Development
 
 ### Backend
 
@@ -25,7 +29,7 @@ npm run dev
 
 Before `npm run create-admin`, replace every example secret in `.env`. `ADMIN_PASSWORD` must contain at least 12 characters. The command creates the configured admin or rotates its password if it already exists.
 
-`npm run load-csai2b` loads the supplied 58-student CSAI 2B roster and its 2026-27 timetable without deleting unrelated records. The API runs at `http://localhost:5000` by default.
+`npm run load-csai2b` is development/transition data loading. Normal production startup does not load repository datasets unless `LOAD_BUNDLED_DATA=true`. The API runs at `http://localhost:5000` by default.
 
 ### Frontend
 
@@ -52,6 +56,11 @@ Backend (`server/.env`):
 - `TRUST_PROXY`: trusted proxy hop count. Use `1` on Render so rate limits use the originating client IP.
 - `ADMIN_USERNAME`: used only by `npm run create-admin`.
 - `ADMIN_PASSWORD`: used only by `npm run create-admin`; minimum 12 characters.
+- `ADMIN_ROLE`: `SUPER_ADMIN` or `TIMETABLE_ADMIN`.
+- `ENABLE_TEST_LOGIN`: development-only demo access; production must use `false`.
+- `LOAD_BUNDLED_DATA`: opt-in repository schedule loading; normally `false` in production.
+- `STUDENT_LOOKUP_WINDOW_MS` and `STUDENT_LOOKUP_MAX_FAILURES`: per-identity failed lookup protection.
+- `UPLOAD_LIMIT_BYTES` and `JSON_BODY_LIMIT`: request limits.
 
 Frontend (`client/.env`):
 
@@ -80,15 +89,15 @@ npm audit --omit=dev
 
 See [PRODUCTION_READINESS.md](PRODUCTION_READINESS.md) for the verified feature map, test evidence, known limitations, and deployment checks that still require an external environment.
 
-## Free Deployment
+## Production
 
 The deployment is split across three services so database changes persist without a paid disk:
 
 - Neon hosts PostgreSQL.
-- Render runs the Express API from `server/` using `render.yaml`.
+- A college VM, container service, or Render can run the Express API from `server/`.
 - Vercel builds the React app from `client/` using `client/vercel.json`.
 
-Create a Neon project and copy its pooled connection string. When creating the Render Blueprint, provide `DATABASE_URL`, the final Vercel origin as `CLIENT_ORIGIN`, and the private `STUDENT_ACCESS_RECORDS_JSON` value. Render generates `JWT_SECRET` and `PHONE_LOOKUP_SECRET`; changing the phone lookup secret requires reloading the access records. In Vercel, set the project root to `client` and set `VITE_API_BASE_URL` to the Render service origin. The backend loads both confirmed schedules and applies the private student access mappings idempotently on startup.
+Configure PostgreSQL, exact HTTPS origins, separate secrets, and a reverse proxy. Run `npm run check:production --prefix server` and `npm run migrate --prefix server` before restarting the API. In Vercel, use either the root `vercel.json` from repository root or `client/vercel.json` with project root `client`, then set `VITE_API_BASE_URL` to the API origin.
 
 To enable the admin panel, set `ADMIN_USERNAME` and `ADMIN_PASSWORD` for a local shell connected to the production `DATABASE_URL`, then run:
 

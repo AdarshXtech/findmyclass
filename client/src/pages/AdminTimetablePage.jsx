@@ -215,6 +215,7 @@ export default function AdminTimetablePage() {
   const [mode, setMode] = useState('manual')
   const [row, setRow] = useState(emptyRow)
   const [rows, setRows] = useState([])
+  const [detectedFaculty, setDetectedFaculty] = useState([])
   const [schedule, setSchedule] = useState([])
   const [source, setSource] = useState('text')
   const [text, setText] = useState('')
@@ -339,6 +340,7 @@ export default function AdminTimetablePage() {
       }
       const response = await adminApi.post('/timetables/import', form)
       setRows(response.data.data.rows)
+      setDetectedFaculty(response.data.data.detectedFaculty || [])
       if (response.data.data.extractedText) setText(response.data.data.extractedText)
       setMessage('Preview created. Review and correct every row before saving.')
       setMode('verification')
@@ -588,6 +590,20 @@ export default function AdminTimetablePage() {
             <div><h2 className="font-display text-xl font-bold">Import preview</h2><p className="text-sm text-text-secondary">Verification is grouped by day. Nothing is saved until every row is valid and you approve it.</p></div>
             <button type="button" disabled={busy || !rows.length} onClick={revalidatePreview} className="min-h-11 bg-accent-primary px-5 py-3 font-bold text-text-on-accent disabled:opacity-60">{busy ? 'Validating...' : 'Validate and save'}</button>
           </div>
+          {detectedFaculty.length ? (
+            <section className="border border-border-default bg-surface-primary p-4" aria-labelledby="detected-faculty-heading">
+              <h3 id="detected-faculty-heading" className="font-display text-lg font-bold">Detected Faculty</h3>
+              <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+                {detectedFaculty.map((faculty) => (
+                  <li key={faculty.name} className="text-sm">
+                    <span className={faculty.matched ? 'text-status-success' : 'text-accent-primary'} aria-hidden="true">{faculty.matched ? '✓' : '!'}</span>{' '}
+                    <strong>{faculty.name}</strong> · {faculty.contactAvailable ? 'contact available' : faculty.matched ? 'contact not added' : 'new timetable name'}
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-3 text-sm text-text-secondary">Missing faculty phone numbers do not block timetable saving.</p>
+            </section>
+          ) : null}
           {rows.length ? <VerificationRows rows={rows} setRows={setRows} /> : <p className="border border-border-default bg-surface-primary p-5 text-text-secondary">Import a timetable to create a verification preview.</p>}
         </section>
       )}

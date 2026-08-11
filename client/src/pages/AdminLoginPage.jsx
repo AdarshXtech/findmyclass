@@ -34,11 +34,11 @@ export default function AdminLoginPage() {
         password,
       })
       const payload = response?.data?.data
-      if (!payload?.token) {
+      if (!payload?.admin || !payload?.csrfToken) {
         setError('Something went wrong. Please try again later.')
         return
       }
-      setAdminSession(payload.token, payload.admin)
+      setAdminSession(payload.admin, payload.csrfToken)
       const nextPath = location.state?.from || '/admin'
       navigate(nextPath, { replace: true })
     } catch (err) {

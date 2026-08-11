@@ -1,18 +1,30 @@
 const express = require('express');
 const router = express.Router();
-const { queryAll } = require('../config/db');
 const { parseClassroomLocation } = require('../utils/classroom-location');
+const studentRepository = require('../repositories/student-repository');
+const timetableRepository = require('../repositories/timetable-repository');
+const classroomRepository = require('../repositories/classroom-repository');
+const logger = require('../utils/logger');
 const {
   normalizeStudentName,
   normalizePhoneNumber,
   hashPhoneNumber,
+  hashStudentLookupIdentity,
 } = require('../utils/student-identity');
+const { createFailedAttemptLimiter } = require('../middleware/rate-limit');
+const { facultyForStudent } = require('../services/faculty-service');
 
 const LOOKUP_ERROR = 'Student details not found. Please check your name and phone number.';
 const TEST_LOGIN = Object.freeze({
   name: 'TEST',
   phoneNumber: '1234567890',
   section: 'CSAI2B',
+});
+const studentLookupLimiter = createFailedAttemptLimiter({
+  windowMs: Number(process.env.STUDENT_LOOKUP_WINDOW_MS) || 15 * 60 * 1000,
+  maxAttempts: Number(process.env.STUDENT_LOOKUP_MAX_FAILURES) || 8,
+  message: 'Too many unsuccessful attempts for these details. Please wait and try again.',
+  keyFor: (req) => req.studentLookupKey || 'invalid-student-identity',
 });
 
 /** POST /api/student/lookup - verify a student and return their class schedule. */
@@ -36,8 +48,12 @@ router.post('/lookup', async (req, res) => {
 
     const phoneHash = hashPhoneNumber(phoneNumber);
     if (!phoneHash) throw new Error('PHONE_LOOKUP_SECRET is not configured.');
+    req.studentLookupKey = hashStudentLookupIdentity(normalizedName, phoneNumber);
+    if (studentLookupLimiter.check(req, res)) return;
 
-    const isTestLogin = normalizedName === TEST_LOGIN.name && phoneNumber === TEST_LOGIN.phoneNumber;
+    const isTestLogin = process.env.ENABLE_TEST_LOGIN === 'true'
+      && normalizedName === TEST_LOGIN.name
+      && phoneNumber === TEST_LOGIN.phoneNumber;
     const matches = isTestLogin
       ? [{
           student_id: 'test',
@@ -48,39 +64,21 @@ router.post('/lookup', async (req, res) => {
           year: 2,
           section: TEST_LOGIN.section,
         }]
-      : await queryAll(
-          `SELECT student_id, name, phone_last_four, course, branch, year, section
-           FROM students
-           WHERE normalized_name = ? AND phone_lookup_hash = ?`,
-          [normalizedName, phoneHash]
-        );
+      : await studentRepository.findByIdentity(normalizedName, phoneHash);
 
     if (matches.length !== 1) {
+      studentLookupLimiter.recordFailure(req);
       return res.status(404).json({ success: false, message: LOOKUP_ERROR });
     }
 
     const student = matches[0];
+    studentLookupLimiter.clear(req);
 
-    const classrooms = await queryAll(
-      'SELECT classroom_id, section, subject, floor, wing, room FROM classrooms WHERE section = ? ORDER BY subject',
-      [student.section]
-    );
-    const timetable = await queryAll(
-      `SELECT timetable_entry_id, day_of_week, start_time, end_time,
-              subject_code, subject_name, session_type, faculty_code,
-              faculty_name, room, academic_session, semester
-       FROM timetable_entries
-       WHERE section = ?
-       ORDER BY day_of_week, start_time`,
-      [student.section]
-    );
-    const facultyContacts = await queryAll(
-      `SELECT faculty_contact_id, name, phone_number, designation, role
-       FROM faculty_contacts
-       WHERE section = ?
-       ORDER BY CASE WHEN role = 'Coordinator' THEN 0 ELSE 1 END, name`,
-      [student.section]
-    );
+    const [classrooms, timetable, facultyContacts] = await Promise.all([
+      classroomRepository.findBySection(student.section),
+      timetableRepository.findBySection(student.section),
+      facultyForStudent(student.section),
+    ]);
 
     if (timetable.length === 0) {
       return res.status(404).json({
@@ -112,13 +110,7 @@ router.post('/lookup', async (req, res) => {
           wing: classroom.wing,
           room: classroom.room,
         })),
-        facultyContacts: facultyContacts.map((contact) => ({
-          id: contact.faculty_contact_id,
-          name: contact.name,
-          phoneNumber: contact.phone_number,
-          designation: contact.designation,
-          role: contact.role,
-        })),
+        facultyContacts,
         timetable: timetable.map((entry) => {
           const classroom = classroomBySubject.get(String(entry.subject_name || '').trim().toLowerCase());
           const room = entry.room || classroom?.room || null;
@@ -159,7 +151,7 @@ router.post('/lookup', async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Student lookup error:', error.message);
+    logger.error('Student lookup failed', { requestId: req.requestId, error: error.message });
     res.status(500).json({
       success: false,
       message: 'Something went wrong. Please try again later.',

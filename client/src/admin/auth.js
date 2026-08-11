@@ -1,23 +1,23 @@
-const ADMIN_TOKEN_KEY = 'findmyclass_admin_token'
 const ADMIN_USER_KEY = 'findmyclass_admin_user'
+const ADMIN_CSRF_KEY = 'findmyclass_admin_csrf'
 
-export function getAdminToken() {
-  return localStorage.getItem(ADMIN_TOKEN_KEY) || ''
+export function getAdminCsrfToken() {
+  return sessionStorage.getItem(ADMIN_CSRF_KEY) || ''
 }
 
-export function setAdminSession(token, admin) {
-  localStorage.setItem(ADMIN_TOKEN_KEY, token)
-  localStorage.setItem(ADMIN_USER_KEY, JSON.stringify(admin || {}))
+export function setAdminSession(admin, csrfToken = '') {
+  sessionStorage.setItem(ADMIN_USER_KEY, JSON.stringify(admin || {}))
+  if (csrfToken) sessionStorage.setItem(ADMIN_CSRF_KEY, csrfToken)
 }
 
 export function clearAdminSession() {
-  localStorage.removeItem(ADMIN_TOKEN_KEY)
-  localStorage.removeItem(ADMIN_USER_KEY)
+  sessionStorage.removeItem(ADMIN_USER_KEY)
+  sessionStorage.removeItem(ADMIN_CSRF_KEY)
 }
 
 export function getAdminUser() {
   try {
-    const raw = localStorage.getItem(ADMIN_USER_KEY)
+    const raw = sessionStorage.getItem(ADMIN_USER_KEY)
     return raw ? JSON.parse(raw) : null
   } catch (error) {
     console.error('Failed to parse stored admin user:', error)
@@ -26,5 +26,5 @@ export function getAdminUser() {
 }
 
 export function isAdminAuthenticated() {
-  return Boolean(getAdminToken())
+  return Boolean(getAdminUser())
 }

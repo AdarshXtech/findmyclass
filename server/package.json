@@ -5,12 +5,14 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "start:production": "node config/start-production.js",
+    "start:production": "node config/validate-production.js && node config/start-production.js",
     "dev": "node --watch server.js",
     "seed": "node config/seed.js",
     "load-csai2b": "node config/load-csai2b.js",
     "load-schedules": "node config/load-schedule-data.js",
+    "migrate": "node config/migrate.js",
     "create-admin": "node config/create-admin.js",
+    "check:production": "node config/validate-production.js",
     "test": "node --test test/*.test.js",
     "test:postgres": "cross-env TEST_DATABASE_ADAPTER=postgres node --test test/*.test.js"
   },

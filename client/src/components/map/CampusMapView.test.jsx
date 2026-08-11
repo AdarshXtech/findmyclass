@@ -73,6 +73,21 @@ describe('CampusMapView', () => {
     expect(screen.getByRole('button', { name: 'Start Path' })).toBeVisible()
   })
 
+  it('removes the displayed path without clearing the destination', async () => {
+    const user = userEvent.setup()
+    renderMap()
+    await selectAccountsOffice(user)
+    await user.selectOptions(screen.getByLabelText('Choose starting point manually'), 'central-library')
+
+    expect(screen.getByRole('button', { name: 'Remove Path' })).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Remove Path' }))
+
+    expect(screen.getByTestId('campus-map')).toHaveAttribute('data-route', 'none')
+    expect(screen.getByRole('heading', { name: 'Accounts Office' })).toBeVisible()
+    expect(screen.getByText('Choose a starting point to continue.')).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Remove Path' })).not.toBeInTheDocument()
+  })
+
   it('requests location only after the user chooses current location', async () => {
     const user = userEvent.setup()
     renderMap()

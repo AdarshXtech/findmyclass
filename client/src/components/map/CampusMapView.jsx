@@ -117,6 +117,15 @@ export default function CampusMapView() {
     setMapFocus(value ? 'selection' : 'campus')
   }
 
+  const removePath = () => {
+    geolocation.stop()
+    setStartMode('')
+    setManualStartId('')
+    setPathMode('idle')
+    setMapFocus('selection')
+    setRecenterToken((value) => value + 1)
+  }
+
   return (
     <section className="min-w-0" aria-labelledby="campus-map-title">
       <div className="mb-5">
@@ -220,6 +229,11 @@ export default function CampusMapView() {
               <CampusMap destination={selectedDestination} focus={mapFocus} locations={CAMPUS_LOCATIONS} position={start} recenterToken={recenterToken} route={routeForMap} routeMode={routeState === 'path_active' ? 'active' : 'preview'} />
             </Suspense>
             <div className="absolute bottom-7 right-3 z-[600] flex flex-col items-end gap-2 sm:bottom-4 sm:right-4 sm:flex-row">
+              {routeForMap ? (
+                <button type="button" onClick={removePath} className="flex min-h-11 items-center gap-2 rounded-lg border border-result-wine bg-result-wine-soft px-3 py-2 font-bold text-result-wine-strong shadow-result">
+                  <HiOutlineX aria-hidden="true" className="text-xl" /> Remove Path
+                </button>
+              ) : null}
               <button type="button" onClick={() => { setMapFocus('campus'); setRecenterToken((value) => value + 1) }} className="flex min-h-11 items-center gap-2 rounded-lg border border-border-strong bg-surface-primary px-3 py-2 font-bold shadow-result">
                 <HiOutlineViewGrid aria-hidden="true" className="text-xl text-result-slate" /> Campus
               </button>

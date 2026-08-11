@@ -482,3 +482,94 @@ When a coordinator has been published for the student's class, their name and ph
 
 - Verify the coordinator block at 360px and desktop widths.
 - Verify the phone link opens the device call prompt without placing a call automatically.
+
+## AI Session: 2026-08-11 13:02 +05:30
+
+### Files Created
+
+- None.
+
+### Files Modified
+
+- `client/src/components/map/CampusMapView.jsx`
+- `client/src/components/map/CampusMapView.test.jsx`
+- `flow.md`
+
+### Files Deleted
+
+- None.
+
+### Functions Added
+
+- `removePath()` in `CampusMapView`.
+
+### Functions Modified
+
+- `CampusMapView` now displays a map-overlay Remove Path button while a route is visible.
+
+### Execution Flow Changed
+
+Selecting Remove Path stops geolocation, clears the starting point and route state, preserves the destination, and recenters the map on that destination.
+
+### Behaviour Changed
+
+Students can remove either a preview or active path directly from the map and then choose a new starting point without searching for the destination again.
+
+### Decisions Added
+
+- None; this extends the existing local campus-routing interaction.
+
+### Potential Risks
+
+- The student must choose a starting point again after removing a path.
+
+### Recommended Tests
+
+- Verify Remove Path appears for preview and active routes at mobile and desktop widths.
+- Verify the destination remains selected after path removal.
+
+## AI Session: 2026-08-11 14:18 +05:30
+
+### Files Created
+
+- `client/src/components/map/CampusPathEditor.test.jsx`
+
+### Files Modified
+
+- `client/src/components/map/CampusPathEditor.jsx`
+- `decisions.md`
+- `flow.md`
+
+### Files Deleted
+
+- None.
+
+### Functions Added
+
+- `readDraft()` restores a valid locally saved path draft.
+
+### Functions Modified
+
+- `CampusPathEditor` autosaves edits and displays Save path file prominently beside its counters.
+
+### Execution Flow Changed
+
+Editor startup reads `findmyclass-campus-path-draft` from browser storage. Node or edge changes write the current graph back to that draft. Save path file downloads the graph as `campusPaths.js` for source replacement.
+
+### Behaviour Changed
+
+Path edits survive page refreshes in the same browser, and the source-file save action is visible before the editing controls.
+
+### Decisions Added
+
+- `Preserve campus path drafts locally and export source data explicitly` in `decisions.md`.
+
+### Potential Risks
+
+- Browser drafts do not synchronize across devices or browsers.
+- Reset also replaces the saved draft with the currently deployed graph.
+
+### Recommended Tests
+
+- Add nodes, refresh, and verify the draft reappears.
+- Download the path file and verify it exports both node and edge arrays.

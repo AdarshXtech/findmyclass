@@ -158,3 +158,49 @@ None. Existing Express, database helpers, React Router state, React Icons, and c
 - `client/src/components/faculty/FacultyView.jsx`
 - `client/src/pages/AdminFacultyPage.jsx`
 - `client/src/pages/ResultPage.jsx`
+
+## Decision: Preserve campus path drafts locally and export source data explicitly
+
+Date: 2026-08-11
+Session: Path editor save control
+Status: Active
+
+### Problem
+
+Campus paths existed only in React memory, and the export control was not visible in the deployed editor. Refreshing or closing the page could discard extensive tracing work.
+
+### Considered Approaches
+
+1. Keep paths in memory and rely only on a download button.
+2. Save path drafts to the backend database.
+3. Autosave the editor draft in browser storage and keep an explicit source-file download.
+
+### Chosen Approach
+
+Autosave nodes and edges to `localStorage`, restore them when the editor opens, and place a prominent Save path file button beside the counters.
+
+### Why This Approach?
+
+It prevents accidental refresh loss without adding an API, migration, or server write permissions. Export remains necessary because the student routing bundle reads `campusPaths.js` at build time.
+
+### Why Not the Alternatives?
+
+Memory-only editing already caused avoidable data loss. Backend persistence would add authentication, validation, storage, and deployment complexity while the final artifact still needs to become frontend source data.
+
+### Libraries / Dependencies Used
+
+None. Browser `localStorage` and the existing Blob download are sufficient.
+
+### Trade-offs
+
+- Advantages: refresh-safe drafts, no server dependency, and an obvious save action.
+- Disadvantages: drafts stay in one browser and are not shared across devices.
+- Technical debt: collaborative or multi-device editing would require backend persistence later.
+- Performance implications: small JSON drafts are written after each edit.
+- Security implications: the draft contains campus coordinates only, not personal data.
+- Maintainability implications: exported files still require review, replacement, and deployment.
+
+### Files Affected
+
+- `client/src/components/map/CampusPathEditor.jsx`
+- `client/src/components/map/CampusPathEditor.test.jsx`

@@ -33,6 +33,24 @@ describe('campus path graph', () => {
     expect(route.pathCoordinates).toHaveLength(2)
   })
 
+  it('chooses a reachable entrance instead of the nearest disconnected node', () => {
+    const entranceNodes = [
+      { id: 'start', coordinates: [26.885, 81.058] },
+      { id: 'reachable', coordinates: [26.8853, 81.058] },
+      { id: 'nearest', coordinates: [26.8854, 81.058] },
+    ]
+    const route = findCampusRoute(
+      { coordinates: entranceNodes[0].coordinates },
+      { name: 'Building', coordinates: entranceNodes[2].coordinates },
+      entranceNodes,
+      [['start', 'reachable']],
+      20,
+    )
+
+    expect(route.kind).toBe('network')
+    expect(route.pathCoordinates).toContainEqual(entranceNodes[1].coordinates)
+  })
+
   it('exports a ready-to-use JavaScript module', () => {
     expect(serializeCampusPaths(nodes, [['n1', 'n2']])).toContain('export const CAMPUS_PATH_EDGES')
   })

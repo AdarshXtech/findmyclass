@@ -251,3 +251,50 @@ None. The existing haversine distance helper and React Leaflet markers are reuse
 - `client/src/components/map/CampusPathEditor.jsx`
 - `client/src/services/campusPathGraph.js`
 - `client/src/services/campusPaths.js`
+
+## Decision: Select a reachable entrance per path component
+
+Date: 2026-08-12
+Session: Multi-entrance campus routing
+Status: Active
+
+### Problem
+
+BBD University Building has two valid entrances on separate surveyed path components. Selecting only the globally nearest node caused routing from one side of the building to ignore the reachable entrance on the traveller's component and fall back to a straight line.
+
+### Considered Approaches
+
+1. Draw an artificial edge between the two entrances through the building.
+2. Continue using only the globally nearest node.
+3. Find the nearest endpoint on each connected path component and choose the shortest component that can reach both journey endpoints.
+
+### Chosen Approach
+
+Group nearby route nodes by connected component, retain the nearest candidate per endpoint and component, and choose the shortest component with candidates for both endpoints.
+
+### Why This Approach?
+
+It supports multiple legitimate entrances without inventing a walkable segment through the building. Existing single-component routing keeps its nearest-node behaviour.
+
+### Why Not the Alternatives?
+
+An artificial edge would display a path through the building that was not surveyed. Global nearest-node selection cannot represent a destination with entrances on disconnected sides.
+
+### Libraries / Dependencies Used
+
+None. The existing graph and shortest-path utilities are reused.
+
+### Trade-offs
+
+- Advantages: routes use the entrance reachable from the traveller's side and preserve surveyed geometry.
+- Disadvantages: journeys whose endpoints share no surveyed component still use straight-line fallback.
+- Technical debt: an exterior walkway must still be traced before routing can travel between the two components.
+- Performance implications: routing evaluates one candidate pair per shared component; the campus graph is small.
+- Security implications: none; only public campus path coordinates are processed.
+- Maintainability implications: destination pins remain separate from graph nodes and can support additional entrances without destination-specific code.
+
+### Files Affected
+
+- `client/src/services/campusPathGraph.js`
+- `client/src/services/campusPathGraph.test.js`
+- `client/src/services/campusPaths.js`

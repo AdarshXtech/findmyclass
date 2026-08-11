@@ -853,3 +853,54 @@ The BBDU building and Central Library pin now use the latest user-supplied coord
 
 - Search for Babu Banarasi Das University and confirm the marker uses the corrected coordinate.
 - Confirm routes to both main gates use the surveyed graph where a nearby connected path exists.
+
+## AI Session: 2026-08-12 02:05 +05:30
+
+### Files Created
+
+- None.
+
+### Files Modified
+
+- `client/src/services/campusPathGraph.js`
+- `client/src/services/campusPathGraph.test.js`
+- `client/src/services/campusPaths.js`
+- `decisions.md`
+- `flow.md`
+
+### Files Deleted
+
+- None.
+
+### Functions Added
+
+- `nodeComponents()` in `campusPathGraph.js`.
+- `nearestNodesByComponent()` in `campusPathGraph.js`.
+
+### Functions Modified
+
+- `nearbyNodes()` replaces the single-nearest-node lookup.
+- `findCampusRoute()` now selects the shortest reachable entrance component.
+
+### Execution Flow Changed
+
+Route calculation groups nearby path nodes by connected component, chooses the nearest start and destination node on each shared component, and uses the shortest reachable result. The student map now consumes the 108-node, 116-edge graph exported as `campusPaths (1).js`.
+
+### Behaviour Changed
+
+Routes from University Main Gate reach BBDU through entrance `n0108`, while routes from Campus Main Gate reach BBDU through entrance `n0067`. The entrances remain physically separate and are not joined through the building.
+
+### Decisions Added
+
+- `Select a reachable entrance per path component` in `decisions.md`.
+
+### Potential Risks
+
+- Travel between endpoints that share no surveyed component still uses straight-line fallback.
+- The imported graph contains two intentional components until an exterior connecting walkway is surveyed.
+
+### Recommended Tests
+
+- Route from University Main Gate to BBDU and confirm it ends at `n0108`.
+- Route from Campus Main Gate to BBDU and confirm it ends at `n0067`.
+- Confirm ordinary routes on the original main component remain network routes.

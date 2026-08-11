@@ -24,13 +24,39 @@ export function bearingDegrees(a, b) {
   return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360
 }
 
-function nearestNode(coordinates, nodes, maximumDistance) {
-  let nearest = null
+function nearbyNodes(coordinates, nodes, maximumDistance) {
+  return nodes
+    .map((node) => ({ ...node, distance: distanceMeters(coordinates, node.coordinates) }))
+    .filter((node) => node.distance <= maximumDistance)
+}
+
+function nodeComponents(nodes, edges) {
+  const neighbours = new Map(nodes.map((node) => [node.id, []]))
+  for (const [from, to] of edges) {
+    if (!neighbours.has(from) || !neighbours.has(to)) continue
+    neighbours.get(from).push(to)
+    neighbours.get(to).push(from)
+  }
+
+  const components = new Map()
   for (const node of nodes) {
-    const distance = distanceMeters(coordinates, node.coordinates)
-    if (distance <= maximumDistance && (!nearest || distance < nearest.distance)) {
-      nearest = { ...node, distance }
+    if (components.has(node.id)) continue
+    const stack = [node.id]
+    while (stack.length) {
+      const id = stack.pop()
+      if (components.has(id)) continue
+      components.set(id, node.id)
+      stack.push(...neighbours.get(id))
     }
+  }
+  return components
+}
+
+function nearestNodesByComponent(coordinates, nodes, components, maximumDistance) {
+  const nearest = new Map()
+  for (const node of nearbyNodes(coordinates, nodes, maximumDistance)) {
+    const component = components.get(node.id)
+    if (!nearest.has(component) || node.distance < nearest.get(component).distance) nearest.set(component, node)
   }
   return nearest
 }
@@ -121,21 +147,30 @@ function directRoute(start, destination) {
 
 export function findCampusRoute(start, destination, nodes, edges, maximumSnapDistance = 60) {
   if (!start?.coordinates || !destination?.coordinates) return null
-  const startNode = nearestNode(start.coordinates, nodes, maximumSnapDistance)
-  const destinationNode = nearestNode(destination.coordinates, nodes, maximumSnapDistance)
-  if (!startNode || !destinationNode) return directRoute(start, destination)
+  const components = nodeComponents(nodes, edges)
+  const startNodes = nearestNodesByComponent(start.coordinates, nodes, components, maximumSnapDistance)
+  const destinationNodes = nearestNodesByComponent(destination.coordinates, nodes, components, maximumSnapDistance)
+  let best = null
 
-  const path = shortestNodePath(startNode.id, destinationNode.id, nodes, edges)
-  if (!path) return directRoute(start, destination)
+  for (const [component, startNode] of startNodes) {
+    const destinationNode = destinationNodes.get(component)
+    if (!destinationNode) continue
+    const path = shortestNodePath(startNode.id, destinationNode.id, nodes, edges)
+    if (!path) continue
+    const distance = startNode.distance + path.distance + destinationNode.distance
+    if (!best || distance < best.distance) best = { path, distance }
+  }
+
+  if (!best) return directRoute(start, destination)
   const pathCoordinates = [
     start.coordinates,
-    ...path.nodes.map((node) => node.coordinates),
+    ...best.path.nodes.map((node) => node.coordinates),
     destination.coordinates,
   ].filter((coordinates, index, all) => index === 0 || coordinates.join() !== all[index - 1].join())
 
   return {
     kind: 'network',
-    distanceMeters: startNode.distance + path.distance + destinationNode.distance,
+    distanceMeters: best.distance,
     pathCoordinates,
     steps: routeSteps(pathCoordinates, destination.name),
   }

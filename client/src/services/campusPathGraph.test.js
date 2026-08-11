@@ -51,6 +51,25 @@ describe('campus path graph', () => {
     expect(route.pathCoordinates).toContainEqual(entranceNodes[1].coordinates)
   })
 
+  it('uses declared building entrances instead of a closer through-path node', () => {
+    const entranceNodes = [
+      { id: 'start', coordinates: [26.885, 81.058] },
+      { id: 'entrance', coordinates: [26.8853, 81.058] },
+      { id: 'nearby-path', coordinates: [26.8854, 81.058] },
+    ]
+    const route = findCampusRoute(
+      { coordinates: entranceNodes[0].coordinates },
+      { name: 'Building', coordinates: [26.88541, 81.058], entranceNodeIds: ['entrance'] },
+      entranceNodes,
+      [['start', 'entrance'], ['entrance', 'nearby-path']],
+      50,
+    )
+
+    expect(route.kind).toBe('network')
+    expect(route.pathCoordinates).toContainEqual(entranceNodes[1].coordinates)
+    expect(route.pathCoordinates).not.toContainEqual(entranceNodes[2].coordinates)
+  })
+
   it('exports a ready-to-use JavaScript module', () => {
     expect(serializeCampusPaths(nodes, [['n1', 'n2']])).toContain('export const CAMPUS_PATH_EDGES')
   })

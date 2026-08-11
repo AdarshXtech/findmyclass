@@ -52,9 +52,11 @@ function nodeComponents(nodes, edges) {
   return components
 }
 
-function nearestNodesByComponent(coordinates, nodes, components, maximumDistance) {
+function nearestNodesByComponent(coordinates, nodes, components, maximumDistance, allowedNodeIds) {
+  const allowed = allowedNodeIds?.length ? new Set(allowedNodeIds) : null
   const nearest = new Map()
   for (const node of nearbyNodes(coordinates, nodes, maximumDistance)) {
+    if (allowed && !allowed.has(node.id)) continue
     const component = components.get(node.id)
     if (!nearest.has(component) || node.distance < nearest.get(component).distance) nearest.set(component, node)
   }
@@ -148,8 +150,8 @@ function directRoute(start, destination) {
 export function findCampusRoute(start, destination, nodes, edges, maximumSnapDistance = 60) {
   if (!start?.coordinates || !destination?.coordinates) return null
   const components = nodeComponents(nodes, edges)
-  const startNodes = nearestNodesByComponent(start.coordinates, nodes, components, maximumSnapDistance)
-  const destinationNodes = nearestNodesByComponent(destination.coordinates, nodes, components, maximumSnapDistance)
+  const startNodes = nearestNodesByComponent(start.coordinates, nodes, components, maximumSnapDistance, start.entranceNodeIds)
+  const destinationNodes = nearestNodesByComponent(destination.coordinates, nodes, components, maximumSnapDistance, destination.entranceNodeIds)
   let best = null
 
   for (const [component, startNode] of startNodes) {

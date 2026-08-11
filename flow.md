@@ -904,3 +904,54 @@ Routes from University Main Gate reach BBDU through entrance `n0108`, while rout
 - Route from University Main Gate to BBDU and confirm it ends at `n0108`.
 - Route from Campus Main Gate to BBDU and confirm it ends at `n0067`.
 - Confirm ordinary routes on the original main component remain network routes.
+
+## AI Session: 2026-08-12 02:15 +05:30
+
+### Files Created
+
+- None.
+
+### Files Modified
+
+- `client/src/services/campusLocations.js`
+- `client/src/services/campusLocations.test.js`
+- `client/src/services/campusPathGraph.js`
+- `client/src/services/campusPathGraph.test.js`
+- `client/src/services/campusPaths.js`
+- `decisions.md`
+- `flow.md`
+
+### Files Deleted
+
+- None.
+
+### Functions Added
+
+- None.
+
+### Functions Modified
+
+- `nearestNodesByComponent()` can restrict candidates to declared entrance node IDs.
+- `findCampusRoute()` passes endpoint entrance metadata into component selection.
+
+### Execution Flow Changed
+
+The BBDU destination declares entrances `n0108` and `n0067`. Routing considers only those nodes when BBDU is an endpoint, while other campus locations continue using nearby nodes. The student map now consumes the 110-node, 119-edge graph exported as `campusPaths (3).js`.
+
+### Behaviour Changed
+
+University Main Gate routes to BBDU through `n0108`, Campus Main Gate routes to BBDU through `n0067`, and the newly surveyed exterior path enables network routing between both gates. Nearby node `n0109` is no longer mistaken for a BBDU entrance.
+
+### Decisions Added
+
+- Extended `Select a reachable entrance per path component` in `decisions.md` with explicit entrance-node metadata.
+
+### Potential Risks
+
+- Entrance node IDs must remain valid when future path exports rename or delete nodes.
+
+### Recommended Tests
+
+- Route from each gate to BBDU and verify the expected entrance node is used.
+- Route between both gates and confirm the path follows the exterior network.
+- Search for BBDU and confirm the destination remains selectable.

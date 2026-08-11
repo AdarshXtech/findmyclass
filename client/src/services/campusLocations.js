@@ -27,6 +27,7 @@ export const CAMPUS_LOCATIONS = [
     category: 'Academic',
     coordinates: UNIVERSITY_BUILDING_COORDINATES,
     coordinatePrecision: 'building footprint',
+    entranceNodeIds: ['n0108', 'n0067'],
     aliases: ['Babu Banarasi Das University', 'Engineering Block', 'Administration', 'Exam Cell'],
     source: VERIFIED_SOURCE,
   },

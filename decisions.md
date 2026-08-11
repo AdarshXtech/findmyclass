@@ -270,11 +270,11 @@ BBD University Building has two valid entrances on separate surveyed path compon
 
 ### Chosen Approach
 
-Group nearby route nodes by connected component, retain the nearest candidate per endpoint and component, and choose the shortest component with candidates for both endpoints.
+Group nearby route nodes by connected component, retain the nearest candidate per endpoint and component, and choose the shortest component with candidates for both endpoints. When a location declares `entranceNodeIds`, restrict its route candidates to those surveyed entrances.
 
 ### Why This Approach?
 
-It supports multiple legitimate entrances without inventing a walkable segment through the building. Existing single-component routing keeps its nearest-node behaviour.
+It supports multiple legitimate entrances without inventing a walkable segment through the building or treating a nearby through-path as a door. Existing locations without declared entrances keep their nearest-node behaviour.
 
 ### Why Not the Alternatives?
 
@@ -286,7 +286,7 @@ None. The existing graph and shortest-path utilities are reused.
 
 ### Trade-offs
 
-- Advantages: routes use the entrance reachable from the traveller's side and preserve surveyed geometry.
+- Advantages: routes use the entrance reachable from the traveller's side, reject nearby non-entry nodes, and preserve surveyed geometry.
 - Disadvantages: journeys whose endpoints share no surveyed component still use straight-line fallback.
 - Technical debt: an exterior walkway must still be traced before routing can travel between the two components.
 - Performance implications: routing evaluates one candidate pair per shared component; the campus graph is small.
@@ -298,3 +298,5 @@ None. The existing graph and shortest-path utilities are reused.
 - `client/src/services/campusPathGraph.js`
 - `client/src/services/campusPathGraph.test.js`
 - `client/src/services/campusPaths.js`
+- `client/src/services/campusLocations.js`
+- `client/src/services/campusLocations.test.js`

@@ -24,6 +24,7 @@ describe('campus locations', () => {
     expect(searchCampusLocations('Babu Banarasi Das University', CAMPUS_LOCATIONS)[0]).toMatchObject({
       name: 'BBD University Building',
       coordinates: [26.888826187854953, 81.05900326739307],
+      entranceNodeIds: ['n0108', 'n0067'],
     })
   })
 

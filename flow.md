@@ -718,3 +718,48 @@ Labs, classroom terms, UGF, and LGF are no longer exposed as map destinations. C
 
 - Search the Map view for `lab`, `classroom`, `UGF`, and a room number and confirm no destination appears.
 - Confirm buildings, hostels, canteens, the library, and other campus facilities remain searchable.
+
+## AI Session: 2026-08-12 00:50 +05:30
+
+### Files Created
+
+- None.
+
+### Files Modified
+
+- `client/src/services/campusLocations.js`
+- `client/src/services/campusLocations.test.js`
+- `flow.md`
+
+### Files Deleted
+
+- None.
+
+### Functions Added
+
+- None.
+
+### Functions Modified
+
+- None; two shared campus destination records were added.
+
+### Execution Flow Changed
+
+The existing map search, markers, manual starting-point selector, and Path Editor reference layer now consume University Main Gate and Campus Main Gate through `CAMPUS_LOCATIONS`.
+
+### Behaviour Changed
+
+Students can search for and navigate to both named gates using the supplied coordinates.
+
+### Decisions Added
+
+- None; this is a campus data addition using the existing location model.
+
+### Potential Risks
+
+- University Main Gate remains outside the current 60-metre path snap threshold until its walkway is surveyed.
+
+### Recommended Tests
+
+- Search for each gate and confirm its marker lands at the supplied coordinate.
+- Trace a walkway to University Main Gate before expecting network routing instead of direct guidance.

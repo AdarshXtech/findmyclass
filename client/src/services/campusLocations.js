@@ -42,6 +42,8 @@ export const CAMPUS_LOCATIONS = [
     aliases: ['Library', '6th Floor', 'Wing B'],
     source: 'BBDU Central Library page and OpenStreetMap university footprint',
   },
+  campusPlace('university-main-gate', 'University Main Gate', 'Gate', [26.889244156233268, 81.05881056195926], ['University Gate']),
+  campusPlace('campus-main-gate', 'Campus Main Gate', 'Gate', [26.888447617773483, 81.0568836517443], ['Main Gate']),
   campusPlace('itm', 'Accounts Office', 'Services', [26.888008265931433, 81.05680338651463], ['ITM', 'Accounts']),
   campusPlace('student-mall', 'Student Mall', 'Services', [26.887715266549318, 81.05791499211475]),
   campusPlace('bbdca', 'BBDCA', 'Academic', [26.887120391439122, 81.0576341427554]),

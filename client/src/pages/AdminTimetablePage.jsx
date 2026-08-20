@@ -14,7 +14,7 @@ import { formatTime } from '../utils/timetableTime'
 import { ENTRY_TYPES, isBreakEntry, requiresFaculty, requiresLocation } from '../utils/timetableEntry'
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
-const VERIFICATION_DAYS = [...DAYS, 'Saturday']
+const VERIFICATION_DAYS = DAYS
 const TIME_SLOTS = [
   ['09:00', '10:00'], ['09:00', '11:00'], ['10:00', '11:00'],
   ['11:00', '12:00'], ['11:00', '13:00'], ['12:00', '13:00'],
@@ -216,6 +216,7 @@ export default function AdminTimetablePage() {
   const [row, setRow] = useState(emptyRow)
   const [rows, setRows] = useState([])
   const [detectedFaculty, setDetectedFaculty] = useState([])
+  const [coordinator, setCoordinator] = useState({ name: '', phoneNumber: '' })
   const [schedule, setSchedule] = useState([])
   const [source, setSource] = useState('text')
   const [text, setText] = useState('')
@@ -341,6 +342,7 @@ export default function AdminTimetablePage() {
       const response = await adminApi.post('/timetables/import', form)
       setRows(response.data.data.rows)
       setDetectedFaculty(response.data.data.detectedFaculty || [])
+      setCoordinator(response.data.data.coordinator || { name: '', phoneNumber: '' })
       if (response.data.data.extractedText) setText(response.data.data.extractedText)
       setMessage('Preview created. Review and correct every row before saving.')
       setMode('verification')
@@ -379,7 +381,12 @@ export default function AdminTimetablePage() {
     setBusy(true)
     setError('')
     try {
-      await adminApi.post('/timetables', { ...metadata, mode: saveMode, rows })
+      await adminApi.post('/timetables', {
+        ...metadata,
+        mode: saveMode,
+        rows,
+        coordinator: coordinator.name.trim() ? coordinator : undefined,
+      })
       setSaveDialog(false)
       setMessage('Timetable saved. Student schedules now use the updated data.')
       setRows([])
@@ -604,6 +611,17 @@ export default function AdminTimetablePage() {
               <p className="mt-3 text-sm text-text-secondary">Missing faculty phone numbers do not block timetable saving.</p>
             </section>
           ) : null}
+          <section className="border border-border-default bg-surface-primary p-4" aria-labelledby="detected-coordinator-heading">
+            <h3 id="detected-coordinator-heading" className="font-display text-lg font-bold">Class Coordinator</h3>
+            <p className="mt-1 text-sm text-text-secondary">Imported from the timetable. Review these details before saving.</p>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <label className="text-sm font-bold">Coordinator name<input className="input-field mt-2" value={coordinator.name} onChange={(event) => setCoordinator((current) => ({ ...current, name: event.target.value }))} placeholder="Name shown on timetable" /></label>
+              <label className="text-sm font-bold">Coordinator phone number<input className="input-field mt-2" inputMode="tel" value={coordinator.phoneNumber} onChange={(event) => setCoordinator((current) => ({ ...current, phoneNumber: event.target.value }))} placeholder="10-digit number" /></label>
+            </div>
+            {coordinator.name && !coordinator.phoneNumber ? (
+              <p role="status" className="mt-3 border-l-4 border-status-warning pl-3 text-sm text-status-warning">The complete phone number was not detected. Enter all 10 digits before saving if students should be able to call the coordinator.</p>
+            ) : <p className="mt-3 text-sm text-text-secondary">Leave the name blank when the timetable does not identify a coordinator.</p>}
+          </section>
           {rows.length ? <VerificationRows rows={rows} setRows={setRows} /> : <p className="border border-border-default bg-surface-primary p-5 text-text-secondary">Import a timetable to create a verification preview.</p>}
         </section>
       )}

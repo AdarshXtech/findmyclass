@@ -169,7 +169,25 @@ AdminFacultyPage
 
 Faculty names are derived from the selected section's timetable. Contact details are optional, separately managed, and shown only after a verified student lookup for that section. The coordinator is a direct section assignment rather than a special faculty-contact role.
 
-### Student spreadsheet import
+### Timetable coordinator import
+
+```text
+AdminTimetablePage imports timetable image or text
+-> POST /api/admin/timetables/import
+-> OCR or pasted text yields the complete timetable text
+-> parseTimetableCoordinator() extracts a labelled coordinator name and phone
+-> editable verification preview lets the admin correct both values
+-> POST /api/admin/timetables includes reviewed coordinator metadata
+-> timetable transaction saves rows and saveImportedCoordinator()
+-> faculty stores the directory identity/contact
+-> section_coordinators assigns that faculty member to the selected section
+-> verified student lookup calls facultyForStudent(section)
+-> ResultPage supplies the same coordinator to StudentContext and FacultyView
+```
+
+Coordinator metadata is optional. A missing coordinator does not block timetable import or change the existing section assignment. When the imported coordinator already has richer directory metadata, a blank OCR phone or missing department does not erase it.
+
+### Student roster import
 
 ```text
 AdminImportPage.handleSubmit()
@@ -178,8 +196,9 @@ AdminImportPage.handleSubmit()
 -> authenticateToken
 -> SUPER_ADMIN authorization
 -> Multer memory upload bounded by UPLOAD_LIMIT_BYTES
--> extension, MIME, and file-signature checks for CSV/XLS/XLSX
--> readStudentRows() using @e965/xlsx
+-> extension and file-signature checks for PDF/CSV/XLS/XLSX
+-> PDF: readPdfStudentRows() extracts positioned text from every page with PDF.js
+   or spreadsheet: readStudentRows() uses @e965/xlsx on the first worksheet
 -> normalize and validate each row
 -> hash optional phone numbers
 -> reject duplicates within the file and existing database
@@ -189,7 +208,9 @@ AdminImportPage.handleSubmit()
 -> AdminImportPage renders results
 ```
 
-The first worksheet is used. Required headers are `Name`, `University Roll Number`, `Course`, `Branch`, `Year`, and `Section`. Phone Number and Class Roll Number are optional.
+For spreadsheets, the first worksheet is used and required headers are `Name`, `University Roll Number`, `Course`, `Branch`, `Year`, and `Section`; Phone Number and Class Roll Number are optional. For text-based BBDU PDF rosters, all pages are read, `CRoll No`, `urollno`, `student_name`, and `Section` are extracted, and the admin supplies Course, Branch, and Year once for the whole file. Scanned image-only PDFs are rejected instead of applying lossy OCR to identity data.
+
+The supplied CSAI 2B roster was visually checked against its extracted text. It contains 59 `CSAI2B` rows across two pages, including class roll 59, Pratik Singh.
 
 ### Admin timetable import and save
 
@@ -197,7 +218,11 @@ The first worksheet is used. Required headers are `Name`, `University Roll Numbe
 AdminTimetablePage.importTimetable()
 -> POST /api/admin/timetables/import with image or text
 -> authenticateToken
--> image: extractTimetableImage() via Tesseract
+-> image: extractTimetableImage() runs one full-page Tesseract pass
+   -> extractGridRowsFromOcrData() fits time-column geometry
+   -> recognized day labels or inferred row bands assign Monday-Friday rows
+   -> legend matching normalizes noisy subject, faculty, and room metadata
+   -> merged-cell centers determine one-, two-, or three-slot durations
    or text: parseTimetableText()
 -> validateRows()
 -> detect unique faculty names and match the faculty directory
@@ -1061,3 +1086,185 @@ Normal production startup validates environment safety, initializes PostgreSQL, 
 - Replace a coordinator and confirm the old coordinator remains as faculty without duplicate display.
 - Test cookie login/logout and CSRF from the exact production frontend origin over HTTPS.
 - Restore a production-like backup into staging and verify lookup, timetable, faculty, coordinator, and admin flows.
+
+## AI Session: 2026-08-12 15:05 +05:30
+
+### Files Modified
+
+- `server/utils/timetable-manager.js`
+- `server/utils/timetable-ocr.js`
+- `server/services/faculty-service.js`
+- `server/routes/admin.js`
+- `server/test/timetable-manager.test.js`
+- `server/test/api.test.js`
+- `client/src/pages/AdminTimetablePage.jsx`
+- `client/src/pages/AdminTimetablePage.test.jsx`
+- `decisions.md`
+- `flow.md`
+
+### Functions Modified
+
+- `parseDelimited()` ignores coordinator metadata lines when producing class rows.
+- `parseTimetableCoordinator()` extracts coordinator name and normalized phone details.
+- `recognizeCoordinatorStrip()` reads the narrow coordinator row separately from the timetable grid.
+- `matchCoordinatorToFaculty()` corrects a near-exact OCR name against faculty detected in the same timetable.
+- `saveImportedCoordinator()` preserves existing directory metadata and assigns the section coordinator.
+- `AdminTimetablePage.importTimetable()` loads extracted coordinator metadata into the verification preview.
+- `AdminTimetablePage.saveRows()` sends reviewed coordinator metadata with the timetable save.
+
+### Execution Flow Changed
+
+Timetable image and text imports now extract a labelled class coordinator into editable preview fields. Saving the reviewed timetable writes the schedule and coordinator assignment in one transaction. The existing verified lookup returns that coordinator first in `facultyContacts`, which drives both the Faculty tab and the student profile context.
+
+### Behaviour Changed
+
+- Class coordinator details can be imported from issued timetable text or OCR output.
+- Admins can correct the detected name and phone before saving.
+- The verification preview warns when a coordinator name is detected without a complete 10-digit phone number.
+- Imported coordinators appear in both requested student views after the timetable is saved.
+- Missing coordinator metadata leaves the current assignment unchanged.
+
+### Risks
+
+- Unusual timetable labels may not be detected and must be entered in Faculty Management.
+- OCR results remain subject to admin verification before publication.
+- The bundled source image exposes only an incomplete phone number; the importer intentionally leaves the number blank rather than inventing missing digits.
+
+### Tests Run
+
+- Server SQLite suite: 45 passed.
+- Server PostgreSQL adapter suite: 45 passed.
+- Frontend Vitest suite: 83 passed across 16 files.
+- Vite production build: passed.
+
+### Recommended Manual Tests
+
+- Import the original CSAI 2B timetable image and verify the detected coordinator against the source image.
+- Correct a deliberately malformed OCR phone number before saving.
+- Log in as a CSAI 2B student and verify the same coordinator in the profile context and Faculty tab on mobile and desktop.
+
+## AI Session: 2026-08-12 23:00 +05:30
+
+### Files Created
+
+- `server/utils/student-import-pdf.js`
+- `server/test/student-import-pdf.test.js`
+- `client/src/pages/AdminImportPage.test.jsx`
+
+### Files Modified
+
+- `server/routes/admin.js`, `server/package.json`, and `server/package-lock.json`
+- `server/data/csai2b-2026.json`, `server/data/README.md`, and `server/test/api.test.js`
+- `client/src/pages/AdminImportPage.jsx`
+- `decisions.md` and `flow.md`
+
+### Functions Added or Modified
+
+- `readPdfStudentRows()` validates and reads every text-based roster page.
+- `linesFromTextItems()` reconstructs table rows from positioned PDF text.
+- `parsePdfRosterLines()` maps BBDU roster columns to the existing import fields.
+- `readStudentRows()` routes PDF files to the PDF parser and keeps spreadsheets on the existing XLSX parser.
+- `AdminImportPage.handleSubmit()` supplies reviewed course, branch, and year defaults for PDF imports.
+
+### Execution and Behaviour Changes
+
+The bulk student importer now accepts text-based BBDU PDF rosters. It extracts names and roll numbers directly rather than OCRing them, reads every page, and reuses the existing validation, duplicate checks, batching, and optional phone hashing. The corrected source dataset now includes all 59 visibly labelled CSAI 2B students.
+
+### Risks
+
+- Image-only scanned PDFs are intentionally rejected because OCR errors are unsafe for student identity fields.
+- The PDF row parser targets the labelled BBDU roster layout; other PDF layouts should be converted to the CSV template.
+
+### Tests Run
+
+- Exact source PDF extraction: 59 rows across two pages.
+- Server SQLite suite: 49 passed, including the exact source PDF upload.
+- Server PostgreSQL adapter suite: 49 passed, including the exact source PDF upload.
+- Frontend Vitest suite: 84 passed across 17 files.
+- Vite production build: passed.
+
+### Recommended Manual Tests
+
+- Upload `CSAI 2B.pdf`, enter B.Tech, CSAI, and Year 2, then verify the result reports 59 rows.
+- Upload a scanned image-only PDF and verify the admin receives the format guidance instead of incorrect student records.
+
+## AI Session: 2026-08-13 00:30 +05:30
+
+### Files Created
+
+- `docs/admin-panel-user-guide.md`
+- `docs/assets/admin-guide/*.png`
+- `find-my-class-admin-panel-user-guide.pdf`
+
+### Files Modified
+
+- `README.md`
+- `flow.md`
+
+### Documentation Flow
+
+The editable Markdown guide is the maintained source for the generated PDF. It documents the current database-backed admin login, HttpOnly cookie session and CSRF flow, role visibility, dashboard, student and subject management, timetable editing and import verification, faculty/coordinator management, classroom assignments, Campus Paths export, deletion safeguards, logout, security, and troubleshooting.
+
+### Behaviour Changed
+
+- No application runtime behaviour changed in this documentation session.
+- The README now links to both administrator and college deployment guides.
+
+### Risks
+
+- Screenshots can become stale after future UI changes and should be regenerated with sample-only data.
+- Campus path downloads still require source replacement and frontend deployment; the guide does not imply direct publishing exists.
+
+### Verification
+
+- Inspected the current frontend routes/pages, authentication context, API client, server admin routes, authentication middleware, provisioning script, timetable manager/importer, faculty service, classroom parser, student importer, and Campus Paths editor.
+- Exercised the isolated admin login, dashboard navigation, Campus Paths editor, and accessible delete confirmation in a local documentation database.
+- Rendered all 18 A4 PDF pages to PNG and visually checked page flow, tables, code blocks, screenshots, page numbering, and sensitive-data handling.
+
+### Recommended Manual Tests
+
+- Have a college timetable coordinator follow the import, verification, replace, and merge instructions in a staging environment.
+- Have college IT verify the first-admin command and logout/session guidance against the deployment configuration before distribution.
+
+## AI Session: 2026-08-21 +05:30
+
+### Files Created
+
+- `server/test/timetable-ocr.test.js`
+
+### Files Modified
+
+- `server/utils/timetable-ocr.js`
+- `client/src/pages/AdminTimetablePage.jsx`
+- `client/src/pages/AdminTimetablePage.test.jsx`
+- `decisions.md`
+- `flow.md`
+
+### Functions Added or Modified
+
+- `extractGridRowsFromOcrData()` reconstructs the weekly grid from full-page OCR coordinates.
+- `parseLegend()` tolerates missing separators and reconciles repeated coordinator names.
+- `parseMetadata()` matches distorted timetable tokens against the detected legend.
+- `fitSlotBoundaries()` and `bestSpan()` map word positions to fixed and merged time slots.
+
+### Execution and Behaviour Changes
+
+Image imports now use the full OCR result instead of OCRing every narrow cell. Monday-Friday rows, two-hour practicals, library periods, lunch breaks, room suffixes, and timetable scans whose day labels are not recognized are reconstructed before the existing validation preview. Saturday is no longer displayed in verification because the managed timetable supports Monday through Friday.
+
+### Risks
+
+- The geometric parser targets the current BBDU eight-column timetable format.
+- Rooms outside the confirmed classroom map remain in the preview as Needs Review.
+- OCR text still requires administrator review before saving.
+
+### Tests Run
+
+- Exact CSAI 2G source image: 24 classes and 4 breaks reconstructed; Monday remains empty.
+- Existing CSAI 2B image: 24 classes and 4 breaks reconstructed; Tuesday remains empty.
+- Server test suite: 49 passed, 1 skipped because its external source PDF is unavailable.
+- Admin timetable frontend test: 14 passed.
+
+### Recommended Manual Tests
+
+- Import the supplied CSAI 2G image and expand each weekday before saving.
+- Review unsupported locations such as `606`, `Lab3`, and `CH` rather than accepting them without a confirmed map entry.

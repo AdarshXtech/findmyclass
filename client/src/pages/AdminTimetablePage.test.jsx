@@ -65,6 +65,7 @@ describe('AdminTimetablePage', () => {
             status: 'valid',
             errors: [],
           }],
+          coordinator: { name: 'Ms. Jyoti Yadav', phoneNumber: '9876543210' },
         },
       },
     })
@@ -76,10 +77,56 @@ describe('AdminTimetablePage', () => {
 
     expect(await screen.findByText('Import preview')).toBeVisible()
     expect(screen.getByDisplayValue('Digital Logic Design')).toBeVisible()
-    expect(screen.getByText('No entries detected for Saturday.')).toBeInTheDocument()
+    expect(screen.getByLabelText('Coordinator name')).toHaveValue('Ms. Jyoti Yadav')
+    expect(screen.getByLabelText('Coordinator phone number')).toHaveValue('9876543210')
+    expect(screen.queryByText(/Saturday/)).not.toBeInTheDocument()
     expect(adminApi.post).toHaveBeenCalledTimes(1)
     expect(adminApi.post.mock.calls[0][0]).toBe('/timetables/import')
     await waitFor(() => expect(screen.getByText(/Nothing is saved/)).toBeVisible())
+  })
+
+  it('saves reviewed coordinator details with an imported timetable', async () => {
+    const user = userEvent.setup()
+    adminApi.post.mockImplementation((url) => {
+      if (url === '/timetables/import') return Promise.resolve({ data: { data: {
+        rows: [{ ...timetableEntry, clientId: 'row-1', status: 'valid', errors: [] }],
+        coordinator: { name: 'Ms. Jyoti Yadav', phoneNumber: '9876543210' },
+      } } })
+      if (url === '/timetables/validate') return Promise.resolve({ data: { data: {
+        valid: true,
+        rows: [{ ...timetableEntry, clientId: 'row-1', status: 'valid', errors: [] }],
+      } } })
+      return Promise.resolve({ data: { success: true } })
+    })
+
+    render(<AdminTimetablePage />)
+    await selectClass(user)
+    await user.click(screen.getByRole('tab', { name: /Import Timetable/i }))
+    await user.type(screen.getByLabelText('Timetable text'), 'Day | Time | Subject | Teacher | Room')
+    await user.click(screen.getByRole('button', { name: 'Create editable preview' }))
+    await user.click(await screen.findByRole('button', { name: 'Validate and save' }))
+    await user.click(screen.getByRole('button', { name: 'Replace existing timetable' }))
+
+    await waitFor(() => expect(adminApi.post).toHaveBeenCalledWith('/timetables', expect.objectContaining({
+      coordinator: { name: 'Ms. Jyoti Yadav', phoneNumber: '9876543210' },
+      section: 'CSAI2B',
+    })))
+  })
+
+  it('warns when the timetable identifies a coordinator without a complete phone number', async () => {
+    const user = userEvent.setup()
+    adminApi.post.mockResolvedValueOnce({ data: { data: {
+      rows: [{ ...timetableEntry, clientId: 'row-1', status: 'valid', errors: [] }],
+      coordinator: { name: 'Ms. Jyoti Yadav', phoneNumber: '' },
+    } } })
+
+    render(<AdminTimetablePage />)
+    await selectClass(user)
+    await user.click(screen.getByRole('tab', { name: /Import Timetable/i }))
+    await user.type(screen.getByLabelText('Timetable text'), 'Day | Time | Subject | Teacher | Room')
+    await user.click(screen.getByRole('button', { name: 'Create editable preview' }))
+
+    expect(await screen.findByText(/complete phone number was not detected/i)).toBeVisible()
   })
 
   it('validates and adds a manual timetable entry', async () => {

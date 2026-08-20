@@ -517,3 +517,129 @@ No limiter weakens abuse resistance. IP-only limiting does not reflect the colle
 - `server/middleware/rate-limit.js`
 - `server/routes/student.js`
 - `server/test/api.test.js`
+
+## Decision: Import class coordinator metadata with the timetable
+
+Date: 2026-08-12
+Session: Timetable coordinator import
+Status: Active
+
+### Problem
+
+Timetable images and pasted text can contain the class coordinator name and phone number, but the import path discarded that metadata and required a second manual Faculty Management step.
+
+### Considered Approaches
+
+1. Keep coordinator assignment manual after every timetable import.
+2. Store coordinator text on every timetable entry.
+3. Extract one coordinator record during preview and save it through the existing faculty directory and section coordinator relationship.
+
+### Chosen Approach
+
+Extract coordinator metadata from the full timetable text, expose editable name and phone fields in the existing verification preview, and save the reviewed coordinator through `faculty` and `section_coordinators` in the timetable transaction.
+
+### Why This Approach?
+
+The timetable is the supplied source for the class coordinator, while the verification preview protects against OCR mistakes. Reusing the faculty directory makes the same verified lookup payload drive both the Faculty tab and student context without duplicating UI state or schema fields.
+
+### Why Not the Alternatives?
+
+Manual re-entry is easy to miss and can drift from the issued timetable. Repeating coordinator data on timetable rows would duplicate one section-level relationship and complicate updates.
+
+### Trade-offs
+
+- Advantages: one reviewed import updates the schedule and coordinator atomically; existing contact metadata is preserved when OCR omits it.
+- Disadvantages: timetable formats must identify the coordinator with a recognizable label, and OCR output still requires admin review.
+- Security implications: the coordinator number is intentionally published only in the verified student's section response.
+- Maintainability implications: coordinator parsing remains centralized in the timetable manager and persistence reuses the faculty service.
+
+### Files Affected
+
+- `server/utils/timetable-manager.js`
+- `server/utils/timetable-ocr.js`
+- `server/services/faculty-service.js`
+- `server/routes/admin.js`
+- `client/src/pages/AdminTimetablePage.jsx`
+
+## Decision: Extract text-based PDF rosters instead of applying OCR
+
+Date: 2026-08-12
+Session: PDF student roster import
+Status: Active
+
+### Problem
+
+The supplied BBDU student roster is a multi-page PDF exported from Excel. Sending it through image OCR introduced avoidable name and roll-number errors, while the existing bulk importer accepted only spreadsheet files.
+
+### Considered Approaches
+
+1. Render every PDF page and OCR it.
+2. Require administrators to convert every PDF to CSV first.
+3. Read the PDF's embedded text and reconstruct rows from positioned text items.
+
+### Chosen Approach
+
+Accept PDF files in the student bulk importer, verify the PDF signature, use PDF.js to extract every page's embedded text, parse the BBDU roster columns, and require the admin to provide course, branch, and year once when those values are absent from the source document.
+
+### Why This Approach?
+
+The source already contains accurate selectable text. Direct extraction preserves names and numeric identifiers, processes both pages, and avoids an operating-system PDF renderer or another OCR pass.
+
+### Why Not the Alternatives?
+
+OCR is slower and less accurate for text that already exists. Forced manual conversion adds an unnecessary step and encourages spreadsheet formatting mistakes.
+
+### Trade-offs
+
+- Advantages: exact roll numbers, all PDF pages imported, and no Poppler dependency on the production host.
+- Disadvantages: scanned image-only PDFs are rejected with a clear message and must be converted to a spreadsheet or text-based PDF.
+- Security implications: uploads remain memory-bounded, content is signature-checked, PDF evaluation is disabled, and page count is capped.
+- Maintainability implications: PDF.js is pinned to a Node 20-compatible release and the BBDU roster row shape is tested independently.
+
+### Files Affected
+
+- `server/utils/student-import-pdf.js`
+- `server/routes/admin.js`
+- `server/package.json`
+- `client/src/pages/AdminImportPage.jsx`
+
+## Decision: Reconstruct timetable grids from full-page OCR geometry
+
+Date: 2026-08-21
+Session: Timetable image OCR reconstruction
+Status: Active
+
+### Problem
+
+Reading each timetable cell as a separate image lost short values such as `LIB`, split metadata from room numbers, and could not reliably identify classes spanning two time slots. Some scans also omit the printed day labels from OCR even though the class text is readable.
+
+### Considered Approaches
+
+1. Keep retrying every cell with additional Tesseract modes and image preprocessing.
+2. Hard-code the supplied timetable rows.
+3. Use the full-page OCR word coordinates to reconstruct rows and time-slot spans, with table-position inference when day labels are missing.
+
+### Chosen Approach
+
+Run one full-page OCR pass, fit the detected time headers to the known timetable slot widths, group words by their geometric position, and match noisy metadata against the timetable legend. Infer row bands from the academic and course headers when OCR does not recognize day labels. Keep the existing verification and classroom validation stage for uncertain locations.
+
+### Why This Approach?
+
+The full-page OCR already recognizes the class metadata accurately enough and preserves the coordinates needed to recover merged cells. Reusing that result is faster and more reliable than dozens of narrow OCR passes, while remaining format-driven rather than timetable-specific.
+
+### Why Not the Alternatives?
+
+More cell retries remain fragile for merged cells and small labels. Hard-coded rows would make imports appear successful without actually reading the administrator's upload.
+
+### Trade-offs
+
+- Advantages: merged practicals, library periods, empty weekdays, and scans with missing day labels are reconstructed consistently.
+- Disadvantages: the importer still assumes the issued BBDU Monday-to-Friday grid and its eight standard time columns.
+- Safety: unsupported rooms remain marked for admin review instead of being silently accepted or invented.
+
+### Files Affected
+
+- `server/utils/timetable-ocr.js`
+- `server/test/timetable-ocr.test.js`
+- `client/src/pages/AdminTimetablePage.jsx`
+- `client/src/pages/AdminTimetablePage.test.jsx`

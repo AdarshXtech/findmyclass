@@ -3,6 +3,7 @@ const { loadEnvironment } = require('./env');
 loadEnvironment();
 
 const csai2b = require('../data/csai2b-2026.json');
+const csai2f = require('../data/csai2f-2026.json');
 const csai2g = require('../data/csai2g-2026.json');
 const { initDatabase, queryAll, withTransaction } = require('./db');
 const {
@@ -10,8 +11,9 @@ const {
   normalizePhoneNumber,
   hashPhoneNumber,
 } = require('../utils/student-identity');
+const { normalizeSection } = require('../utils/validation');
 
-const datasets = [csai2b, csai2g];
+const datasets = [csai2b, csai2f, csai2g];
 
 function readAccessRecords() {
   const raw = String(process.env.STUDENT_ACCESS_RECORDS_JSON || '').trim();
@@ -36,7 +38,7 @@ async function loadScheduleData({ accessRecords = readAccessRecords(), replaceTi
   const preparedAccessRecords = accessRecords.map((record) => {
     const phoneNumber = normalizePhoneNumber(record.phoneNumber);
     const normalizedName = normalizeStudentName(record.name);
-    const dataset = datasets.find((entry) => entry.section === record.section);
+    const dataset = datasets.find((entry) => entry.section === normalizeSection(record.section));
     const universityRollNumber = String(record.universityRollNumber || '').trim();
     if (!phoneNumber || !normalizedName || !dataset || !universityRollNumber) {
       throw new Error('Student access records must include a valid name, phone number, university roll number, and class.');

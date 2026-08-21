@@ -177,7 +177,9 @@ function splitTimeRange(value) {
 }
 
 function parseDelimited(text) {
-  const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const lines = text.split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && !/\bclass\s+co(?:[\s-]?o)?rdinator\b/i.test(line));
   if (lines.length < 2) return [];
   const delimiter = lines[0].includes('|') ? '|' : lines[0].includes('\t') ? '\t' : ',';
   const headers = lines[0].split(delimiter).map((cell) => cell.trim().toLowerCase());
@@ -213,6 +215,7 @@ function parsePlainText(text) {
   const rows = [];
   let currentDay = '';
   for (const line of text.split(/\r?\n/).map((value) => value.trim()).filter(Boolean)) {
+    if (/\bclass\s+co(?:[\s-]?o)?rdinator\b/i.test(line)) continue;
     const day = normalizeDay(line);
     if (day && !/\d/.test(line)) {
       currentDay = DAYS[day - 1];
@@ -245,6 +248,61 @@ function parseTimetableText(value) {
   const parsed = parseDelimited(text);
   const rows = parsed.length ? parsed : parsePlainText(text);
   return validateRows(rows);
+}
+
+function parseTimetableCoordinator(value) {
+  const text = sanitizeImportText(value);
+  const label = /\bclass\s+co(?:[\s-]?o)?rdinator\b\s*[:\-]?\s*/i;
+  const match = label.exec(text);
+  if (!match) return null;
+
+  const details = text.slice(match.index + match[0].length, match.index + match[0].length + 180);
+  const contactLabel = /\b(?:mobile|phone|contact)(?:\s*(?:no|number))?\.?\s*[:\-]?/i;
+  const contactMatch = contactLabel.exec(details);
+  const nameSource = (contactMatch ? details.slice(0, contactMatch.index) : details.split(/\r?\n/)[0])
+    .replace(/[|;,]+$/g, '')
+    .trim();
+  const name = nameSource.match(/^[A-Za-z][A-Za-z .'-]{1,79}/)?.[0]?.trim() || '';
+  const phoneSource = contactMatch ? details.slice(contactMatch.index + contactMatch[0].length, contactMatch.index + contactMatch[0].length + 40) : '';
+  const phoneMatch = phoneSource.match(/(?:\+?91[\s-]?)?((?:\d[\s-]?){10})(?!\d)/)?.[0] || '';
+  const digits = phoneMatch.replace(/\D/g, '');
+  const phoneNumber = digits.length === 12 && digits.startsWith('91') ? digits.slice(2) : digits;
+
+  return name ? { name, phoneNumber } : null;
+}
+
+function editDistance(left, right) {
+  const row = Array.from({ length: right.length + 1 }, (_, index) => index);
+  for (let leftIndex = 1; leftIndex <= left.length; leftIndex += 1) {
+    let previous = row[0];
+    row[0] = leftIndex;
+    for (let rightIndex = 1; rightIndex <= right.length; rightIndex += 1) {
+      const current = row[rightIndex];
+      row[rightIndex] = Math.min(
+        row[rightIndex] + 1,
+        row[rightIndex - 1] + 1,
+        previous + (left[leftIndex - 1] === right[rightIndex - 1] ? 0 : 1)
+      );
+      previous = current;
+    }
+  }
+  return row[right.length];
+}
+
+function matchCoordinatorToFaculty(coordinator, rows) {
+  if (!coordinator?.name) return coordinator;
+  const target = coordinator.name.toUpperCase().replace(/[^A-Z]/g, '');
+  let closest = null;
+  let distance = 3;
+  for (const row of rows) {
+    const name = String(row.facultyName || '').trim();
+    const candidateDistance = editDistance(target, name.toUpperCase().replace(/[^A-Z]/g, ''));
+    if (name && candidateDistance < distance) {
+      closest = name;
+      distance = candidateDistance;
+    }
+  }
+  return closest ? { ...coordinator, name: closest } : coordinator;
 }
 
 function shiftRows(inputRows, { direction = 'later', minutes = 0 } = {}, existingRows = []) {
@@ -287,9 +345,11 @@ module.exports = {
   ENTRY_TYPES,
   formatEntry,
   isBreakEntry,
+  matchCoordinatorToFaculty,
   normalizeDay,
   normalizeSessionType,
   normalizeTime,
+  parseTimetableCoordinator,
   parseTimetableText,
   sanitizeImportText,
   shiftRows,

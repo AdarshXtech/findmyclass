@@ -10,6 +10,8 @@ export default function AdminImportPage() {
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState(null)
+  const [pdfDefaults, setPdfDefaults] = useState({ course: '', branch: '', year: '' })
+  const isPdf = /\.pdf$/i.test(file?.name || '')
 
   const downloadTemplate = () => {
     const headers = 'Name,Phone Number,University Roll Number,Class Roll Number,Course,Branch,Year,Section\n'
@@ -26,9 +28,9 @@ export default function AdminImportPage() {
     setError('')
     setResult(null)
 
-    if (selectedFile && !/\.(csv|xls|xlsx)$/i.test(selectedFile.name)) {
+    if (selectedFile && !/\.(csv|xls|xlsx|pdf)$/i.test(selectedFile.name)) {
       setFile(null)
-      setError('Choose a CSV or Excel file (.csv, .xls, or .xlsx).')
+      setError('Choose a PDF, CSV, or Excel file (.pdf, .csv, .xls, or .xlsx).')
       event.target.value = ''
       return
     }
@@ -47,12 +49,22 @@ export default function AdminImportPage() {
     setResult(null)
 
     if (!file) {
-      setError('Please select a CSV or Excel file.')
+      setError('Please select a PDF, CSV, or Excel file.')
+      return
+    }
+
+    if (isPdf && (!pdfDefaults.course.trim() || !pdfDefaults.branch.trim() || !pdfDefaults.year)) {
+      setError('Enter the course, branch, and year for this PDF roster.')
       return
     }
 
     const formData = new FormData()
     formData.append('file', file)
+    if (isPdf) {
+      formData.append('course', pdfDefaults.course.trim())
+      formData.append('branch', pdfDefaults.branch.trim())
+      formData.append('year', pdfDefaults.year)
+    }
 
     setUploading(true)
     try {
@@ -74,7 +86,7 @@ export default function AdminImportPage() {
     <div className="space-y-6">
       <section className="rounded-2xl border border-border-default bg-surface-primary p-6 shadow-admin">
         <h1 className="mb-1 text-2xl font-bold text-text-primary">Import Students</h1>
-        <p className="text-text-secondary">Add many students at once from a CSV or Excel spreadsheet.</p>
+        <p className="text-text-secondary">Add many students at once from a BBDU roster PDF, CSV, or Excel spreadsheet.</p>
       </section>
 
       <section className="rounded-2xl border border-border-default bg-surface-primary p-6 shadow-admin">
@@ -83,7 +95,7 @@ export default function AdminImportPage() {
             <h2 className="mb-2 text-lg font-semibold text-text-primary">Spreadsheet columns</h2>
             <p className="text-sm text-text-secondary">Required: Name, University Roll Number, Course, Branch, Year, Section</p>
             <p className="mt-1 text-sm text-text-secondary">Optional: Phone Number, Class Roll Number</p>
-            <p className="mt-2 text-xs text-text-secondary">Use the first worksheet. Maximum file size: 5MB.</p>
+            <p className="mt-2 text-xs text-text-secondary">Spreadsheets use the first worksheet. Text-based PDFs use every page. Maximum file size: 5MB.</p>
           </div>
           <button
             type="button"
@@ -105,13 +117,34 @@ export default function AdminImportPage() {
           <input
             id="student-import-file"
             type="file"
-            accept=".csv,.xls,.xlsx"
+            accept=".pdf,.csv,.xls,.xlsx"
             onChange={handleFileChange}
             className="block w-full text-sm text-text-secondary file:mr-4 file:rounded-lg file:border-0 file:bg-accent-primary file:px-4 file:py-2 file:text-text-on-accent hover:file:bg-accent-strong"
             required
           />
 
-          <p className="text-xs text-text-secondary">Accepted formats: CSV, XLS, XLSX</p>
+          <p className="text-xs text-text-secondary">Accepted formats: PDF, CSV, XLS, XLSX</p>
+
+          {isPdf ? (
+            <fieldset className="grid gap-4 border-t border-border-default pt-4 sm:grid-cols-3">
+              <legend className="mb-3 text-sm font-semibold text-text-primary">Details applied to every student in this PDF</legend>
+              <label className="text-sm font-medium text-text-primary">
+                Course
+                <input className="input-field mt-2" value={pdfDefaults.course} onChange={(event) => setPdfDefaults({ ...pdfDefaults, course: event.target.value })} placeholder="For example, B.Tech" required />
+              </label>
+              <label className="text-sm font-medium text-text-primary">
+                Branch
+                <input className="input-field mt-2" value={pdfDefaults.branch} onChange={(event) => setPdfDefaults({ ...pdfDefaults, branch: event.target.value })} placeholder="For example, CSAI" required />
+              </label>
+              <label className="text-sm font-medium text-text-primary">
+                Year
+                <select className="input-field mt-2" value={pdfDefaults.year} onChange={(event) => setPdfDefaults({ ...pdfDefaults, year: event.target.value })} required>
+                  <option value="">Select year</option>
+                  {[1, 2, 3, 4].map((year) => <option key={year} value={year}>Year {year}</option>)}
+                </select>
+              </label>
+            </fieldset>
+          ) : null}
 
           <button type="submit" disabled={uploading} aria-busy={uploading} className="btn-primary inline-flex items-center gap-2">
             <HiOutlineUpload />

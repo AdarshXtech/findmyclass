@@ -7,12 +7,12 @@ The `csai2b-2026.json` dataset was transcribed from the files supplied on 2026-0
 
 ## Verified Decisions
 
-- The PDF contains 58 rows labelled `CSAI2B`; all 58 are included.
-- PDF row 59, Pratik Singh (`1250439494`), is labelled `CSAI2D` and is excluded.
+- The PDF contains 59 rows labelled `CSAI2B`; all 59 are included.
+- PDF row 59 is Pratik Singh (`1250439494`). Both the rendered page and embedded text label it `CSAI2B`.
 - The timetable image prints `CSAI1-2B`. The canonical section is `CSAI2B`, based on the roster and the user's explicit statement that the class is CSAI 2B. The original image label remains in `sourceSectionLabels`.
 - University roll numbers identify roster rows internally. Public lookup requires an exact normalized student name and matching keyed phone hash.
 - Tuesday is blank in the source image and is represented as a day with no timetable entries.
-- The dataset contains 58 students, 24 teaching sessions, and five weekday lunch breaks.
+- The dataset contains 59 students, 24 teaching sessions, and five weekday lunch breaks.
 
 The legacy `npm run load-csai2b` command now delegates to the shared schedule loader so production cannot load one class without the other.
 
@@ -21,4 +21,11 @@ The legacy `npm run load-csai2b` command now delegates to the shared schedule lo
 - `csai2g-2026.json` transcribes the supplied CSAI 2G timetable image for academic session 2026-27.
 - Monday is blank and has no lunch entry. Tuesday through Friday each contain six teaching sessions and one lunch break.
 - Student access credentials are not stored in this repository. Production reads them from `STUDENT_ACCESS_RECORDS_JSON` and stores only a keyed phone hash plus the final four digits.
-- Run `npm run load-schedules` to idempotently load both shared class timetables and apply configured student-to-class mappings.
+- Run `npm run load-schedules` to load the three bundled class timetables and apply configured student-to-class mappings.
+
+## CSAI 2F
+
+- `csai2f-2026.json` transcribes the supplied CSAI 2F timetable image for academic session 2026-27.
+- Monday is blank. Tuesday through Friday contain 24 teaching or library sessions and four lunch breaks.
+- Merged practical periods remain single two-hour entries. Printed locations such as `606`, `Lab3`, `LGF001`, and `CH` are preserved verbatim for administrator review.
+- The printed coordinator phone number is not stored in source control; contact details must be reviewed and saved through the timetable importer or Faculty Management.

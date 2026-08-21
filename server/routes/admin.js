@@ -12,7 +12,9 @@ const {
   isValidUniversityRollNumber,
   normalizeClassRollNumber,
   isValidClassRollNumber,
+  normalizeBranch,
   normalizeSection,
+  parseCsaiSection,
   isValidSection,
   normalizeYear,
   isValidYear,
@@ -31,14 +33,17 @@ const {
 const {
   DAYS,
   formatEntry,
+  matchCoordinatorToFaculty,
+  parseTimetableCoordinator,
   parseTimetableText,
   shiftRows,
   validateRows,
 } = require('../utils/timetable-manager');
 const { extractTimetableImage } = require('../utils/timetable-ocr');
+const { readPdfStudentRows } = require('../utils/student-import-pdf');
 const { createFailedAttemptLimiter } = require('../middleware/rate-limit');
 const facultyRepository = require('../repositories/faculty-repository');
-const { facultyForStudent, saveFaculty } = require('../services/faculty-service');
+const { facultyForStudent, saveFaculty, saveImportedCoordinator } = require('../services/faculty-service');
 const { normalizeFacultyName } = require('../utils/faculty-identity');
 const logger = require('../utils/logger');
 
@@ -201,9 +206,10 @@ router.post('/students', authenticateToken, superAdminOnly, async (req, res) => 
       : null;
     const parsedClassRoll = normalizeClassRollNumber(class_roll_number);
     const cleanedCourse = String(course || '').trim();
-    const cleanedBranch = String(branch || '').trim();
     const cleanedSection = normalizeSection(section);
-    const parsedYear = normalizeYear(year);
+    const classIdentity = parseCsaiSection(cleanedSection);
+    const cleanedBranch = classIdentity?.branch || normalizeBranch(branch);
+    const parsedYear = classIdentity?.year || normalizeYear(year);
     const hasPhoneNumber = String(phone_number || '').trim().length > 0;
     const cleanedPhoneNumber = hasPhoneNumber ? normalizePhoneNumber(phone_number) : null;
 
@@ -320,6 +326,8 @@ router.put('/students/:id', authenticateToken, superAdminOnly, async (req, res) 
         return res.status(400).json({ success: false, message: 'Please enter a valid university roll number.' });
       }
     }
+    const classIdentity = parseCsaiSection(finalSection);
+    if (classIdentity) finalYear = classIdentity.year;
     if (finalUniversityRoll !== existing.university_roll_number) {
       const rollTaken = await queryOne(
         'SELECT student_id FROM students WHERE university_roll_number = ? AND student_id != ?',
@@ -339,7 +347,7 @@ router.put('/students/:id', authenticateToken, superAdminOnly, async (req, res) 
 
     const finalName = name !== undefined ? String(name).trim().replace(/\s+/g, ' ') : existing.name;
     const finalCourse = course !== undefined ? String(course).trim() : existing.course;
-    const finalBranch = branch !== undefined ? String(branch).trim() : existing.branch;
+    const finalBranch = classIdentity?.branch || (branch !== undefined ? normalizeBranch(branch) : normalizeBranch(existing.branch));
     if (!finalName || !finalCourse || !finalBranch) {
       return res.status(400).json({ success: false, message: 'Name, course, and branch cannot be empty.' });
     }
@@ -835,7 +843,7 @@ router.get('/sections', authenticateToken, async (req, res) => {
 });
 
 // ════════════════════════════════════════════════════════════
-//  EXCEL/CSV IMPORT
+//  STUDENT FILE IMPORT
 // ════════════════════════════════════════════════════════════
 
 const storage = multer.memoryStorage();
@@ -843,10 +851,10 @@ const upload = multer({
   storage,
   limits: { fileSize: uploadLimitBytes },
   fileFilter: (req, file, cb) => {
-    if (file.originalname.match(/\.(xlsx|xls|csv)$/i)) {
+    if (file.originalname.match(/\.(xlsx|xls|csv|pdf)$/i)) {
       cb(null, true);
     } else {
-      cb(new Error('Only CSV or Excel (.xls, .xlsx) files are allowed.'));
+      cb(new Error('Only PDF, CSV, or Excel (.xls, .xlsx) files are allowed.'));
     }
   }
 });
@@ -878,9 +886,13 @@ function getCellText(value) {
   return String(value).trim();
 }
 
-async function readStudentRows(file) {
+async function readStudentRows(file, defaults = {}) {
   const extension = String(file.originalname || '').toLowerCase().split('.').pop();
   const bytes = file.buffer;
+  if (extension === 'pdf') {
+    return readPdfStudentRows(bytes, defaults);
+  }
+
   const validWorkbook = extension === 'xlsx'
     ? bytes[0] === 0x50 && bytes[1] === 0x4b
     : extension === 'xls'
@@ -940,7 +952,11 @@ router.post('/import/students', authenticateToken, superAdminOnly, uploadStudent
 
     let data;
     try {
-      data = await readStudentRows(req.file);
+      data = await readStudentRows(req.file, {
+        course: String(req.body.course || '').trim(),
+        branch: String(req.body.branch || '').trim(),
+        year: String(req.body.year || '').trim(),
+      });
     } catch (error) {
       return res.status(400).json({
         success: false,
@@ -966,9 +982,10 @@ router.post('/import/students', authenticateToken, superAdminOnly, uploadStudent
         : null;
       const classRoll = normalizeClassRollNumber(row.class_roll_number);
       const course = String(row.course || '').trim();
-      const branch = String(row.branch || '').trim();
-      const year = normalizeYear(row.year);
       const section = normalizeSection(row.section);
+      const classIdentity = parseCsaiSection(section);
+      const branch = classIdentity?.branch || normalizeBranch(row.branch);
+      const year = classIdentity?.year || normalizeYear(row.year);
       const suppliedPhone = String(row.phone_number || '').trim();
       const phoneNumber = suppliedPhone ? normalizePhoneNumber(suppliedPhone) : null;
 
@@ -1152,11 +1169,22 @@ function uploadTimetableImage(req, res, next) {
 }
 
 async function getTimetableContext(section) {
-  return queryOne(
+  const normalizedSection = normalizeSection(section);
+  const studentContext = await queryOne(
     `SELECT course, branch, year, section
      FROM students WHERE section = ? ORDER BY student_id LIMIT 1`,
-    [String(section || '').trim().toUpperCase()]
+    [normalizedSection]
   );
+  if (studentContext) return studentContext;
+
+  const timetable = await queryOne(
+    'SELECT section FROM timetable_entries WHERE section = ? LIMIT 1',
+    [normalizedSection]
+  );
+  const identity = timetable && parseCsaiSection(timetable.section);
+  return identity ? {
+    course: 'B.Tech', branch: identity.branch, year: identity.year, section: identity.section,
+  } : null;
 }
 
 async function getTimetableRows(section, operations = { queryAll }) {
@@ -1164,7 +1192,7 @@ async function getTimetableRows(section, operations = { queryAll }) {
     `SELECT * FROM timetable_entries
      WHERE section = ?
      ORDER BY day_of_week, start_time, end_time`,
-    [String(section || '').trim().toUpperCase()]
+    [normalizeSection(section)]
   );
 }
 
@@ -1194,7 +1222,7 @@ function isTimetableConflict(error) {
 }
 
 async function validateTimetableRequest(body, { includeExisting = true, excludeId = null } = {}) {
-  const section = String(body.section || '').trim().toUpperCase();
+  const section = normalizeSection(body.section);
   const context = await getTimetableContext(section);
   const metadataErrors = timetableMetadataErrors(body, context);
 
@@ -1213,6 +1241,18 @@ router.get('/timetables', authenticateToken, async (req, res) => {
        FROM students GROUP BY course, branch, year, section
        ORDER BY course, branch, year, section`
     );
+    const knownSections = new Set(classes.map((item) => normalizeSection(item.section)));
+    const timetableSections = await queryAll('SELECT DISTINCT section FROM timetable_entries ORDER BY section');
+    for (const item of timetableSections) {
+      const identity = parseCsaiSection(item.section);
+      if (identity && !knownSections.has(identity.section)) {
+        classes.push({
+          course: 'B.Tech', branch: identity.branch, year: identity.year,
+          section: identity.section, student_count: 0,
+        });
+      }
+    }
+    classes.sort((left, right) => left.section.localeCompare(right.section));
     res.json({ success: true, data: { classes } });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Could not load timetable classes.' });
@@ -1245,7 +1285,7 @@ router.post('/timetables/validate', authenticateToken, async (req, res) => {
 /** POST /api/admin/timetables/shift */
 router.post('/timetables/shift', authenticateToken, async (req, res) => {
   try {
-    const section = String(req.body.section || '').trim().toUpperCase();
+    const section = normalizeSection(req.body.section);
     const context = await getTimetableContext(section);
     const metadataErrors = timetableMetadataErrors(req.body, context);
     if (metadataErrors.length) {
@@ -1325,6 +1365,7 @@ router.post('/timetables/import', authenticateToken, uploadTimetableImage, async
     const rows = extraction.rows?.length
       ? validateRows(extraction.rows)
       : parseTimetableText(extractedText);
+    const coordinator = matchCoordinatorToFaculty(parseTimetableCoordinator(extractedText), rows);
     if (!rows.length) {
       return res.status(422).json({
         success: false,
@@ -1338,6 +1379,7 @@ router.post('/timetables/import', authenticateToken, uploadTimetableImage, async
         rows,
         extractedText: req.file ? extractedText : undefined,
         saved: false,
+        coordinator,
         detectedFaculty: await detectedFacultyForRows(rows),
       },
     });
@@ -1375,12 +1417,26 @@ router.post('/timetables', authenticateToken, async (req, res) => {
           row.sessionType, row.facultyCode || null, row.facultyName, row.room, academicSession, semester, 'ADMIN', row.notes || null,
         ])
       );
+      if (req.body.coordinator?.name) {
+        const importedCoordinator = await saveImportedCoordinator(
+          req.body.coordinator,
+          section,
+          req.admin.id,
+          transaction
+        );
+        if (importedCoordinator.errors) {
+          const validationError = new Error(importedCoordinator.errors[0]);
+          validationError.status = 400;
+          throw validationError;
+        }
+      }
     });
     await facultyRepository.syncTimetableFaculty(section);
     logger.info('Admin saved timetable', { requestId: req.requestId, adminId: req.admin.id, section, mode, entries: validation.rows.length });
     res.status(201).json({ success: true, message: 'Timetable saved successfully.' });
   } catch (error) {
     logger.error('Timetable save failed', { requestId: req.requestId, error: error.message });
+    if (error.status === 400) return res.status(400).json({ success: false, message: error.message });
     if (isTimetableConflict(error)) {
       return res.status(409).json({ success: false, message: 'This change conflicts with an existing timetable entry.' });
     }

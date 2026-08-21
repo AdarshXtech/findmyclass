@@ -21,6 +21,7 @@ const { startServer } = require('../server');
 const { initDatabase, execute, queryAll } = require('../config/db');
 const { loadScheduleData } = require('../config/load-schedule-data');
 const csai2bDataset = require('../data/csai2b-2026.json');
+const csai2fDataset = require('../data/csai2f-2026.json');
 const csai2gDataset = require('../data/csai2g-2026.json');
 const { normalizeStudentName, hashPhoneNumber } = require('../utils/student-identity');
 
@@ -30,16 +31,19 @@ let token;
 
 test('CSAI 2B source dataset contains only the confirmed class roster and timetable', () => {
   assert.equal(csai2bDataset.section, 'CSAI2B');
-  assert.equal(csai2bDataset.students.length, 58);
+  assert.equal(csai2bDataset.students.length, 59);
   assert.equal(csai2bDataset.timetable.length, 29);
   assert.equal(csai2bDataset.timetable.filter((entry) => entry.sessionType === 'Break').length, 5);
   assert.equal(csai2bDataset.timetable.filter((entry) => entry.sessionType !== 'Break').length, 24);
-  assert.equal(new Set(csai2bDataset.students.map((student) => student.universityRollNumber)).size, 58);
+  assert.equal(new Set(csai2bDataset.students.map((student) => student.universityRollNumber)).size, 59);
   assert.deepEqual(
     csai2bDataset.students.find((student) => student.universityRollNumber === '1250439358'),
     { classRollNumber: 41, universityRollNumber: '1250439358', name: 'RUDRANSH KUMAR SINGH' }
   );
-  assert.equal(csai2bDataset.students.some((student) => student.name === 'PRATIK SINGH'), false);
+  assert.deepEqual(
+    csai2bDataset.students.find((student) => student.universityRollNumber === '1250439494'),
+    { classRollNumber: 59, universityRollNumber: '1250439494', name: 'PRATIK SINGH' }
+  );
 });
 
 test('CSAI 2G source dataset matches the supplied class timetable', () => {
@@ -52,6 +56,36 @@ test('CSAI 2G source dataset matches the supplied class timetable', () => {
   assert.deepEqual(
     { day: tuesdayLab.dayOfWeek, start: tuesdayLab.startTime, end: tuesdayLab.endTime, room: tuesdayLab.room },
     { day: 2, start: '14:00', end: '16:00', room: '516' }
+  );
+});
+
+test('CSAI 2F source dataset matches the supplied class timetable', () => {
+  assert.equal(csai2fDataset.section, 'CSAI2F');
+  assert.equal(csai2fDataset.timetable.length, 28);
+  assert.equal(csai2fDataset.timetable.filter((entry) => entry.dayOfWeek === 1).length, 0);
+  assert.equal(csai2fDataset.timetable.filter((entry) => entry.sessionType === 'Break').length, 4);
+  assert.equal(csai2fDataset.timetable.filter((entry) => entry.sessionType !== 'Break').length, 24);
+
+  const tuesday = csai2fDataset.timetable.filter((entry) => entry.dayOfWeek === 2);
+  assert.deepEqual(
+    tuesday.map(({ startTime, endTime, subjectName, room }) => ({ startTime, endTime, subjectName, room })),
+    [
+      { startTime: '09:00', endTime: '10:00', subjectName: 'Data Structure using C', room: '409' },
+      { startTime: '10:00', endTime: '11:00', subjectName: 'Discrete Mathematics', room: '409' },
+      { startTime: '11:00', endTime: '12:00', subjectName: 'Library', room: null },
+      { startTime: '12:00', endTime: '13:00', subjectName: 'Complex Analysis and Integral Transforms', room: '606' },
+      { startTime: '13:00', endTime: '14:00', subjectName: 'Lunch Break', room: null },
+      { startTime: '14:00', endTime: '16:00', subjectName: 'Data Structure Lab', room: 'Lab3' },
+      { startTime: '16:00', endTime: '17:00', subjectName: 'Artificial Intelligence in Mechanical Engineering Systems', room: '405' },
+    ]
+  );
+
+  const finalWednesdayClass = csai2fDataset.timetable.find(
+    (entry) => entry.dayOfWeek === 3 && entry.startTime === '16:00'
+  );
+  assert.deepEqual(
+    { subject: finalWednesdayClass.subjectName, faculty: finalWednesdayClass.facultyName, room: finalWednesdayClass.room },
+    { subject: 'Digital Logic Design', faculty: 'Mr. Vivek Singh', room: '409' }
   );
 });
 
@@ -396,13 +430,16 @@ test('health, lookup, authentication, CRUD, and import workflows', async (t) => 
         university_roll_number: '1250439999',
         class_roll_number: 59,
         course: 'B.Tech',
-        branch: 'CSAI',
-        year: 2,
-        section: 'CSAI2B',
+        branch: 'CSE AI',
+        year: 7,
+        section: '2B',
       },
     });
     assert.equal(rollOnly.status, 201);
     assert.equal(rollOnly.body.data.university_roll_number, '1250439999');
+    assert.equal(rollOnly.body.data.branch, 'CSAI');
+    assert.equal(rollOnly.body.data.year, 2);
+    assert.equal(rollOnly.body.data.section, 'CSAI2B');
 
     const rollLookup = await apiRequest('/api/student/lookup', {
       method: 'POST',
@@ -551,10 +588,15 @@ test('health, lookup, authentication, CRUD, and import workflows', async (t) => 
     form.append('course', 'B.Tech');
     form.append('year', '1');
     form.append('section', 'CSE-A');
-    form.append('text', 'Day | Time | Subject | Teacher | Room\nTuesday | 10:00-11:00 | Physics | Dr. Rao | 414');
+    form.append('text', [
+      'Day | Time | Subject | Teacher | Room',
+      'Tuesday | 10:00-11:00 | Physics | Dr. Rao | 414',
+      'Class Coordinator: Dr. Meera Singh Mobile No.: 9000000199',
+    ].join('\n'));
     const imported = await apiRequest('/api/admin/timetables/import', { method: 'POST', token, body: form });
     assert.equal(imported.status, 200);
     assert.equal(imported.body.data.saved, false);
+    assert.deepEqual(imported.body.data.coordinator, { name: 'Dr. Meera Singh', phoneNumber: '9000000199' });
     assert.equal(imported.body.data.rows[0].parsedLocation.locationName, 'Central Instrument Lab');
     assert.equal((await queryAll('SELECT * FROM timetable_entries WHERE section = ?', ['CSE-A'])).length, beforeImport);
 
@@ -577,6 +619,7 @@ test('health, lookup, authentication, CRUD, and import workflows', async (t) => 
     assert.equal(imageImport.body.data.rows.length, 28);
     assert.equal(imageImport.body.data.rows.filter((row) => row.sessionType !== 'Break').length, 24);
     assert.equal(imageImport.body.data.rows.some((row) => row.day === 'Tuesday'), false);
+    assert.deepEqual(imageImport.body.data.coordinator, { name: 'Ms. Jyoti Yadav', phoneNumber: '' });
     assert.deepEqual(
       imageImport.body.data.rows.slice(0, 1).map(({ day, startTime, endTime, subjectName, classroom }) => (
         { day, startTime, endTime, subjectName, classroom }
@@ -616,6 +659,7 @@ test('health, lookup, authentication, CRUD, and import workflows', async (t) => 
       body: {
         course: 'B.Tech', year: 1, section: 'CSE-A', mode: 'replace',
         rows: [{ day: 'Tuesday', startTime: '10:00', endTime: '11:00', subject: 'DLD', teacher: 'Sharma', classroom: '407' }],
+        coordinator: imported.body.data.coordinator,
       },
     });
     assert.equal(replacement.status, 201);
@@ -625,6 +669,20 @@ test('health, lookup, authentication, CRUD, and import workflows', async (t) => 
     assert.equal(managedSchedule.body.data.rows[0].day, 'Tuesday');
     assert.equal(managedSchedule.body.data.rows[0].subjectName, 'Digital Logic Design');
     assert.equal(managedSchedule.body.data.rows[0].facultyName, 'Sharma');
+    const importedCoordinator = await queryAll(
+      `SELECT f.name, f.phone_number FROM section_coordinators sc
+       JOIN faculty f ON f.faculty_id = sc.faculty_id WHERE sc.section = ?`,
+      ['CSE-A']
+    );
+    assert.deepEqual(importedCoordinator, [{ name: 'Dr. Meera Singh', phone_number: '9000000199' }]);
+    const coordinatorLookup = await apiRequest('/api/student/lookup', {
+      method: 'POST',
+      body: { name: 'Test Student', phone_number: '7000000001' },
+    });
+    assert.equal(coordinatorLookup.status, 200);
+    assert.equal(coordinatorLookup.body.data.facultyContacts[0].role, 'Coordinator');
+    assert.equal(coordinatorLookup.body.data.facultyContacts[0].name, 'Dr. Meera Singh');
+    assert.equal(coordinatorLookup.body.data.facultyContacts[0].phoneNumber, '9000000199');
 
     const merged = await apiRequest('/api/admin/timetables', {
       method: 'POST',
@@ -778,6 +836,32 @@ test('health, lookup, authentication, CRUD, and import workflows', async (t) => 
     assert.equal(malformed.status, 400);
   });
 
+  await t.test('imports every page of a text-based BBDU PDF roster', async () => {
+    const sourcePdf = process.env.CSAI2B_SOURCE_PDF || path.resolve('..', 'CSAI 2B.pdf');
+    if (!fs.existsSync(sourcePdf)) {
+      t.skip('CSAI 2B.pdf is not available in this checkout');
+      return;
+    }
+
+    const form = new FormData();
+    form.append('file', new Blob([fs.readFileSync(sourcePdf)], { type: 'application/pdf' }), 'CSAI 2B.pdf');
+    form.append('course', 'B.Tech');
+    form.append('branch', 'CSAI');
+    form.append('year', '2');
+
+    const imported = await apiRequest('/api/admin/import/students', {
+      method: 'POST',
+      token,
+      body: form,
+    });
+
+    assert.equal(imported.status, 200);
+    assert.equal(imported.body.data.total, 59);
+    assert.equal(imported.body.data.imported, 55);
+    assert.equal(imported.body.data.skipped, 4);
+    assert.ok(imported.body.data.errors.every((error) => /already registered/.test(error)));
+  });
+
   await t.test('batches large imports and negotiates compressed JSON responses', async (t) => {
     const rows = ['Name,University Roll Number,Class Roll Number,Course,Branch,Year,Section'];
     for (let index = 0; index < 250; index++) {
@@ -826,6 +910,15 @@ test('health, lookup, authentication, CRUD, and import workflows', async (t) => 
 
   await t.test('does not restore a deliberately deleted seeded timetable on restart loading', async () => {
     await loadScheduleData({ accessRecords: [] });
+    const classes = await apiRequest('/api/admin/timetables', { token });
+    const csai2f = classes.body.data.classes.find((item) => item.section === 'CSAI2F');
+    assert.deepEqual(csai2f, {
+      course: 'B.Tech', branch: 'CSAI', year: 2, section: 'CSAI2F', student_count: 0,
+    });
+    const csai2fTimetable = await apiRequest('/api/admin/timetables/CSAI2F', { token });
+    assert.equal(csai2fTimetable.status, 200);
+    assert.equal(csai2fTimetable.body.data.rows.length, 28);
+
     const deleted = await apiRequest('/api/admin/timetables/class/CSAI2B', { method: 'DELETE', token });
     assert.equal(deleted.status, 200);
     assert.ok(deleted.body.deletedCount > 0);

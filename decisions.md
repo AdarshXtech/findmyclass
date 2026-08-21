@@ -643,3 +643,130 @@ More cell retries remain fragile for merged cells and small labels. Hard-coded r
 - `server/test/timetable-ocr.test.js`
 - `client/src/pages/AdminTimetablePage.jsx`
 - `client/src/pages/AdminTimetablePage.test.jsx`
+
+## Decision: Preserve CSAI 2F as an independent issued timetable dataset
+
+Date: 2026-08-21
+Session: CSAI 2F timetable transcription
+Status: Active
+
+### Problem
+
+The supplied timetable image is for CSAI 2F and differs from the existing CSAI 2G schedule in library periods, rooms, and the final Wednesday class. Reusing or modifying the CSAI 2G dataset would give one section the wrong timetable.
+
+### Considered Approaches
+
+1. Reuse the CSAI 2G timetable because most subjects and faculty are shared.
+2. Replace the existing CSAI 2G source data with the new image.
+3. Add a separate reviewed CSAI 2F dataset to the shared schedule loader.
+
+### Chosen Approach
+
+Add `csai2f-2026.json` as a separate source dataset and register it with the existing idempotent schedule loader. Preserve every printed room value for review and keep the printed coordinator phone number out of source control.
+
+### Why This Approach?
+
+Section-specific source data prevents timetable drift while reusing the established loader, subject schema, and database tables. It is the smallest change that keeps CSAI 2B, CSAI 2F, and CSAI 2G independent.
+
+### Why Not the Alternatives?
+
+The image contains material differences from CSAI 2G, so sharing or replacing that timetable would corrupt one section. Hard-coding rows in UI components would bypass the database-backed schedule flow.
+
+### Trade-offs
+
+- Advantages: exact section schedule, no new schema or runtime dependency, and existing schedules remain untouched during idempotent loading.
+- Disadvantages: issued timetable corrections must be applied to this dataset or through the admin timetable manager.
+- Privacy implications: the coordinator name may be inferred from faculty data, but the printed phone number is not committed.
+
+### Files Affected
+
+- `server/data/csai2f-2026.json`
+- `server/config/load-schedule-data.js`
+- `server/data/README.md`
+- `server/test/api.test.js`
+
+## Decision: Proxy administrator sessions through the frontend origin
+
+Date: 2026-08-21
+Session: Production administrator login recovery
+Status: Active
+
+### Problem
+
+The production administrator account and API login were valid, but the browser could not reliably retain the Secure HttpOnly session cookie because the Vercel frontend and DuckDNS API were different sites. Browser privacy settings could therefore turn a successful login into the generic login error.
+
+### Considered Approaches
+
+1. Require administrators to enable third-party cookies.
+2. Return the administrator JWT to browser JavaScript and store it locally.
+3. Proxy only `/api/admin` requests through the existing Vercel origin while retaining the HttpOnly cookie session.
+
+### Chosen Approach
+
+Use `/api/admin` as the administrator client base URL and place the external API rewrite before the SPA fallback in both Vercel configurations. The Vite development proxy already handles the same path locally.
+
+### Why This Approach?
+
+The browser now sees the administrator cookie as first-party while the backend remains on the Droplet. This preserves HttpOnly storage, CSRF protection, and the existing API without requiring weaker browser settings or a new service.
+
+### Why Not the Alternatives?
+
+Requiring third-party cookies is unreliable and user-specific. Exposing the JWT to JavaScript would weaken the session design and increase the impact of an XSS vulnerability.
+
+### Trade-offs
+
+- Advantages: reliable production login, no CORS dependency for administrator requests, and unchanged local development behavior.
+- Disadvantages: administrator API availability now also depends on Vercel's external rewrite.
+- Security implications: the session remains Secure, HttpOnly, and CSRF-protected; the backend is still the only credential verifier.
+
+### Files Affected
+
+- `client/src/admin/api.js`
+- `client/src/admin/api.test.js`
+- `vercel.json`
+- `client/vercel.json`
+
+## Decision: Canonicalize CSAI class identity as branch, year, and section
+
+Date: 2026-08-21
+Session: CSAI section identity repair
+Status: Active
+
+### Problem
+
+Equivalent student classes were stored under labels such as `2B`, `CSAI2B`, and `CSEAI2B`. Dashboard counts and timetable selectors therefore treated one class as several sections, while a valid CSAI 2F timetable remained hidden when that section had no student record yet.
+
+### Considered Approaches
+
+1. Merge labels only in the dashboard UI.
+2. Keep aliases and add a separate alias lookup table.
+3. Normalize CSAI identifiers at the shared validation boundary and migrate existing aliases transactionally.
+
+### Chosen Approach
+
+Represent a CSAI class as branch `CSAI`, numeric year, and one section letter, with the compact storage key `CSAI{year}{section}`. Normalize accepted legacy forms on every admin write and migrate matching student, timetable, classroom, faculty, coordinator, and seed records. Include timetable-backed classes in the admin selector even when their student count is zero.
+
+### Why This Approach?
+
+One canonical key fixes every current caller without adding another table or leaving duplicate identities in reporting. The existing migration runner provides an atomic, repeatable deployment path.
+
+### Why Not the Alternatives?
+
+UI-only grouping would leave lookups and timetable queries inconsistent. An alias table adds maintenance and query complexity for formats that can be parsed deterministically.
+
+### Trade-offs
+
+- Advantages: one dashboard section, consistent imports and edits, and visible timetable-only classes such as CSAI2F.
+- Disadvantages: bare values such as `2B` are intentionally interpreted as CSAI classes in this application.
+- Data safety: conflicting timetable slots keep the canonical row and discard only duplicate alias slots during migration; students are never deleted.
+
+### Files Affected
+
+- `server/utils/validation.js`
+- `server/migrations/002-normalize-csai-sections.js`
+- `server/config/db.js`
+- `server/routes/admin.js`
+- `server/config/load-schedule-data.js`
+- `server/test/section-normalization.test.js`
+- `server/test/section-migration.test.js`
+- `server/test/api.test.js`

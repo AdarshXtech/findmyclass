@@ -21,7 +21,21 @@ function isValidClassRollNumber(value) {
 }
 
 function normalizeSection(section) {
-  return String(section || '').trim().toUpperCase();
+  const value = String(section || '').trim().toUpperCase();
+  const compact = value.replace(/[\s_-]+/g, '');
+  const csai = compact.match(/^(?:CSAI|CSEAI)?([1-8])([A-Z])$/);
+  return csai ? `CSAI${csai[1]}${csai[2]}` : value;
+}
+
+function normalizeBranch(branch) {
+  const value = String(branch || '').trim().replace(/\s+/g, ' ').toUpperCase();
+  return ['CSAI', 'CSEAI'].includes(value.replace(/[\s_-]+/g, '')) ? 'CSAI' : value;
+}
+
+function parseCsaiSection(section) {
+  const normalized = normalizeSection(section);
+  const match = normalized.match(/^CSAI([1-8])([A-Z])$/);
+  return match ? { branch: 'CSAI', year: Number(match[1]), section: normalized, sectionLetter: match[2] } : null;
 }
 
 function isValidSection(section) {
@@ -51,6 +65,8 @@ module.exports = {
   normalizeClassRollNumber,
   isValidClassRollNumber,
   normalizeSection,
+  normalizeBranch,
+  parseCsaiSection,
   isValidSection,
   normalizeWing,
   isValidWing,

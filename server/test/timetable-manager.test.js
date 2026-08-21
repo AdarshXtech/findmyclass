@@ -3,6 +3,8 @@ const assert = require('node:assert/strict');
 const {
   CONFLICT_ERROR,
   DUPLICATE_ERROR,
+  matchCoordinatorToFaculty,
+  parseTimetableCoordinator,
   parseTimetableText,
   shiftRows,
   validateRows,
@@ -66,6 +68,26 @@ test('blocks overlapping classes and parses table imports into an unsaved previe
   );
   assert.equal(lowerGroundLab.room, 'LGF001');
   assert.equal(lowerGroundLab.parsedLocation.fullLocationName, 'Digital Logic Design Lab');
+});
+
+test('extracts class coordinator details without treating them as timetable rows', () => {
+  const text = [
+    'Day | Time | Subject | Teacher | Room',
+    'Monday | 10:00 AM - 11:00 AM | Digital Logic Design | Mr. Sharma | 407',
+    'Class Coordinator: Ms. Jyoti Yadav Mobile No.: +91 98765-43210',
+  ].join('\n');
+
+  assert.deepEqual(parseTimetableCoordinator(text), {
+    name: 'Ms. Jyoti Yadav',
+    phoneNumber: '9876543210',
+  });
+  assert.equal(parseTimetableText(text).length, 1);
+  assert.equal(parseTimetableText('Monday\nClass Coordinator: Ms. Jyoti Yadav Mobile No.: 98765-43210').length, 0);
+  assert.equal(parseTimetableCoordinator('Monday 10:00-11:00 Physics Dr. Rao 407'), null);
+  assert.deepEqual(
+    matchCoordinatorToFaculty({ name: 'Ms. Jvoti Yadav', phoneNumber: '' }, [{ facultyName: 'Ms. Jyoti Yadav' }]),
+    { name: 'Ms. Jyoti Yadav', phoneNumber: '' }
+  );
 });
 
 test('accepts lunch breaks, rejects Saturday, and reports exact duplicates', () => {

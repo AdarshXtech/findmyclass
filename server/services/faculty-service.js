@@ -70,4 +70,28 @@ async function saveFaculty(body, adminId) {
   return { faculty: formatFaculty(await facultyRepository.findById(facultyId), values.role) };
 }
 
-module.exports = { facultyForStudent, formatFaculty, saveFaculty, validateFacultyInput };
+async function saveImportedCoordinator(body, section, adminId, operations) {
+  const values = validateFacultyInput({
+    ...body,
+    section,
+    role: 'Coordinator',
+    designation: body.designation || 'Class Coordinator',
+  });
+  if (values.errors.length) return { errors: values.errors };
+
+  const existing = await facultyRepository.findByNormalizedName(normalizeFacultyName(values.name), operations);
+  if (!values.phoneNumber && existing?.phone_number) values.phoneNumber = existing.phone_number;
+  if (existing?.designation) values.designation = existing.designation;
+  if (existing?.department) values.department = existing.department;
+
+  const facultyId = await facultyRepository.saveContact(values, operations);
+  await facultyRepository.setCoordinator(values.section, facultyId, operations);
+  await operations.execute(
+    `INSERT INTO admin_audit_log (admin_id, action, entity_type, entity_id, details)
+     VALUES (?, 'IMPORT_COORDINATOR', 'FACULTY', ?, ?)`,
+    [adminId, String(facultyId), JSON.stringify({ section: values.section })]
+  );
+  return { facultyId };
+}
+
+module.exports = { facultyForStudent, formatFaculty, saveFaculty, saveImportedCoordinator, validateFacultyInput };

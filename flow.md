@@ -304,12 +304,17 @@ JSON seed, admin form, pasted text, or timetable image
 -> shared timetable cards
 ```
 
+The bundled seed path loads the independently reviewed CSAI 2B, CSAI 2F, and CSAI 2G datasets. With replacement disabled, an existing section is marked as seeded and left unchanged; a new section such as CSAI 2F is inserted without replacing the other class timetables.
+
+CSAI class identity is stored as `CSAI{year}{section letter}`. Admin create, edit, CSV/Excel/PDF import, timetable lookup, and access-record loading call `normalizeSection()` so legacy forms such as `2B`, `CSAI 2B`, and `CSEAI2B` resolve to `CSAI2B`. Migration `002-normalize-csai-sections` merges existing aliases across section-owned records and corrects the student branch and year. The timetable class list unions student-backed classes with timetable-backed CSAI sections, so a loaded CSAI2F schedule is editable before its first student is added.
+
 ### Admin mutations
 
 ```text
 Admin form state
 -> frontend validation
--> credentialed request with CSRF header
+-> same-origin /api/admin request through Vercel in production or Vite locally
+-> Droplet administrator API with HttpOnly session cookie and CSRF header
 -> cookie, CSRF, role, and payload validation
 -> transaction or single database operation
 -> API response
@@ -1268,3 +1273,123 @@ Image imports now use the full OCR result instead of OCRing every narrow cell. M
 
 - Import the supplied CSAI 2G image and expand each weekday before saving.
 - Review unsupported locations such as `606`, `Lab3`, and `CH` rather than accepting them without a confirmed map entry.
+
+## AI Session: 2026-08-21 CSAI 2F timetable +05:30
+
+### Files Created
+
+- `server/data/csai2f-2026.json`
+
+### Files Modified
+
+- `server/config/load-schedule-data.js`
+- `server/data/README.md`
+- `server/test/api.test.js`
+- `decisions.md`
+- `flow.md`
+
+### Functions Added or Modified
+
+- `loadScheduleData()` now includes the independent CSAI 2F source dataset in the existing idempotent seed flow.
+
+### Execution and Behaviour Changes
+
+The shared schedule loader can now seed CSAI 2F without replacing existing CSAI 2B or CSAI 2G rows when replacement is disabled. The reviewed source contains 24 teaching or library sessions, four lunch breaks, and no Monday or Saturday entries.
+
+### Risks
+
+- Printed locations `606`, `Lab3`, `LGF001`, and `CH` are preserved verbatim and may require administrator review where the classroom map does not recognize them.
+- No CSAI 2F roster or private coordinator phone number was added; student access remains managed through existing student import and environment-backed identity records.
+
+### Tests Run
+
+- Server test suite: 50 passed and 1 source-PDF test skipped because the external PDF is not present in the checkout.
+- Local SQLite seed: 28 CSAI 2F rows loaded; days are Tuesday through Friday; existing section timetables were not replaced.
+
+### Recommended Manual Tests
+
+- Open CSAI 2F in Admin > Timetables and compare all Tuesday-Friday rows with the issued image.
+- Review the printed unsupported locations before publishing the timetable to students.
+
+## AI Session: 2026-08-21 production administrator proxy +05:30
+
+### Files Created
+
+- `client/src/admin/api.test.js`
+
+### Files Modified
+
+- `client/src/admin/api.js`
+- `vercel.json`
+- `client/vercel.json`
+- `decisions.md`
+- `flow.md`
+
+### Functions Added or Modified
+
+- The shared `adminApi` Axios client now always targets the same-origin `/api/admin` path.
+
+### Execution and Behaviour Changes
+
+Production administrator login and protected API requests pass through Vercel to the DuckDNS API, allowing the Secure HttpOnly administrator cookie to remain first-party. Local requests continue through the existing Vite `/api` proxy. Public student lookup remains unchanged.
+
+### Risks
+
+- A missing or reordered Vercel API rewrite would return the SPA document for administrator requests.
+- The external API must remain reachable from Vercel.
+
+### Tests Run
+
+- Vite production build: passed.
+- Focused administrator API configuration test: passed.
+- Full Vitest attempt: 26 tests passed; 11 test workers timed out during startup on the local Windows environment.
+
+### Recommended Manual Tests
+
+- Redeploy Vercel, sign in at `/admin/login`, refresh the dashboard, and verify the session persists.
+- Create a temporary student, verify it appears in the student list, and remove it after testing.
+
+## AI Session: 2026-08-21 CSAI section identity repair +05:30
+
+### Files Created
+
+- `server/migrations/002-normalize-csai-sections.js`
+- `server/test/section-migration.test.js`
+- `server/test/section-normalization.test.js`
+
+### Files Modified
+
+- `server/config/db.js`
+- `server/config/load-schedule-data.js`
+- `server/routes/admin.js`
+- `server/test/api.test.js`
+- `server/utils/validation.js`
+- `decisions.md`
+- `flow.md`
+
+### Functions Added or Modified
+
+- `normalizeSection()`, `normalizeBranch()`, and `parseCsaiSection()` canonicalize CSAI class identity.
+- Migration `002-normalize-csai-sections.up()` merges existing section aliases transactionally.
+- `getTimetableContext()` and `GET /api/admin/timetables` include timetable-backed sections without requiring a student record.
+- Student create, update, bulk import, timetable operations, and access-record loading use the shared normalizer.
+
+### Execution and Behaviour Changes
+
+`2B`, `CSAI 2B`, and `CSEAI2B` now resolve to `CSAI2B`, with branch `CSAI` and year `2`. Existing alias counts are merged at startup without deleting students. CSAI2F appears in the timetable manager when its bundled schedule is loaded, even with zero students.
+
+### Risks
+
+- Bare year-and-letter sections are interpreted as CSAI because this deployment is the CSAI timetable application.
+- When an alias and canonical timetable contain the same day, start time, and academic session, the canonical slot wins.
+
+### Tests Run
+
+- SQLite server suite: 52 passed, 1 skipped because the external roster PDF is unavailable.
+- PostgreSQL-compatible server suite: 52 passed, 1 skipped for the same external PDF.
+- Migration tests confirm three 2B aliases become one `CSAI2B` group without losing students or schedule rows.
+
+### Recommended Manual Tests
+
+- Restart production and confirm Students by Section shows one `CSAI2B` row with the combined count.
+- Load bundled schedules and open CSAI2F in Admin > Timetables before and after adding a CSAI2F student.

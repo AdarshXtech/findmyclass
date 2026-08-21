@@ -5,6 +5,7 @@ const path = require('path');
 const { CircuitBreaker } = require('../utils/circuit-breaker');
 const migrations = [
   require('../migrations/001-production-foundation'),
+  require('../migrations/002-normalize-csai-sections'),
 ];
 
 const configuredDatabasePath = String(process.env.DATABASE_PATH || '').trim();

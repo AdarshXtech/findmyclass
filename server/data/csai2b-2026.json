@@ -68,7 +68,8 @@
     { "classRollNumber": 55, "universityRollNumber": "1250439470", "name": "VISHAAL MAURYA" },
     { "classRollNumber": 56, "universityRollNumber": "1250439473", "name": "YASH KASHYAP" },
     { "classRollNumber": 57, "universityRollNumber": "1250439478", "name": "YUVRAJ SINGH" },
-    { "classRollNumber": 58, "universityRollNumber": "1250439483", "name": "VARSHA SRIVASTAVA" }
+    { "classRollNumber": 58, "universityRollNumber": "1250439483", "name": "VARSHA SRIVASTAVA" },
+    { "classRollNumber": 59, "universityRollNumber": "1250439494", "name": "PRATIK SINGH" }
   ],
   "subjects": [
     { "code": "NBS4301", "name": "Complex Analysis and Integral Transforms", "shortCode": "CAIT", "facultyCode": "PS", "facultyName": "Dr. Priyanka Singh" },

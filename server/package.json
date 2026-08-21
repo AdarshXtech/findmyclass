@@ -27,6 +27,7 @@
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.0.1",
+    "pdfjs-dist": "4.10.38",
     "pg": "^8.22.0",
     "sql.js": "^1.11.0",
     "tesseract.js": "^7.0.0"

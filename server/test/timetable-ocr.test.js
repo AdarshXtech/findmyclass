@@ -62,3 +62,36 @@ test('reconstructs OCR-distorted BBDU rows and merged time slots', () => {
   assert.equal(classRows.find((row) => row.day === 'Thursday' && row.startTime === '14:00').classroom, '408');
   assert.equal(rows.some((row) => row.day === 'Saturday'), false);
 });
+
+test('infers timetable rows when OCR misses day labels and reads Credit as Codes', () => {
+  const lines = [
+    line('B.Tech Second Year, Odd Semester Academic Session: 2026-27', 104, [
+      ['Academic', 704, 801], ['Session:', 809, 886], ['2026-27', 895, 974],
+    ]),
+    line('L/DM/SM/414 L/CAIT/US/409', 229, [
+      ['L/DM/SM/414', 198, 305], ['L/CAIT/US/409', 332, 449],
+    ]),
+    line('P/DS/SP/Labl L/DSUC/SP/408', 282, [
+      ['P/DS/SP/Labl', 257, 371], ['L/DSUC/SP/408', 465, 586],
+    ]),
+    line('L/DLD/VS/407', 401, [['L/DLD/VS/407', 470, 581]]),
+    line('L/IS/PV/408 LIB', 458, [['L/IS/PV/408', 834, 925], ['LIB', 1137, 1165]]),
+    line('Credit', 526, [['Credit', 114, 162]]),
+  ];
+  const text = [
+    '3 NCS4301 Discrete Mathematics L/DM/SM Ms. Surabhi Mishra',
+    '4 NBS4301 Complex Analysis and Integral Transforms L/CAIT/US Mr. U.S. Shukla',
+    '4 NCS4302 Data Structure using C L/DSUC/SP Ms. Sapna Pal',
+    '1 NCS4352 Data Structure Lab P/DS/SP Ms. Sapna Pal',
+    '3 NCS4303 Digital Logic Design L/DLD/VS Mr. Vivek Kumar Singh',
+    '2 NHS4302 Industrial Sociology L/IS/PV Dr. Pooja Verma',
+  ].join('\n');
+
+  const rows = extractGridRowsFromOcrData({ text, blocks: [{ paragraphs: [{ lines }] }] });
+  const classRows = rows.filter((row) => row.sessionType !== 'Break');
+
+  assert.deepEqual(classRows.map((row) => row.day), ['Monday', 'Monday', 'Tuesday', 'Tuesday', 'Thursday', 'Friday', 'Friday']);
+  assert.ok(classRows.find((row) => row.classroom === 'Lab1'));
+  assert.ok(classRows.find((row) => row.sessionType === 'Library'));
+  assert.equal(rows.filter((row) => row.sessionType === 'Break').length, 4);
+});

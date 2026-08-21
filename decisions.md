@@ -662,11 +662,11 @@ Reading each timetable cell as a separate image lost short values such as `LIB`,
 
 ### Chosen Approach
 
-Run one full-page OCR pass, fit the detected time headers to the known timetable slot widths, group words by their geometric position, and match noisy metadata against the timetable legend. Infer row bands from the academic and course headers when OCR does not recognize day labels. Keep the existing verification and classroom validation stage for uncertain locations.
+Run a full-page OCR pass, fit the detected time headers to the known timetable slot widths, group words by their geometric position, and match noisy metadata against the timetable legend. Infer row bands from the academic and course headers when OCR does not recognize day labels. When fewer than two day labels are recognized, run one sparse-text fallback pass and keep whichever geometric reconstruction contains more rows. Keep the existing verification and classroom validation stage for uncertain locations.
 
 ### Why This Approach?
 
-The full-page OCR already recognizes the class metadata accurately enough and preserves the coordinates needed to recover merged cells. Reusing that result is faster and more reliable than dozens of narrow OCR passes, while remaining format-driven rather than timetable-specific.
+Full-page OCR recognizes the legend accurately and preserves the coordinates needed to recover merged cells. The selective sparse pass recovers isolated short cells such as `LIB` only when the primary result has already shown that its grid labels are incomplete, avoiding dozens of narrow cell retries while remaining format-driven rather than timetable-specific.
 
 ### Why Not the Alternatives?
 
@@ -675,7 +675,7 @@ More cell retries remain fragile for merged cells and small labels. Hard-coded r
 ### Trade-offs
 
 - Advantages: merged practicals, library periods, empty weekdays, and scans with missing day labels are reconstructed consistently.
-- Disadvantages: the importer still assumes the issued BBDU Monday-to-Friday grid and its eight standard time columns.
+- Disadvantages: scans with missing day labels require a second OCR pass, and the importer still assumes the issued BBDU Monday-to-Friday grid and its eight standard time columns.
 - Safety: unsupported rooms remain marked for admin review instead of being silently accepted or invented.
 
 ### Files Affected

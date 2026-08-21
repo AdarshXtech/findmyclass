@@ -21,9 +21,19 @@ function flattenLines(blocks) {
     .flatMap((paragraph) => paragraph.lines || []);
 }
 
+function isLegendHeader(line) {
+  const text = String(line?.text || '');
+  return /\bCourse\b/i.test(text) && /\b(?:Credit|Codes?)\b/i.test(text) && /\bFaculty\b/i.test(text);
+}
+
+function findLegendHeader(lines) {
+  return lines.find(isLegendHeader)
+    || lines.find((line) => /^\s*(?:Credit|Codes?)\s*$/i.test(String(line?.text || '')));
+}
+
 async function recognizeCoordinatorStrip(worker, image, data) {
   const pageLines = flattenLines(data.blocks);
-  const creditHeader = pageLines.find((line) => /\bCredit\b/i.test(line.text) && /Course/i.test(line.text));
+  const creditHeader = findLegendHeader(pageLines);
   const academicHeader = pageLines.find((line) => /Academic Session/i.test(line.text));
   if (!creditHeader) return '';
 
@@ -120,7 +130,7 @@ function compactCell(value) {
 }
 
 function normalizeDigits(value) {
-  return value.replace(/O/g, '0').replace(/I/g, '1').replace(/S/g, '8');
+  return value.replace(/O/g, '0').replace(/[IL]/g, '1').replace(/S/g, '8');
 }
 
 function splitRoom(value) {
@@ -131,8 +141,8 @@ function splitRoom(value) {
     return { metadata: compact.slice(0, special.index), classroom: `${prefix}${normalizeDigits(special[0].slice(3))}` };
   }
 
-  const lab = compact.match(/LAB\d{1,2}$/);
-  if (lab) return { metadata: compact.slice(0, lab.index), classroom: `Lab${lab[0].slice(3)}` };
+  const lab = compact.match(/LAB[0-9OISL]{1,2}$/);
+  if (lab) return { metadata: compact.slice(0, lab.index), classroom: `Lab${normalizeDigits(lab[0].slice(3))}` };
   if (compact.endsWith('CH')) return { metadata: compact.slice(0, -2), classroom: 'CH' };
 
   const numbered = compact.match(/(?:A([0-9OIS]{2,3})|([0-9][0-9OIS]{1,2}))$/);
@@ -251,7 +261,7 @@ function combineLines(lines, text) {
 
 function extractGridRowsFromOcrData(data) {
   const pageLines = flattenLines(data.blocks);
-  const creditHeader = pageLines.find((line) => /\bCredit\b/i.test(line.text) && /Course/i.test(line.text));
+  const creditHeader = findLegendHeader(pageLines);
   const academicHeader = pageLines.find((line) => /Academic Session/i.test(line.text));
   let dayLines = DAYS.map((day) => pageLines.find((line) => new RegExp(`^${day.slice(0, 3)}`, 'i').test(String(line.text || '').trim())));
   if (dayLines.filter(Boolean).length < 2 && creditHeader) {
@@ -334,7 +344,14 @@ async function extractTimetableImage(buffer) {
     worker = await createWorker('eng', undefined, { cachePath });
     await worker.setParameters({ tessedit_pageseg_mode: PSM.AUTO, preserve_interword_spaces: '1' });
     const result = await worker.recognize(buffer, {}, { blocks: true });
-    const rows = extractGridRowsFromOcrData(result.data);
+    let rows = extractGridRowsFromOcrData(result.data);
+    const recognizedDays = DAYS.filter((day) => new RegExp(`^${day.slice(0, 3)}`, 'im').test(result.data.text)).length;
+    if (recognizedDays < 2) {
+      await worker.setParameters({ tessedit_pageseg_mode: PSM.SPARSE_TEXT, preserve_interword_spaces: '1' });
+      const sparseResult = await worker.recognize(buffer, {}, { blocks: true });
+      const sparseRows = extractGridRowsFromOcrData({ ...sparseResult.data, text: result.data.text });
+      if (sparseRows.length > rows.length) rows = sparseRows;
+    }
     const coordinatorText = await recognizeCoordinatorStrip(worker, buffer, result.data);
     return {
       text: [result.data.text, coordinatorText].filter(Boolean).join('\n'),

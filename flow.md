@@ -218,7 +218,8 @@ The supplied CSAI 2B roster was visually checked against its extracted text. It 
 AdminTimetablePage.importTimetable()
 -> POST /api/admin/timetables/import with image or text
 -> authenticateToken
--> image: extractTimetableImage() runs one full-page Tesseract pass
+-> image: extractTimetableImage() runs a full-page Tesseract pass
+   -> when fewer than two day labels are recognized, a sparse-text pass recovers isolated grid cells
    -> extractGridRowsFromOcrData() fits time-column geometry
    -> recognized day labels or inferred row bands assign Monday-Friday rows
    -> legend matching normalizes noisy subject, faculty, and room metadata
@@ -1464,3 +1465,38 @@ University headings or other document lines before `Time/Day` no longer force th
 ### Recommended Manual Tests
 
 - Paste the full issued timetable, including its university heading and coordinator/footer tables, and confirm weekday counts are populated before saving.
+
+## AI Session: 2026-08-21 CSAI 2E image OCR repair +05:30
+
+### Files Modified
+
+- `server/utils/timetable-ocr.js`
+- `server/test/timetable-ocr.test.js`
+- `decisions.md`
+- `flow.md`
+
+### Functions Added or Modified
+
+- `findLegendHeader()` accepts both combined legend headings and OCR-separated `Credit`/`Codes` headings.
+- `splitRoom()` normalizes `Labl` OCR output to `Lab1`.
+- `extractTimetableImage()` conditionally runs sparse-text recognition when the primary pass misses weekday labels.
+
+### Execution and Behaviour Changes
+
+Image imports no longer return an empty preview when Tesseract reads `Credit` as `Codes` or separates legend heading cells. A selective sparse pass recovers short isolated cells such as Friday `LIB`; the richer reconstructed result continues through the existing editable validation preview.
+
+### Risks
+
+- The sparse fallback adds one OCR pass only for images with fewer than two recognized weekday labels.
+- Faculty spelling produced by OCR still requires administrator review before saving.
+
+### Tests Run
+
+- Timetable OCR tests: 2 passed, including missing weekday labels, split legend headers, `Labl`, and `LIB`.
+- Exact CSAI 2E image: 28 entries reconstructed; weekday counts are 7, 7, 0, 7, and 7.
+- Full SQLite server suite: 54 passed, 1 external-PDF test skipped.
+- Full PostgreSQL-compatible server suite: 54 passed, 1 external-PDF test skipped.
+
+### Recommended Manual Tests
+
+- Upload the CSAI 2E source image, confirm 28 preview entries and coordinator Vivek Kumar Singh, then review faculty spelling before saving.

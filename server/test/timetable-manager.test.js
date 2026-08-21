@@ -92,8 +92,13 @@ test('extracts class coordinator details without treating them as timetable rows
 
 test('turns a pasted BBDU timetable matrix into editable rows', () => {
   const rows = parseTimetableText([
+    'Babu Banarasi Das University',
+    'School of Engineering',
+    'B.Tech Second Year, Odd Semester Academic Session: 2026-27',
     'Time/Day | 09 to 10 | 10 to 11 | 11 to 12 | 12 to 1 | 1 to 2 | 2 to 3 | 3 to 4 | 4 to 5',
     'Mon | L/DSUC/GS/409 | L/DM/SM/409 | LIB | L/CAIT/US/606 | L | P/DS/GS/Lab3 | | L/AIMES/MS/405',
+    'Class Coordinator: Mr. Gaurav Singh | Mobile No.: 9000000000',
+    'Credit | Codes | Course Name | Meta Data | Faculty Name',
   ].join('\n'));
 
   assert.equal(rows.length, 7);

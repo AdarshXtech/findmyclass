@@ -223,7 +223,7 @@ AdminTimetablePage.importTimetable()
    -> recognized day labels or inferred row bands assign Monday-Friday rows
    -> legend matching normalizes noisy subject, faculty, and room metadata
    -> merged-cell centers determine one-, two-, or three-slot durations
-   or text: parseTimetableText()
+   or text: parseTimetableText() scans the complete paste for the `Time/Day` matrix header
 -> validateRows()
 -> detect unique faculty names and match the faculty directory
 -> return editable preview and faculty verification list; nothing saved
@@ -1433,3 +1433,34 @@ Pasted row tables continue through the existing parser. Pipe- and tab-delimited 
 
 - Paste a complete BBDU timetable grid and confirm every populated weekday cell appears in verification.
 - Correct one `Day needs review` row, validate it, and confirm nothing is written before final approval.
+
+## AI Session: 2026-08-21 complete timetable paste header repair +05:30
+
+### Files Modified
+
+- `server/utils/timetable-manager.js`
+- `server/test/timetable-manager.test.js`
+- `decisions.md`
+- `flow.md`
+
+### Functions Modified
+
+- `parseTimetableMatrix()` locates the timetable header anywhere in a complete pasted document.
+
+### Execution and Behaviour Changes
+
+University headings or other document lines before `Time/Day` no longer force the text importer into the plain-text fallback. The parser starts matrix rows after the detected header and ignores non-weekday footer rows.
+
+### Risks
+
+- The matrix still requires pipe or tab column separators so blank timetable cells retain their column positions.
+
+### Tests Run
+
+- Timetable parser tests: 8 passed, including a full document paste with heading and footer lines.
+- Full SQLite server suite: 53 passed, 1 external-PDF test skipped.
+- Full PostgreSQL-compatible server suite: 53 passed, 1 external-PDF test skipped.
+
+### Recommended Manual Tests
+
+- Paste the full issued timetable, including its university heading and coordinator/footer tables, and confirm weekday counts are populated before saving.

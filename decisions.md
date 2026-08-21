@@ -127,7 +127,7 @@ The import API could return rows whose day was unreadable, but the verification 
 
 ### Chosen Approach
 
-Recognize pipe- or tab-delimited timetable matrices with time-slot columns, convert their cells into the existing validation row shape, and keep invalid-day rows visible under `Day needs review`. Stay on the import form when no rows are detected.
+Scan the complete pasted document for a pipe- or tab-delimited `Time/Day` matrix header, convert its time-slot cells into the existing validation row shape, and keep invalid-day rows visible under `Day needs review`. Stay on the import form when no rows are detected.
 
 ### Why This Approach?
 
@@ -139,7 +139,7 @@ Rejecting imperfect rows discards recoverable work. Requiring manual table conve
 
 ### Trade-offs
 
-- Advantages: BBDU grid pastes, afternoon shorthand times, lunch, library, and merged practical cells produce visible editable rows.
+- Advantages: complete BBDU document pastes may include university headings and footer tables; the timetable grid, afternoon shorthand times, lunch, library, and merged practical cells still produce visible editable rows.
 - Disadvantages: abbreviated faculty codes still require administrator review when the pasted table does not include a faculty legend.
 - Safety: nothing is saved until the existing validation and confirmation flow succeeds.
 

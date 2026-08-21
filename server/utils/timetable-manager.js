@@ -221,15 +221,25 @@ function matrixCell(value, startTime, endTime) {
 function parseTimetableMatrix(text) {
   const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
   if (lines.length < 2) return [];
-  const delimiter = lines[0].includes('|') ? '|' : lines[0].includes('\t') ? '\t' : null;
-  if (!delimiter) return [];
-
-  const headers = lines[0].split(delimiter).map((cell) => cell.trim());
-  const slots = headers.slice(1).map(splitTimeRange);
-  if (slots.filter(([start, end]) => start && end).length < 2) return [];
+  let headerIndex = -1;
+  let delimiter = null;
+  let slots = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    const candidateDelimiter = lines[index].includes('|') ? '|' : lines[index].includes('\t') ? '\t' : null;
+    if (!candidateDelimiter) continue;
+    const headers = lines[index].split(candidateDelimiter).map((cell) => cell.trim());
+    const candidateSlots = headers.slice(1).map(splitTimeRange);
+    if (/\b(?:time|day)\b/i.test(headers[0]) && candidateSlots.filter(([start, end]) => start && end).length >= 2) {
+      headerIndex = index;
+      delimiter = candidateDelimiter;
+      slots = candidateSlots;
+      break;
+    }
+  }
+  if (headerIndex < 0) return [];
 
   const rows = [];
-  for (const line of lines.slice(1)) {
+  for (const line of lines.slice(headerIndex + 1)) {
     const cells = line.split(delimiter).map((cell) => cell.trim());
     const dayOfWeek = normalizeDay(cells[0]);
     if (!dayOfWeek) continue;

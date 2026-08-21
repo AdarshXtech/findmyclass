@@ -1393,3 +1393,43 @@ Production administrator login and protected API requests pass through Vercel to
 
 - Restart production and confirm Students by Section shows one `CSAI2B` row with the combined count.
 - Load bundled schedules and open CSAI2F in Admin > Timetables before and after adding a CSAI2F student.
+
+## AI Session: 2026-08-21 pasted timetable preview repair +05:30
+
+### Files Modified
+
+- `server/utils/timetable-manager.js`
+- `server/test/timetable-manager.test.js`
+- `client/src/pages/AdminTimetablePage.jsx`
+- `client/src/pages/AdminTimetablePage.test.jsx`
+- `decisions.md`
+- `flow.md`
+
+### Functions Added or Modified
+
+- `splitTimeRange()` interprets bare afternoon timetable hours such as `1 to 2` as `13:00` to `14:00`.
+- `parseTimetableMatrix()` and `matrixCell()` convert wide BBDU pasted tables into validation rows.
+- `VerificationRows()` displays imported rows with unreadable days under `Day needs review`.
+- `importTimetable()` remains in import mode when the server detects zero rows.
+
+### Execution and Behaviour Changes
+
+Pasted row tables continue through the existing parser. Pipe- and tab-delimited timetable grids now parse time-slot columns, lunch letters, library cells, lecture/practical metadata, and blank continuation cells for merged practicals. Rows that still lack a valid weekday stay visible and editable instead of disappearing from the preview.
+
+### Risks
+
+- Matrix imports preserve abbreviated faculty codes when no legend accompanies the paste; administrators must review these before saving.
+- Unsupported classroom labels remain visible as validation errors and are not silently accepted.
+
+### Tests Run
+
+- Timetable parser tests: 8 passed, including a wide BBDU matrix.
+- Admin timetable interaction tests: 16 passed, including unassigned rows and empty imports.
+- Full SQLite server suite: 53 passed, 1 external-PDF test skipped.
+- Full PostgreSQL-compatible server suite: 53 passed, 1 external-PDF test skipped.
+- Vite production build: passed.
+
+### Recommended Manual Tests
+
+- Paste a complete BBDU timetable grid and confirm every populated weekday cell appears in verification.
+- Correct one `Day needs review` row, validate it, and confirm nothing is written before final approval.

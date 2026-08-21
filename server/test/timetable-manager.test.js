@@ -90,6 +90,29 @@ test('extracts class coordinator details without treating them as timetable rows
   );
 });
 
+test('turns a pasted BBDU timetable matrix into editable rows', () => {
+  const rows = parseTimetableText([
+    'Time/Day | 09 to 10 | 10 to 11 | 11 to 12 | 12 to 1 | 1 to 2 | 2 to 3 | 3 to 4 | 4 to 5',
+    'Mon | L/DSUC/GS/409 | L/DM/SM/409 | LIB | L/CAIT/US/606 | L | P/DS/GS/Lab3 | | L/AIMES/MS/405',
+  ].join('\n'));
+
+  assert.equal(rows.length, 7);
+  assert.deepEqual(
+    rows.map(({ day, startTime, endTime, subjectName, sessionType }) => (
+      { day, startTime, endTime, subjectName, sessionType }
+    )),
+    [
+      { day: 'Monday', startTime: '09:00', endTime: '10:00', subjectName: 'Data Structure using C', sessionType: 'Lecture' },
+      { day: 'Monday', startTime: '10:00', endTime: '11:00', subjectName: 'Discrete Mathematics', sessionType: 'Lecture' },
+      { day: 'Monday', startTime: '11:00', endTime: '12:00', subjectName: 'Library', sessionType: 'Library' },
+      { day: 'Monday', startTime: '12:00', endTime: '13:00', subjectName: 'Complex Analysis and Integral Transforms', sessionType: 'Lecture' },
+      { day: 'Monday', startTime: '13:00', endTime: '14:00', subjectName: 'Lunch Break', sessionType: 'Lunch Break' },
+      { day: 'Monday', startTime: '14:00', endTime: '16:00', subjectName: 'Data Structure Lab', sessionType: 'Practical' },
+      { day: 'Monday', startTime: '16:00', endTime: '17:00', subjectName: 'Artificial Intelligence in Mechanical Engineering Systems', sessionType: 'Lecture' },
+    ]
+  );
+});
+
 test('accepts lunch breaks, rejects Saturday, and reports exact duplicates', () => {
   const [lunch] = validateRows([{
     day: 'Friday',

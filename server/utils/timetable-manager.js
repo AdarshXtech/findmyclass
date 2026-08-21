@@ -13,7 +13,12 @@ const FACULTY_REQUIRED_TYPES = new Set(['Class', 'Lab', 'Lecture', 'Practical'])
 const COLLEGE_OPEN = 8 * 60;
 const COLLEGE_CLOSE = 18 * 60;
 const SUBJECT_ALIASES = new Map([
+  ['CAIT', 'Complex Analysis and Integral Transforms'],
+  ['DM', 'Discrete Mathematics'],
+  ['DSUC', 'Data Structure using C'],
   ['DLD', 'Digital Logic Design'],
+  ['AIMES', 'Artificial Intelligence in Mechanical Engineering Systems'],
+  ['IS', 'Industrial Sociology'],
   ['BEE', 'Basic Electrical Engineering'],
   ['DS', 'Data Structures'],
   ['EM', 'Engineering Mechanics'],
@@ -173,7 +178,77 @@ function splitTimeRange(value) {
   const match = String(value || '').match(
     /(\d{1,2}(?::\d{2})?\s*(?:AM|PM)?)\s*(?:-|–|—|TO)\s*(\d{1,2}(?::\d{2})?\s*(?:AM|PM)?)/i
   );
-  return match ? [normalizeTime(match[1]), normalizeTime(match[2])] : [null, null];
+  if (!match) return [null, null];
+  const timetableTime = (part) => {
+    const normalized = normalizeTime(part);
+    if (!normalized || /\b(?:AM|PM)\b/i.test(part)) return normalized;
+    const [hour, minute] = normalized.split(':').map(Number);
+    return hour >= 1 && hour <= 7 ? timeFromMinutes((hour + 12) * 60 + minute) : normalized;
+  };
+  return [timetableTime(match[1]), timetableTime(match[2])];
+}
+
+function matrixCell(value, startTime, endTime) {
+  const text = String(value || '').trim();
+  if (!text) return null;
+  if (startTime === '13:00' && /^(?:L|U|N|C|H|LUNCH(?:\s+BREAK)?)$/i.test(text)) {
+    return { startTime, endTime, subject: 'Lunch Break', sessionType: 'Lunch Break' };
+  }
+  if (/^(?:LIB|LIBRARY)$/i.test(text)) {
+    return { startTime, endTime, subject: 'Library', sessionType: 'Library' };
+  }
+
+  const parts = text.split('/').map((part) => part.trim()).filter(Boolean);
+  const typeCode = /^(?:L|P)$/i.test(parts[0]) ? parts.shift().toUpperCase() : 'L';
+  const room = parts.length > 2 ? parts.pop() : '';
+  const faculty = parts.length > 1 ? parts.pop() : '';
+  const subjectCode = parts.join('/') || text;
+  const subject = typeCode === 'P' && subjectCode.toUpperCase() === 'DS'
+    ? 'Data Structure Lab'
+    : typeCode === 'P' && subjectCode.toUpperCase() === 'DLD'
+      ? 'Digital Logic Design Lab'
+      : subjectCode;
+  return {
+    startTime,
+    endTime,
+    subject,
+    teacher: faculty,
+    classroom: room,
+    sessionType: typeCode === 'P' ? 'Practical' : 'Lecture',
+  };
+}
+
+function parseTimetableMatrix(text) {
+  const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  if (lines.length < 2) return [];
+  const delimiter = lines[0].includes('|') ? '|' : lines[0].includes('\t') ? '\t' : null;
+  if (!delimiter) return [];
+
+  const headers = lines[0].split(delimiter).map((cell) => cell.trim());
+  const slots = headers.slice(1).map(splitTimeRange);
+  if (slots.filter(([start, end]) => start && end).length < 2) return [];
+
+  const rows = [];
+  for (const line of lines.slice(1)) {
+    const cells = line.split(delimiter).map((cell) => cell.trim());
+    const dayOfWeek = normalizeDay(cells[0]);
+    if (!dayOfWeek) continue;
+    for (let index = 0; index < slots.length; index += 1) {
+      const [startTime, slotEnd] = slots[index];
+      if (!startTime || !slotEnd || !cells[index + 1]) continue;
+      let endTime = slotEnd;
+      if (/^P\//i.test(cells[index + 1])) {
+        let next = index + 1;
+        while (next < slots.length && !cells[next + 1] && slots[next][1]) {
+          endTime = slots[next][1];
+          next += 1;
+        }
+      }
+      const entry = matrixCell(cells[index + 1], startTime, endTime);
+      if (entry) rows.push({ day: DAYS[dayOfWeek - 1], ...entry });
+    }
+  }
+  return rows;
 }
 
 function parseDelimited(text) {
@@ -245,6 +320,8 @@ function parsePlainText(text) {
 
 function parseTimetableText(value) {
   const text = sanitizeImportText(value);
+  const matrix = parseTimetableMatrix(text);
+  if (matrix.length) return validateRows(matrix);
   const parsed = parseDelimited(text);
   const rows = parsed.length ? parsed : parsePlainText(text);
   return validateRows(rows);

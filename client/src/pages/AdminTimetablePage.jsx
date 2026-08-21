@@ -71,7 +71,7 @@ function EntryFields({ row, onChange }) {
   }
   return (
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      <label className="text-sm font-bold">Day<select className="input-field mt-2" {...field('day')}>{DAYS.map((day) => <option key={day}>{day}</option>)}</select></label>
+      <label className="text-sm font-bold">Day<select className="input-field mt-2" {...field('day')}><option value="">Select a day</option>{DAYS.map((day) => <option key={day}>{day}</option>)}</select></label>
       <label className="text-sm font-bold sm:col-span-1 xl:col-span-2">Time slot<select aria-label="Time slot" className="input-field mt-2" value={slotValue} onChange={changeSlot}>
         {TIME_SLOTS.map(([startTime, endTime]) => <option key={`${startTime}-${endTime}`} value={`${startTime}|${endTime}`}>{formatTime(startTime)} – {formatTime(endTime)}</option>)}
         <option value="custom">Custom time</option>
@@ -173,15 +173,19 @@ function VerificationRows({ rows, setRows }) {
 
   return (
     <div className="space-y-4">
-      {VERIFICATION_DAYS.map((day) => {
-        const dayRows = rows.map((entry, index) => ({ entry, index })).filter(({ entry }) => entry.day === day)
+      {[...VERIFICATION_DAYS, null].map((day) => {
+        const dayRows = rows.map((entry, index) => ({ entry, index })).filter(({ entry }) => (
+          day ? entry.day === day : !VERIFICATION_DAYS.includes(entry.day)
+        ))
+        if (!day && !dayRows.length) return null
+        const dayLabel = day || 'Day needs review'
         const breaks = dayRows.filter(({ entry }) => isBreakEntry(entry)).length
         const conflicts = dayRows.filter(({ entry }) => entry.reviewStatus === 'Conflict').length
         const needsReview = dayRows.filter(({ entry }) => entry.status === 'error').length
         return (
-          <details key={day} open={dayRows.length > 0} className="border border-border-default bg-surface-primary">
+          <details key={day || 'unassigned'} open={dayRows.length > 0} className="border border-border-default bg-surface-primary">
             <summary className="cursor-pointer px-4 py-4 font-display text-lg font-bold">
-              {day} <span className="ml-2 text-sm font-normal text-text-secondary">{dayRows.length - breaks} classes · {breaks} breaks · {conflicts || needsReview} needs review</span>
+              {dayLabel} <span className="ml-2 text-sm font-normal text-text-secondary">{dayRows.length - breaks} classes · {breaks} breaks · {conflicts || needsReview} needs review</span>
             </summary>
             <div className="space-y-4 border-t border-border-default p-4">
               {dayRows.length ? dayRows.map(({ entry, index }) => (
@@ -340,7 +344,9 @@ export default function AdminTimetablePage() {
         form.append('text', text)
       }
       const response = await adminApi.post('/timetables/import', form)
-      setRows(response.data.data.rows)
+      const importedRows = response.data.data.rows
+      if (!Array.isArray(importedRows) || !importedRows.length) throw new Error('No timetable entries could be read from that text or image.')
+      setRows(importedRows)
       setDetectedFaculty(response.data.data.detectedFaculty || [])
       setCoordinator(response.data.data.coordinator || { name: '', phoneNumber: '' })
       if (response.data.data.extractedText) setText(response.data.data.extractedText)
@@ -348,7 +354,7 @@ export default function AdminTimetablePage() {
       setMode('verification')
     } catch (requestError) {
       const importData = requestError.response?.data?.data
-      if (importData?.rows) {
+      if (importData?.rows?.length) {
         setRows(importData.rows)
         setMode('verification')
       }

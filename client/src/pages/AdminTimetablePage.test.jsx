@@ -85,6 +85,46 @@ describe('AdminTimetablePage', () => {
     await waitFor(() => expect(screen.getByText(/Nothing is saved/)).toBeVisible())
   })
 
+  it('keeps imported rows with an unreadable day visible for correction', async () => {
+    const user = userEvent.setup()
+    adminApi.post.mockResolvedValueOnce({ data: { data: { rows: [{
+      ...timetableEntry,
+      day: '',
+      dayOfWeek: null,
+      clientId: 'row-unassigned',
+      status: 'error',
+      reviewStatus: 'Needs Review',
+      errors: ['Select a valid day.'],
+    }] } } })
+
+    render(<AdminTimetablePage />)
+    await selectClass(user)
+    await user.click(screen.getByRole('tab', { name: /Import Timetable/i }))
+    await user.type(screen.getByLabelText('Timetable text'), 'unstructured timetable row')
+    await user.click(screen.getByRole('button', { name: 'Create editable preview' }))
+
+    expect(await screen.findByText('Day needs review')).toBeVisible()
+    expect(screen.getByDisplayValue('Digital Logic Design')).toBeVisible()
+    expect(screen.getByLabelText('Day')).toHaveValue('')
+  })
+
+  it('stays on the import form when the backend reads no rows', async () => {
+    const user = userEvent.setup()
+    adminApi.post.mockRejectedValueOnce({
+      response: { status: 422, data: { message: 'No timetable entries could be read.', data: { rows: [] } } },
+    })
+
+    render(<AdminTimetablePage />)
+    await selectClass(user)
+    await user.click(screen.getByRole('tab', { name: /Import Timetable/i }))
+    await user.type(screen.getByLabelText('Timetable text'), 'not a timetable')
+    await user.click(screen.getByRole('button', { name: 'Create editable preview' }))
+
+    expect(await screen.findByText('No timetable entries could be read.')).toBeVisible()
+    expect(screen.getByLabelText('Timetable text')).toHaveValue('not a timetable')
+    expect(screen.queryByText('Import preview')).not.toBeInTheDocument()
+  })
+
   it('saves reviewed coordinator details with an imported timetable', async () => {
     const user = userEvent.setup()
     adminApi.post.mockImplementation((url) => {

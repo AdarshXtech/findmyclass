@@ -109,6 +109,47 @@ Rejecting XLS did not meet the required workflow. Running two spreadsheet parser
 - `client/src/pages/AdminImportPage.jsx`
 - `client/src/pages/AdminStudentsPage.jsx`
 
+## Decision: Keep every parsed timetable row visible during verification
+
+Date: 2026-08-21
+Session: Pasted timetable preview repair
+Status: Active
+
+### Problem
+
+The import API could return rows whose day was unreadable, but the verification UI displayed only exact Monday-to-Friday matches. Those rows remained in state while the preview appeared blank. Empty `422` results also switched away from the import form, hiding the pasted input. Wide BBDU timetable matrices were not supported by the row-oriented text parser.
+
+### Considered Approaches
+
+1. Reject every row with an unreadable day.
+2. Keep the current parser and ask administrators to reformat tables manually.
+3. Parse the issued wide matrix format and show any still-unassigned rows in an editable review group.
+
+### Chosen Approach
+
+Recognize pipe- or tab-delimited timetable matrices with time-slot columns, convert their cells into the existing validation row shape, and keep invalid-day rows visible under `Day needs review`. Stay on the import form when no rows are detected.
+
+### Why This Approach?
+
+It reuses the existing validation and editor rather than introducing another import workflow. Administrators can correct uncertain values without losing the original paste or mistaking hidden rows for an empty import.
+
+### Why Not the Alternatives?
+
+Rejecting imperfect rows discards recoverable work. Requiring manual table conversion contradicts the existing `Pasted text or table` interface.
+
+### Trade-offs
+
+- Advantages: BBDU grid pastes, afternoon shorthand times, lunch, library, and merged practical cells produce visible editable rows.
+- Disadvantages: abbreviated faculty codes still require administrator review when the pasted table does not include a faculty legend.
+- Safety: nothing is saved until the existing validation and confirmation flow succeeds.
+
+### Files Affected
+
+- `server/utils/timetable-manager.js`
+- `server/test/timetable-manager.test.js`
+- `client/src/pages/AdminTimetablePage.jsx`
+- `client/src/pages/AdminTimetablePage.test.jsx`
+
 ## Decision: Publish class-scoped faculty contacts through verified lookup
 
 Date: 2026-08-11
